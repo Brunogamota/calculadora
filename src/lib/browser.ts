@@ -64,22 +64,23 @@ async function launchChromium(headed: boolean): Promise<Browser> {
 export async function launchBrowser(options: LaunchOptions): Promise<BrowserSession> {
   const headed = options.headed !== false
 
-  if (headed && !process.env['DISPLAY']) {
+  // DISPLAY é conceito do X11, e só existe no Linux: macOS e Windows abrem
+  // janela sem ele. Checar DISPLAY em qualquer plataforma reprovava o Mac por
+  // engano — exatamente onde o modo headed funciona melhor.
+  if (headed && process.platform === 'linux' && !process.env['DISPLAY']) {
     throw new AuditError(
       'NO_DISPLAY',
       [
-        'Modo headed pedido, mas não há DISPLAY nesta máquina.',
+        'Modo headed pedido, mas este Linux não tem DISPLAY.',
         'O padrão do projeto é headed (§19), então isto falha em vez de cair para',
         'headless em silêncio — ver a tela é o que permite depurar loja real.',
         '',
         'Em servidor ou devcontainer sem tela, escolha um:',
-        '  xvfb-run -a npm run smoke          (headed de verdade, em display virtual)',
-        '  npm run smoke -- --headless        (sem janela)',
-        '  xvfb-run -a npm run detect -- <url>',
-        '  npm run detect -- <url> --headless',
+        '  npm run audit -- <url> --headless      (sem janela)',
+        '  xvfb-run -a npm run audit -- <url>     (headed em display virtual)',
         '',
-        'Se faltar o xvfb: apt-get install -y xvfb',
-        'Em máquina com tela, nada disso é necessário.',
+        'Se faltar o xvfb: sudo apt-get install -y xvfb',
+        'Em macOS, Windows ou Linux com tela, nada disso é necessário.',
       ].join('\n'),
     )
   }
