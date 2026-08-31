@@ -20,7 +20,8 @@
     "test": "node --import tsx --test apps/worker/test/*.test.ts packages/*/test/*.test.ts",
     "test:e2e": "node --import tsx --test apps/worker/test/e2e/*.test.ts",
     "test:all": "npm test && npm run test:e2e",
-    "typecheck": "tsc -p apps/worker --noEmit && tsc -p packages/types --noEmit"
+    "typecheck": "tsc -p apps/worker --noEmit && tsc -p packages/types --noEmit",
+    "screencast": "tsx apps/worker/scripts/screencast-probe.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",

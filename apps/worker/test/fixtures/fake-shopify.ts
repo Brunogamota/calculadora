@@ -182,6 +182,20 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
     if (path === '/cart') {
       return send(200, 'text/html', `<html><body><h1>Carrinho</h1><p>${carts.get(session) ?? 0} item(ns)</p></body></html>`)
     }
+    // Página que se mexe sozinha: o screencast só entrega frame quando a tela
+    // muda, então medir fps numa página estática mediria zero.
+    if (path === '/animado') {
+      return send(
+        200,
+        'text/html',
+        `<!doctype html><html><head><style>
+          @keyframes gira { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+          .bola { width: 120px; height: 120px; background: #ff2d6e; border-radius: 12px;
+                  animation: gira 1s linear infinite; margin: 40px }
+        </style></head><body><div class="bola"></div></body></html>`,
+      )
+    }
+
     if (path === '/checkout') {
       return send(200, 'text/html', CHECKOUT_PAGE)
     }

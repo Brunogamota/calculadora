@@ -422,6 +422,38 @@ apps/worker/          o motor
   test/                 offline, sem rede
 ```
 
+## Bloco 6 — screencast (§7.1)
+
+```bash
+npm run screencast                      # loja falsa, sem tocar em site nenhum
+npm run screencast -- --seconds 20 --quality 40 --max-fps 6
+npm run screencast -- https://loja.com.br --headed
+```
+
+### O `everyNthFrame` da §7.1 não entrega 5-10 fps
+
+Medido na loja falsa animada, com os valores que o documento sugere
+(`quality 60`, `everyNthFrame 2`):
+
+| | Só com `everyNthFrame` | Com teto por tempo |
+|---|---|---|
+| taxa publicada | **29,7 fps** | **7,5 fps** |
+| banda por espectador | **2,1 Mbps** | **0,5 Mbps** |
+
+`everyNthFrame` divide a taxa do compositor, não limita a taxa de saída: numa
+página que muda a 60fps ainda saem 30. E 2,1 Mbps **por espectador** inviabiliza
+várias auditorias simultâneas.
+
+O teto passou a ser por tempo (`maxFps`, padrão 8). Frame que chega cedo demais
+é **descartado mas ainda ackado** — sem o ack o Chrome emudece depois de alguns
+frames e a captura inteira morre.
+
+### O ack é o que a §7.1 avisa, e o teste mira nele
+
+Sem `screencastFrameAck`, o Chrome envia três ou quatro frames e para. Num teste
+curto isso passa por funcionando, então a asserção é sobre **quantidade ao longo
+de segundos**, não sobre "chegou algum frame".
+
 ### O barramento de eventos
 
 A §3 e a §7.4 pedem: worker publica no Redis, servidor WebSocket assina, front
