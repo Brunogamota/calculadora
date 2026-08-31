@@ -32,6 +32,11 @@ export interface AuditOptions extends PrepareOptions {
    * checkout e a §6.6 sai quase toda como não aplicável.
    */
   fillCheckout?: boolean
+  /**
+   * Declare true quando a auditoria sai de um IP brasileiro. Muda a leitura de
+   * modal de redirecionamento geográfico e a confiança nos tempos medidos.
+   */
+  fromBrazil?: boolean
 }
 
 export interface AuditResult {
@@ -58,6 +63,13 @@ export interface AuditResult {
   }
   /** Por que não foi `done`. Lista, porque pode haver mais de um motivo. */
   incompleteBecause: string[]
+  /** De onde a auditoria foi feita. Muda o que os números significam. */
+  vantage: {
+    auditedFromBrazil: boolean | null
+    locale: string
+    timezone: string
+    note: string | null
+  }
   errorCode: AuditErrorCode | null
   errorReason: string | null
   timings: { totalMs: number; homeLoadMs: number | null }
@@ -88,6 +100,17 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     screenshotsDir: null,
     robots: { ownerVerified: options.ownerVerified === true, blockedPaths: [], overridesUsed: [] },
     incompleteBecause: [],
+    vantage: {
+      auditedFromBrazil: options.fromBrazil ?? null,
+      locale: 'pt-BR',
+      timezone: 'America/Sao_Paulo',
+      note:
+        options.fromBrazil === true
+          ? null
+          : 'ponto de observação não declarado como Brasil: tempos de carregamento e ' +
+            'meios de pagamento visíveis podem não ser os que um comprador brasileiro vê ' +
+            '(use --from-br quando a auditoria sair de IP brasileiro)',
+    },
     errorCode: null,
     errorReason: null,
     timings: { totalMs: 0, homeLoadMs: null },
@@ -197,7 +220,7 @@ async function runAudit(
     }
   }
 
-  const ctx = makeJourneyContext(prepared, recorder, deps, identity, outDir)
+  const ctx = makeJourneyContext(prepared, recorder, deps, identity, outDir, options.fromBrazil ?? null)
 
   // 1. encontrar produto
   let product: ProductRef
@@ -216,6 +239,12 @@ async function runAudit(
     result.cart = cart
     if (cart.itemCount === null) {
       incompleteBecause.push('carrinho não pôde ser confirmado por /cart.js')
+    }
+    if (cart.overlay.likelyAuditArtifact) {
+      incompleteBecause.push(
+        `overlay "${cart.overlay.kind}" atrapalhou a jornada, mas provavelmente só apareceu ` +
+          'porque a auditoria não saiu de IP brasileiro. NÃO deve virar achado contra a loja.',
+      )
     }
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
@@ -280,6 +309,7 @@ function makeJourneyContext(
   deps: ReturnType<typeof createDeps>,
   identity: AuditIdentity | null,
   outDir: string,
+  auditedFromBrazil: boolean | null,
 ): JourneyContext {
   return {
     page: prepared.browser.page,
@@ -290,6 +320,7 @@ function makeJourneyContext(
     deadline: deps.deadline,
     identity,
     outDir,
+    auditedFromBrazil,
     scratch: new Map<string, unknown>(),
 
     async navigate(url: string, timeoutMs = 30_000): Promise<NavigationResult> {

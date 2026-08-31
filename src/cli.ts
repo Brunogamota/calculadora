@@ -35,6 +35,9 @@ function usage(): never {
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
       '  --save-html        salva o HTML renderizado em out/ (automático quando',
       '                     a plataforma não é identificada)',
+      '  --from-br          declara que a auditoria sai de IP brasileiro. Sem isto,',
+      '                     modal de redirecionamento regional é tratado como provável',
+      '                     artefato e não vira achado contra a loja.',
       '  --fill-checkout    preenche contato e entrega para alcançar a tela de',
       '                     meios de pagamento. Exige identidade no .env.',
       '                     NUNCA preenche cartão nem conclui pedido (§2.1).',
@@ -67,7 +70,7 @@ async function main(): Promise<void> {
       ? await preflight(target, createDeps())
       : command === 'detect'
         ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
-        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout') })
+        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout'), fromBrazil: flags.has('--from-br') })
 
   console.log(JSON.stringify(result, null, indent))
   process.exit(result.ok ? 0 : 1)

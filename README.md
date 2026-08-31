@@ -163,6 +163,32 @@ Disponível, sem variação obrigatória, e o mais barato dentro disso. Vale-pre
 é pulado de propósito: não tem frete e distorce a jornada de checkout. Preço que
 não dá para ler vira `null` e vai para o fim da fila, nunca para zero.
 
+## De onde a auditoria é feita muda o resultado
+
+Auditando a Insider Store de um Codespaces fora do Brasil, um modal cobriu o
+botão de comprar: *"We have a dedicated store to serve your region."*
+
+**Um comprador brasileiro nunca veria essa tela.** Reportar isso como defeito da
+loja seria acusar o lojista de um problema que só existe porque auditamos do
+lugar errado — resultado inventado com outro nome, que é justamente o que o
+princípio nº 1 proíbe.
+
+Não para no modal: tempo de carregamento, meios de pagamento visíveis e até a
+presença de Pix podem variar por região. **Auditoria de checkout brasileiro
+feita de fora do Brasil produz um retrato sistematicamente errado.**
+
+O motor lida com isso assim:
+
+- overlay é classificado (`geo-redirect`, `consent`, `marketing`, `unknown`)
+- `geo-redirect` visto de fora do Brasil é marcado `likelyAuditArtifact: true`
+  e **não vira achado contra a loja**
+- `--from-br` declara que a auditoria sai de IP brasileiro; sem a flag o padrão
+  é desconhecido, e desconhecido protege a loja
+- o resultado traz um bloco `vantage` dizendo de onde se olhou
+
+**Consequência para a Fase 3:** o worker precisa rodar no Brasil. Não é
+otimização, é condição para o relatório valer.
+
 ### Overlay cobrindo o botão de comprar
 
 Modal de região, banner de cookie e popup de newsletter cobrem o botão de
@@ -181,9 +207,14 @@ achado** — e vai para o resultado como tal:
 
 Quem está cobrindo o botão é descoberto por `elementFromPoint` no centro dele —
 medida real do que o dedo do comprador acertaria, não palpite sobre classe de
-tema. A dispensa tenta Esc e depois rótulo acessível de fechar. Se o overlay
-resistir, o clique acontece à força para registrar o carrinho, mas
-`clickRequiredForce` marca que **um comprador não teria conseguido**.
+tema. A dispensa tenta, nesta ordem: Esc, rótulo acessível de fechar, e botão
+pelo texto visível ("continuar no site", "não, obrigado").
+
+Se o overlay resistir, o clique é disparado via `el.click()` no DOM.
+`force: true` **não** resolve: ele pula a espera de actionability, mas o clique
+continua indo por coordenada e quem recebe é o overlay — foi o que aconteceu na
+Insider Store, com carrinho ficando vazio. `clickRequiredForce` marca que **um
+comprador não teria conseguido**.
 
 ### Drawer, modal ou redirect
 

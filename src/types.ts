@@ -95,6 +95,16 @@ export interface JourneyContext {
   navigate(url: string, timeoutMs?: number): Promise<NavigationResult>
   /** Identidade autorizada para preencher o checkout. null = não preencher. */
   identity: import('./lib/identity.ts').AuditIdentity | null
+  /**
+   * A auditoria está saindo de um IP brasileiro? `null` = não se sabe.
+   *
+   * Não dá para descobrir sozinho sem consultar serviço externo, então isto é
+   * declarado por quem roda. O padrão é `null`, e `null` faz o motor tratar
+   * modal de redirecionamento geográfico como provável artefato — porque
+   * acusar a loja de um defeito que o comprador dela não vê é pior do que
+   * deixar de reportar um que ela tem.
+   */
+  auditedFromBrazil: boolean | null
   outDir: string
   /** Estado entre etapas — ex.: o texto da página de produto, lido no addToCart. */
   scratch: Map<string, unknown>
@@ -128,11 +138,21 @@ export interface AddToCartResult {
     present: boolean
     /** Identidade observada do bloqueador, ex.: div#cozyCRModal.CozyContainer */
     identity: string | null
+    /** Tipo do overlay. geo-redirect muda tudo: ver `likelyAuditArtifact`. */
+    kind: import('./journey/overlays.ts').OverlayKind
+    /** Trecho do texto observado, como evidência. */
+    text: string | null
     dismissed: boolean
     /** O que foi tentado, na ordem. */
     dismissAttempts: string[]
     /** true quando só deu para clicar ignorando o overlay — um comprador não conseguiria. */
     clickRequiredForce: boolean
+    /**
+     * true quando o overlay provavelmente só apareceu porque auditamos de fora
+     * do país da loja. NÃO pode virar achado contra o lojista: seria acusá-lo
+     * de um defeito que o comprador dele não vê.
+     */
+    likelyAuditArtifact: boolean
   }
 }
 

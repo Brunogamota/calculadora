@@ -22,6 +22,7 @@ import {
   describeSelector,
 } from './shopify.selectors.ts'
 import { readPageGlobals } from '../lib/browser.ts'
+import { DISMISS_TEXT, classifyOverlay, isLikelyAuditArtifact } from '../journey/overlays.ts'
 import {
   reachCheckout as reachCheckoutImpl,
   collectPayment as collectPaymentImpl,
@@ -276,9 +277,12 @@ export const shopifyJourney: JourneyDriver = {
     const overlay = {
       present: false,
       identity: null as string | null,
+      kind: 'unknown' as ReturnType<typeof classifyOverlay>,
+      text: null as string | null,
       dismissed: false,
       dismissAttempts: [] as string[],
       clickRequiredForce: false,
+      likelyAuditArtifact: false,
     }
 
     let blocker = await findBlocker(button)
@@ -286,15 +290,18 @@ export const shopifyJourney: JourneyDriver = {
 
     if (blocker) {
       overlay.present = true
-      overlay.identity = blocker
+      overlay.identity = blocker.identity
+      overlay.text = blocker.text
+      overlay.kind = classifyOverlay(blocker.text ?? '')
+      overlay.likelyAuditArtifact = isLikelyAuditArtifact(overlay.kind, ctx.auditedFromBrazil)
 
-      // Esc é o gesto padrão de fechar, e não depende de seletor nenhum.
+      // 1. Esc — gesto padrão, não depende de seletor nenhum.
       overlay.dismissAttempts.push('Escape')
       await ctx.page.keyboard.press('Escape').catch(() => undefined)
       await ctx.page.waitForTimeout(400)
       blocker = await findBlocker(button)
 
-      // Depois, botão de fechar por rótulo acessível.
+      // 2. Botão de fechar por rótulo acessível.
       if (blocker) {
         for (const spec of OVERLAY_DISMISS) {
           const closer = ctx.page.locator(spec.selector).first()
@@ -309,6 +316,19 @@ export const shopifyJourney: JourneyDriver = {
         }
       }
 
+      // 3. Botão pelo TEXTO visível — é o que uma pessoa faria ao ver
+      // "continuar neste site". Léxico, não seletor de tema.
+      if (blocker) {
+        const byText = ctx.page.getByRole('button', { name: DISMISS_TEXT }).first()
+        if ((await byText.count()) > 0 && (await byText.isVisible().catch(() => false))) {
+          overlay.dismissAttempts.push('texto-de-fechar')
+          await byText.click({ timeout: 3000 }).catch(() => undefined)
+          clicks++
+          await ctx.page.waitForTimeout(400)
+          blocker = await findBlocker(button)
+        }
+      }
+
       overlay.dismissed = blocker === null
       await ctx.recorder.capture(ctx.page, overlay.dismissed ? 'overlay-fechado' : 'overlay-persistente')
     }
@@ -317,10 +337,18 @@ export const shopifyJourney: JourneyDriver = {
       await button.click({ timeout: ctx.deadline.clamp(10_000) })
     } catch (e) {
       if (!overlay.present) throw e
-      // O overlay resistiu. Clicar à força registra o dado do carrinho, mas o
-      // relatório precisa dizer que um comprador NÃO conseguiria fazer isso.
+      // O overlay resistiu.
+      //
+      // `force: true` NÃO resolve: ele pula a espera de actionability, mas o
+      // clique continua indo por coordenada, e quem recebe é o overlay. Foi o
+      // que aconteceu na Insider Store — clicou, e o carrinho ficou vazio.
+      //
+      // `el.click()` no DOM dispara o handler no próprio elemento, sem teste de
+      // sobreposição. Registra o dado do carrinho, e clickRequiredForce marca
+      // que um comprador NÃO teria conseguido fazer isso.
       overlay.clickRequiredForce = true
-      await button.click({ force: true, timeout: ctx.deadline.clamp(10_000) })
+      await button.evaluate((el) => (el as HTMLElement).click())
+      await ctx.page.waitForTimeout(1000)
     }
 
     // 4. deixa a UI reagir sem prender a jornada num waitFor que pode não vir
@@ -350,7 +378,9 @@ export const shopifyJourney: JourneyDriver = {
     return {
       ok: confirmed !== false,
       ms: Date.now() - startedAt,
-      uiPattern,
+      // Carrinho não confirmado torna a leitura do padrão de UI não confiável:
+      // não houve reação de carrinho para classificar.
+      uiPattern: confirmed === false ? 'unknown' : uiPattern,
       cartUrl: new URL('/cart', ctx.baseUrl).href,
       itemCount: countAfter,
       clicks,
@@ -386,7 +416,9 @@ export const shopifyJourney: JourneyDriver = {
  * caminho está livre. Usa `elementFromPoint` — medida real do que o comprador
  * acertaria com o dedo, não palpite sobre classe de tema.
  */
-async function findBlocker(button: import('playwright').Locator): Promise<string | null> {
+async function findBlocker(
+  button: import('playwright').Locator,
+): Promise<{ identity: string; text: string | null } | null> {
   return button.evaluate((el) => {
     const rect = el.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) return null
@@ -394,8 +426,17 @@ async function findBlocker(button: import('playwright').Locator): Promise<string
     if (!top) return null
     if (top === el || el.contains(top) || top.contains(el)) return null
     const id = top.id ? `#${top.id}` : ''
-    const cls = typeof top.className === 'string' && top.className ? `.${top.className.trim().split(/\s+/).join('.')}` : ''
-    return `${top.tagName.toLowerCase()}${id}${cls}`.slice(0, 160)
+    const cls =
+      typeof top.className === 'string' && top.className
+        ? `.${top.className.trim().split(/\s+/).join('.')}`
+        : ''
+    // O texto do container inteiro, porque é ele que revela o TIPO do overlay.
+    const container = top.closest('[id],[role="dialog"]') ?? top
+    const text = (container.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 300)
+    return {
+      identity: `${top.tagName.toLowerCase()}${id}${cls}`.slice(0, 160),
+      text: text || null,
+    }
   })
 }
 
