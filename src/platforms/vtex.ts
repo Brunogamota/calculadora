@@ -68,9 +68,19 @@ export const vtexAdapter: PlatformAdapter = {
             detail: 'catalog_system respondeu com payload VTEX válido',
             weight: 'high',
           })
+        } else {
+          signals.push({
+            where: 'endpoint',
+            detail: `catalog_system não confirmou (status ${res.status})`,
+            weight: 'low',
+          })
         }
-      } catch {
-        /* indisponível não prova nada */
+      } catch (e) {
+        signals.push({
+          where: 'endpoint',
+          detail: `catalog_system não pôde ser consultado (${e instanceof Error ? e.message : 'erro'})`,
+          weight: 'low',
+        })
       }
     }
 

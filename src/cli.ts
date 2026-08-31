@@ -27,6 +27,8 @@ function usage(): never {
       'Flags:',
       '  --pretty           JSON indentado',
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
+      '  --save-html        salva o HTML renderizado em out/ (automático quando',
+      '                     a plataforma não é identificada)',
       '  --owner-verified   audita caminhos proibidos pelo robots.txt sob',
       '                     titularidade confirmada. Na Fase 1 a titularidade é',
       '                     DECLARADA, não verificada. Use só com autorização do dono.',
@@ -52,6 +54,7 @@ async function main(): Promise<void> {
       : await detect(target, {
           headed: !flags.has('--headless'),
           ownerVerified: flags.has('--owner-verified'),
+          saveHtml: flags.has('--save-html'),
         })
 
   console.log(JSON.stringify(result, null, indent))

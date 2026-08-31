@@ -86,9 +86,21 @@ export const shopifyAdapter: PlatformAdapter = {
             detail: '/products.json respondeu 200 com catálogo Shopify válido',
             weight: 'high',
           })
+        } else {
+          // Tentativa que não confirmou também é evidência: mostra o que foi
+          // testado, em vez de deixar o silêncio parecer que ninguém olhou.
+          signals.push({
+            where: 'endpoint',
+            detail: `/products.json não confirmou (status ${res.status})`,
+            weight: 'low',
+          })
         }
-      } catch {
-        // Endpoint indisponível não é prova de nada. Segue com o que já há.
+      } catch (e) {
+        signals.push({
+          where: 'endpoint',
+          detail: `/products.json não pôde ser consultado (${e instanceof Error ? e.message : 'erro'})`,
+          weight: 'low',
+        })
       }
     }
 

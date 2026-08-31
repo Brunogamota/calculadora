@@ -100,6 +100,24 @@ em que a graduação foi deliberadamente rebaixada:
   botão do Shopify
 - o fallback genérico nunca passa de `low` e **nunca** afirma plataforma
 
+### Quando a loja não é identificada
+
+O HTML renderizado é salvo automaticamente em `out/` sempre que a detecção cai
+no fallback genérico (§19: "salve o HTML das lojas que falharem"). O caminho sai
+no campo `htmlSavedTo`. Para extrair evidência dele sem ler tudo:
+
+```bash
+npm run sniff -- out/www.loja.com.br-home.html
+```
+
+Imprime hosts citados, globais definidos em script inline, meta generator e
+contagem de tokens de plataforma. É o insumo para criar um sinal novo **com base
+no HTML real**, em vez de adivinhar um seletor.
+
+Tentativa de endpoint que não confirma também vira sinal (`weight: low`), para
+o rastro mostrar o que foi testado em vez de o silêncio parecer que ninguém
+olhou.
+
 Só o Shopify terá jornada (Bloco 3). As demais apenas identificam, conforme
 a §17 — `journeySupported` diz qual é o caso.
 

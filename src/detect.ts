@@ -14,6 +14,7 @@ import { fetchRobots } from './lib/robots.ts'
 import { createRobotsGate } from './lib/gate.ts'
 import { adapterFor, detectPlatform, type PlatformDecision } from './platforms/index.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
+import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
 import type { DetectionProbe, PageGlobals, StepPermission } from './types.ts'
 
 /** Caminhos que a jornada Shopify vai usar. Checados já aqui contra o robots. */
@@ -51,6 +52,8 @@ export interface DetectOk {
     blockedPaths: string[]
   }
   globals: PageGlobals
+  /** HTML renderizado salvo em disco. Automático quando cai no genérico (§19). */
+  htmlSavedTo: string | null
   blockedRequests: string[]
   homeLoadMs: number
   timings: { totalMs: number }
@@ -71,6 +74,9 @@ export type DetectResult = DetectOk | DetectFailed
 export interface DetectOptions {
   headed?: boolean
   ownerVerified?: boolean
+  /** Força salvar o HTML mesmo quando a plataforma foi identificada. */
+  saveHtml?: boolean
+  outDir?: string
 }
 
 interface SessionSlot {
@@ -163,6 +169,19 @@ async function runDetect(
 
     const decision: PlatformDecision = await detectPlatform(probe)
 
+    // §19: quando não identificamos a plataforma, o HTML é o que resolve o
+    // problema em minutos. Salvar automático nesse caso, sem depender de alguém
+    // lembrar de pedir.
+    let htmlSavedTo: string | null = null
+    if (decision.fellBackToGeneric || options.saveHtml === true) {
+      htmlSavedTo = await saveHtml(
+        options.outDir ?? DEFAULT_OUT_DIR,
+        new URL(probe.baseUrl).hostname,
+        'home',
+        opened.html,
+      )
+    }
+
     const entries: RobotsPlanEntry[] = JOURNEY_PATHS.map((path) => {
       const permission = gate.check(new URL(path, probe.baseUrl).href)
       return { path, permission: permission.reason, allowed: permission.allowed }
@@ -190,6 +209,7 @@ async function runDetect(
         blockedPaths: entries.filter((e) => !e.allowed).map((e) => e.path),
       },
       globals,
+      htmlSavedTo,
       blockedRequests: session.blockedRequests,
       homeLoadMs: opened.loadMs,
       timings: { totalMs: Date.now() - startedAt },
