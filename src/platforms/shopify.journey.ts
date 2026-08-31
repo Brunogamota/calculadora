@@ -115,15 +115,29 @@ export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
   return { product: best.product, variant: best.variant, skipped }
 }
 
+/**
+ * Estado do carrinho, lido DE DENTRO da página.
+ *
+ * O safeFetch roda em node:https e não tem os cookies do browser — o carrinho
+ * do Shopify vive na sessão do navegador. Perguntar por fora devolve o carrinho
+ * de um visitante diferente, sempre vazio. Foi o que aconteceu na Insider
+ * Store: itemCount 0 mesmo com o clique correto.
+ *
+ * O robots continua sendo respeitado, e o rate limit também.
+ */
 async function readCartCount(ctx: JourneyContext): Promise<number | null> {
   const url = new URL('/cart.js', ctx.baseUrl).href
   if (!ctx.gate.check(url).allowed) return null
   try {
-    const res = await ctx.fetch(url, { timeoutMs: 8000, maxBytes: 256 * 1024 })
-    if (res.status !== 200) return null
-    const parsed: unknown = JSON.parse(res.body)
-    const count = (parsed as Record<string, unknown>)['item_count']
-    return typeof count === 'number' ? count : null
+    const count = await ctx.rateLimited(() =>
+      ctx.page.evaluate(async (target: string) => {
+        const response = await fetch(target, { headers: { accept: 'application/json' } })
+        if (!response.ok) return null
+        const data = (await response.json()) as { item_count?: unknown }
+        return typeof data.item_count === 'number' ? data.item_count : null
+      }, url),
+    )
+    return count
   } catch {
     return null
   }
@@ -431,8 +445,15 @@ async function findBlocker(
         ? `.${top.className.trim().split(/\s+/).join('.')}`
         : ''
     // O texto do container inteiro, porque é ele que revela o TIPO do overlay.
+    //
+    // innerText, NÃO textContent: textContent inclui o conteúdo de <style> e
+    // <script>, e o overlay da Insider Store devolveu um bloco de CSS. Com CSS
+    // no lugar da frase, a classificação deu "unknown" e o modal de geo deixou
+    // de ser marcado como artefato — o oposto do que a proteção existe para
+    // fazer. innerText devolve o que está renderizado e visível.
     const container = top.closest('[id],[role="dialog"]') ?? top
-    const text = (container.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 300)
+    const visible = (container as HTMLElement).innerText ?? ''
+    const text = visible.replace(/\s+/g, ' ').trim().slice(0, 300)
     return {
       identity: `${top.tagName.toLowerCase()}${id}${cls}`.slice(0, 160),
       text: text || null,

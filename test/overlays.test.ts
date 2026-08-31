@@ -34,6 +34,25 @@ describe('classifyOverlay', () => {
     assert.equal(classifyOverlay('Atenção'), 'unknown')
     assert.equal(classifyOverlay(''), 'unknown')
   })
+
+  // Regressão: a primeira versão lia `textContent`, que inclui o conteúdo de
+  // <style>. O overlay da Insider Store devolveu um bloco de CSS, a
+  // classificação virou 'unknown' e o modal de geo deixou de ser marcado como
+  // artefato — o oposto do que a proteção existe para fazer. A leitura passou a
+  // ser `innerText`; este teste registra que CSS não classifica nada.
+  test('CSS não é texto de overlay: classificar bloco de estilo dá unknown', () => {
+    const css =
+      '.cozy-crd__modal a{text-decoration:none!important}.cozy-crd__modal{display:block;' +
+      'position:fixed;z-index:2147483647;left:0;top:0;background-color:rgba(0,0,0,.5)}'
+    assert.equal(classifyOverlay(css), 'unknown')
+  })
+
+  test('o mesmo modal, lido como texto visível, classifica certo', () => {
+    assert.equal(
+      classifyOverlay('We have a dedicated store to serve your region. Go to the US store?'),
+      'geo-redirect',
+    )
+  })
 })
 
 describe('isLikelyAuditArtifact — a trava contra acusar a loja errado', () => {

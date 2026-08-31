@@ -323,6 +323,10 @@ function makeJourneyContext(
     auditedFromBrazil,
     scratch: new Map<string, unknown>(),
 
+    rateLimited<T>(fn: () => Promise<T>): Promise<T> {
+      return deps.limiter.schedule(new URL(prepared.probe.baseUrl).hostname, fn)
+    },
+
     async navigate(url: string, timeoutMs = 30_000): Promise<NavigationResult> {
       const permission = prepared.gate.check(url)
       if (!permission.allowed) {

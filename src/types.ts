@@ -93,6 +93,12 @@ export interface JourneyContext {
    * fora das duas regras.
    */
   navigate(url: string, timeoutMs?: number): Promise<NavigationResult>
+  /**
+   * Executa respeitando o limite de 1 req/s por domínio (§2.3). Necessário para
+   * requisição feita de DENTRO da página, que não passa pelo safeFetch e por
+   * isso escaparia do limitador.
+   */
+  rateLimited<T>(fn: () => Promise<T>): Promise<T>
   /** Identidade autorizada para preencher o checkout. null = não preencher. */
   identity: import('./lib/identity.ts').AuditIdentity | null
   /**
