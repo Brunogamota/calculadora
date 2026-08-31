@@ -1,0 +1,3 @@
+# Domínios que pediram para não ser auditados (§2.6).
+# Um por linha, com motivo opcional depois de espaço. Subdomínios entram junto.
+# exemplo.com.br  pedido por e-mail 2026-01-15
