@@ -114,6 +114,21 @@ export interface AddToCartResult {
   /** Confirmado por API quando disponível (§6.4); null quando não deu para confirmar. */
   itemCount: number | null
   clicks: number
+  /**
+   * Overlay cobrindo o botão de comprar. Não é obstáculo técnico, é achado:
+   * modal em cima do botão custa venda. Fica registrado com a identidade real
+   * do elemento observado, para virar evidência no relatório.
+   */
+  overlay: {
+    present: boolean
+    /** Identidade observada do bloqueador, ex.: div#cozyCRModal.CozyContainer */
+    identity: string | null
+    dismissed: boolean
+    /** O que foi tentado, na ordem. */
+    dismissAttempts: string[]
+    /** true quando só deu para clicar ignorando o overlay — um comprador não conseguiria. */
+    clickRequiredForce: boolean
+  }
 }
 
 export interface JourneyStep {

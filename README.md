@@ -163,6 +163,28 @@ Disponível, sem variação obrigatória, e o mais barato dentro disso. Vale-pre
 é pulado de propósito: não tem frete e distorce a jornada de checkout. Preço que
 não dá para ler vira `null` e vai para o fim da fila, nunca para zero.
 
+### Overlay cobrindo o botão de comprar
+
+Modal de região, banner de cookie e popup de newsletter cobrem o botão de
+comprar e o comprador não consegue clicar. Isso **não é obstáculo técnico, é
+achado** — e vai para o resultado como tal:
+
+```json
+"overlay": {
+  "present": true,
+  "identity": "div#cozyCRModal.CozyContainerClassCR",
+  "dismissed": false,
+  "dismissAttempts": ["Escape", "aria-close-en"],
+  "clickRequiredForce": true
+}
+```
+
+Quem está cobrindo o botão é descoberto por `elementFromPoint` no centro dele —
+medida real do que o dedo do comprador acertaria, não palpite sobre classe de
+tema. A dispensa tenta Esc e depois rótulo acessível de fechar. Se o overlay
+resistir, o clique acontece à força para registrar o carrinho, mas
+`clickRequiredForce` marca que **um comprador não teria conseguido**.
+
 ### Drawer, modal ou redirect
 
 Decidido por **medida**, não por classe de tema: um drawer ocupa a altura toda,

@@ -144,4 +144,23 @@ describe('pickProduct — §6.3', () => {
   test('catálogo vazio devolve null', () => {
     assert.equal(pickProduct([]), null)
   })
+
+  // Observado na Insider Store: "Teste de valor 0" a R$ 0 no catalogo publico.
+  // "Mais barato" sem piso pega exatamente esse lixo, e pedido de valor zero
+  // pode nem exibir meios de pagamento -- que e o que a auditoria vai medir.
+  test('pula produto de preco zero, item de teste esquecido no catalogo', () => {
+    const pick = pickProduct([
+      produto({ handle: 'teste-de-valor-0', title: 'Teste de valor 0', variants: [{ id: 1, title: 'x', available: true, price: '0.00' }] }),
+      produto({ handle: 'real', variants: [{ id: 2, title: 'x', available: true, price: '149.90' }] }),
+    ])
+    assert.equal(pick?.product.handle, 'real')
+    assert.equal(pick?.skipped.zeroPrice, 1)
+  })
+
+  test('catalogo so com preco zero devolve null em vez de auditar pedido de R$ 0', () => {
+    const pick = pickProduct([
+      produto({ variants: [{ id: 1, title: 'x', available: true, price: '0.00' }] }),
+    ])
+    assert.equal(pick, null)
+  })
 })

@@ -81,6 +81,35 @@ export const CART_OVERLAYS: SelectorSpec[] = [
   },
 ]
 
+/**
+ * Fechar overlay que cobre o botão de comprar. Só padrões ARIA — não invento
+ * classe de tema nem de app de terceiro. Se nenhum funcionar, o motor registra
+ * o bloqueador observado em vez de fingir que não havia nada ali.
+ */
+export const OVERLAY_DISMISS: SelectorSpec[] = [
+  {
+    id: 'aria-close-en',
+    selector: '[aria-label*="close" i]',
+    source: 'aria',
+    note: 'rótulo acessível de fechar, em inglês',
+    verified: false,
+  },
+  {
+    id: 'aria-close-pt',
+    selector: '[aria-label*="fechar" i]',
+    source: 'aria',
+    note: 'rótulo acessível de fechar, em português',
+    verified: false,
+  },
+  {
+    id: 'aria-dismiss',
+    selector: '[aria-label*="dismiss" i]',
+    source: 'aria',
+    note: 'rótulo acessível de dispensar',
+    verified: false,
+  },
+]
+
 export function describeSelector(spec: SelectorSpec): string {
   return `${spec.selector} (${spec.source}${spec.verified ? ', verificado' : ', não verificado'})`
 }

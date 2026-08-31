@@ -14,7 +14,13 @@
 
 import { AuditError } from '../lib/errors.ts'
 import { makeStep } from '../lib/recorder.ts'
-import { ADD_TO_CART_BUTTONS, ADD_TO_CART_FORMS, CART_OVERLAYS, describeSelector } from './shopify.selectors.ts'
+import {
+  ADD_TO_CART_BUTTONS,
+  ADD_TO_CART_FORMS,
+  CART_OVERLAYS,
+  OVERLAY_DISMISS,
+  describeSelector,
+} from './shopify.selectors.ts'
 import type { AddToCartResult, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
 
 interface ShopifyVariant {
@@ -55,7 +61,7 @@ export interface ProductPick {
   product: ShopifyProduct
   variant: ShopifyVariant
   /** Quantos produtos foram descartados e por quê — evidência, não silêncio. */
-  skipped: { unavailable: number; giftCard: number }
+  skipped: { unavailable: number; giftCard: number; zeroPrice: number }
 }
 
 /**
@@ -65,7 +71,7 @@ export interface ProductPick {
  * vez de medir o checkout.
  */
 export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
-  const skipped = { unavailable: 0, giftCard: 0 }
+  const skipped = { unavailable: 0, giftCard: 0, zeroPrice: 0 }
   const candidates: Array<{ product: ShopifyProduct; variant: ShopifyVariant; complex: boolean; cents: number }> = []
 
   for (const product of products) {
@@ -80,6 +86,14 @@ export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
       continue
     }
     const cents = priceToCents(variant.price)
+    // Produto de R$ 0 é item de teste que a loja esqueceu no catálogo — e
+    // pedido de valor zero pode nem exibir meios de pagamento, que é
+    // justamente o que a auditoria vai medir. "Mais barato" sem piso pega
+    // exatamente esse lixo: aconteceu na Insider Store, com "Teste de valor 0".
+    if (cents === 0) {
+      skipped.zeroPrice++
+      continue
+    }
     candidates.push({
       product,
       variant,
@@ -246,8 +260,59 @@ export const shopifyJourney: JourneyDriver = {
     // 3. clique de verdade — a Fase 2 vai transmitir isto ao vivo
     const urlBefore = ctx.page.url()
     await button.scrollIntoViewIfNeeded().catch(() => undefined)
-    await button.click({ timeout: ctx.deadline.clamp(15_000) })
-    const clicks = 1
+
+    // Antes de clicar: alguém está cobrindo o botão? Isso é achado, não
+    // obstáculo. Modal em cima do botão de comprar custa venda, e o comprador
+    // real precisa dos mesmos cliques extras que o robô.
+    const overlay = {
+      present: false,
+      identity: null as string | null,
+      dismissed: false,
+      dismissAttempts: [] as string[],
+      clickRequiredForce: false,
+    }
+
+    let blocker = await findBlocker(button)
+    let clicks = 1
+
+    if (blocker) {
+      overlay.present = true
+      overlay.identity = blocker
+
+      // Esc é o gesto padrão de fechar, e não depende de seletor nenhum.
+      overlay.dismissAttempts.push('Escape')
+      await ctx.page.keyboard.press('Escape').catch(() => undefined)
+      await ctx.page.waitForTimeout(400)
+      blocker = await findBlocker(button)
+
+      // Depois, botão de fechar por rótulo acessível.
+      if (blocker) {
+        for (const spec of OVERLAY_DISMISS) {
+          const closer = ctx.page.locator(spec.selector).first()
+          if ((await closer.count()) === 0) continue
+          if (!(await closer.isVisible().catch(() => false))) continue
+          overlay.dismissAttempts.push(spec.id)
+          await closer.click({ timeout: 3000 }).catch(() => undefined)
+          clicks++
+          await ctx.page.waitForTimeout(400)
+          blocker = await findBlocker(button)
+          if (!blocker) break
+        }
+      }
+
+      overlay.dismissed = blocker === null
+      await ctx.recorder.capture(ctx.page, overlay.dismissed ? 'overlay-fechado' : 'overlay-persistente')
+    }
+
+    try {
+      await button.click({ timeout: ctx.deadline.clamp(10_000) })
+    } catch (e) {
+      if (!overlay.present) throw e
+      // O overlay resistiu. Clicar à força registra o dado do carrinho, mas o
+      // relatório precisa dizer que um comprador NÃO conseguiria fazer isso.
+      overlay.clickRequiredForce = true
+      await button.click({ force: true, timeout: ctx.deadline.clamp(10_000) })
+    }
 
     // 4. deixa a UI reagir sem prender a jornada num waitFor que pode não vir
     await ctx.page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined)
@@ -280,10 +345,29 @@ export const shopifyJourney: JourneyDriver = {
       cartUrl: new URL('/cart', ctx.baseUrl).href,
       itemCount: countAfter,
       clicks,
+      overlay,
     }
   },
 
   // reachCheckout e collectPayment: bloco 3b, pendente de decisão de produto.
+}
+
+/**
+ * Devolve a identidade de quem está cobrindo o centro do botão, ou null se o
+ * caminho está livre. Usa `elementFromPoint` — medida real do que o comprador
+ * acertaria com o dedo, não palpite sobre classe de tema.
+ */
+async function findBlocker(button: import('playwright').Locator): Promise<string | null> {
+  return button.evaluate((el) => {
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    if (!top) return null
+    if (top === el || el.contains(top) || top.contains(el)) return null
+    const id = top.id ? `#${top.id}` : ''
+    const cls = typeof top.className === 'string' && top.className ? `.${top.className.trim().split(/\s+/).join('.')}` : ''
+    return `${top.tagName.toLowerCase()}${id}${cls}`.slice(0, 160)
+  })
 }
 
 /**

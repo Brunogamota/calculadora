@@ -47,9 +47,29 @@ export function isAuditError(e: unknown): e is AuditError {
   return e instanceof AuditError
 }
 
+/* eslint-disable no-control-regex */
+const ANSI = /\u001b\[[0-9;]*m/g
+
+/**
+ * O Playwright joga o call log inteiro, com código ANSI, dentro de `message`.
+ * Isso ia direto para `errorReason` e deixava a saída ilegível — a §14 pede
+ * motivo de falha legível, não despejo de log. O log completo continua
+ * disponível em `detail.callLog`.
+ */
+export function summarizeError(raw: string, maxLen = 200): string {
+  const clean = raw.replace(ANSI, '')
+  const firstLine = clean.split('\n')[0]?.trim() ?? clean.trim()
+  return firstLine.length <= maxLen ? firstLine : `${firstLine.slice(0, maxLen)}…`
+}
+
 /** Converte qualquer throw em AuditError, para que `errorReason` nunca seja `undefined`. */
 export function toAuditError(e: unknown, fallback: AuditErrorCode = 'NETWORK_ERROR'): AuditError {
   if (isAuditError(e)) return e
-  const message = e instanceof Error ? e.message : String(e)
-  return new AuditError(fallback, message)
+  const raw = e instanceof Error ? e.message : String(e)
+  const summary = summarizeError(raw)
+  const detail: Record<string, unknown> = {}
+  if (summary !== raw.replace(ANSI, '').trim()) {
+    detail['callLog'] = raw.replace(ANSI, '').slice(0, 2000)
+  }
+  return new AuditError(fallback, summary, detail)
 }
