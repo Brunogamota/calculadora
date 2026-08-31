@@ -90,7 +90,16 @@ export const vtexAdapter: PlatformAdapter = {
     if (signals.length === 0) return null
 
     const url = new URL('/api/catalog_system/pub/products/search?_from=0&_to=0', probe.baseUrl).href
-    if (probe.gate.check(url).allowed) {
+    const permission = probe.gate.check(url)
+    if (!permission.allowed) {
+      // Silêncio aqui faria parecer que ninguém consultou o endpoint. O rastro
+      // precisa dizer que a consulta não aconteceu, e por quê.
+      signals.push({
+        where: 'endpoint',
+        detail: 'catalog_system não consultado: proibido pelo robots.txt',
+        weight: 'low',
+      })
+    } else {
       try {
         const res = await probe.fetch(url, { timeoutMs: 8000, maxBytes: 512 * 1024 })
         if (res.status >= 200 && res.status < 300 && isVtexCatalogResponse(res.body)) {
