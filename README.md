@@ -12,7 +12,8 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 |---|---|---|
 | 1 | Guards, normalização de URL, SSRF, robots.txt, rate limit, blocklist | **pronto** |
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
-| 3 | Jornada Shopify (§6.3–6.6) | a fazer |
+| 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **pronto** |
+| 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | bloqueado por decisão de produto |
 | 4 | Checagens (§8) e saída JSON | a fazer |
 
 ## Rodando
@@ -21,6 +22,7 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 npm install
 npm run preflight -- <url-da-loja> --pretty   # bloco 1
 npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
+npm run audit     -- <url-da-loja> --pretty   # bloco 3a (jornada + screenshots)
 npm test                                     # 115 testes, tudo offline
 npm run smoke                                # valida o browser de verdade
 npm run typecheck
@@ -42,7 +44,7 @@ Em servidor ou devcontainer sem tela, prefixe com `xvfb-run -a` (instale com
 explicando** em vez de cair para headless em silêncio — ver a tela é o que
 permite depurar loja real.
 
-`npm run audit` só passa a existir a partir do bloco 3.
+Screenshots vão para `out/<domínio>/`.
 
 ## Limites (§2)
 
@@ -125,6 +127,46 @@ olhou.
 
 Só o Shopify terá jornada (Bloco 3). As demais apenas identificam, conforme
 a §17 — `journeySupported` diz qual é o caso.
+
+## Bloco 3a — jornada até o carrinho
+
+`audit` encontra um produto, adiciona ao carrinho e para. Screenshot em cada
+etapa, trilha com URL, timestamp e desfecho.
+
+O que é **contrato público do Shopify**, e por isso não é chute:
+
+| Rota | Uso |
+|---|---|
+| `/products.json` | catálogo, para escolher o produto |
+| `/cart.js` | confirmar o carrinho por API (§6.4) |
+| `/products/:handle?variant=:id` | pré-seleciona a variação sem clicar em seletor de tema |
+
+Esse último resolve o problema mais chato da jornada: escolher variação sem
+depender do DOM do tema. O Shopify aceita a variação na query string, então a
+jornada não precisa adivinhar como o tema desenhou o seletor de tamanho.
+
+**O único ponto que depende de DOM é o botão de comprar**, e ele mora em
+`src/platforms/shopify.selectors.ts` com a origem de cada seletor declarada:
+
+- `platform-contract` — vale em qualquer tema (`form[action*="/cart/add"]` é a
+  rota do Shopify)
+- `aria` — padrão do HTML, não específico de loja
+- `theme-convention` — convenção dos temas oficiais, **pode falhar** em tema
+  customizado
+
+Nenhum casou? A etapa falha dizendo quais foram tentados. Sem fallback
+silencioso, que é como seletor errado passa despercebido.
+
+### Escolha do produto (§6.3)
+
+Disponível, sem variação obrigatória, e o mais barato dentro disso. Vale-presente
+é pulado de propósito: não tem frete e distorce a jornada de checkout. Preço que
+não dá para ler vira `null` e vai para o fim da fila, nunca para zero.
+
+### Drawer, modal ou redirect
+
+Decidido por **medida**, não por classe de tema: um drawer ocupa a altura toda,
+é estreito e fica colado numa borda. Quando a medida não decide, sai `unknown`.
 
 ## Bloco 1 — o que o preflight faz
 

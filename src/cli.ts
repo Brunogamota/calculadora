@@ -13,8 +13,9 @@
 
 import { preflight, createDeps } from './preflight.ts'
 import { detect } from './detect.ts'
+import { audit } from './audit.ts'
 
-const COMMANDS = ['preflight', 'detect'] as const
+const COMMANDS = ['preflight', 'detect', 'audit'] as const
 type Command = (typeof COMMANDS)[number]
 
 function usage(): never {
@@ -23,6 +24,11 @@ function usage(): never {
       'Uso:',
       '  npm run preflight -- <url> [--pretty]',
       '  npm run detect    -- <url> [--pretty] [--headless] [--owner-verified]',
+      '  npm run audit     -- <url> [--pretty] [--headless] [--owner-verified]',
+      '',
+      'preflight  valida URL, SSRF, blocklist e robots. Não abre browser.',
+      'detect     identifica a plataforma. Abre o browser.',
+      'audit      jornada: produto -> carrinho. Salva screenshots em out/.',
       '',
       'Flags:',
       '  --pretty           JSON indentado',
@@ -48,14 +54,17 @@ async function main(): Promise<void> {
 
   const indent = flags.has('--pretty') ? 2 : 0
 
+  const shared = {
+    headed: !flags.has('--headless'),
+    ownerVerified: flags.has('--owner-verified'),
+  }
+
   const result =
     command === 'preflight'
       ? await preflight(target, createDeps())
-      : await detect(target, {
-          headed: !flags.has('--headless'),
-          ownerVerified: flags.has('--owner-verified'),
-          saveHtml: flags.has('--save-html'),
-        })
+      : command === 'detect'
+        ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
+        : await audit(target, shared)
 
   console.log(JSON.stringify(result, null, indent))
   process.exit(result.ok ? 0 : 1)

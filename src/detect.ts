@@ -7,15 +7,13 @@
  * explícito em vez de acusar a loja de uma falha que ela não tem.
  */
 
-import { preflight, createDeps, type PreflightFailed, type PreflightOk } from './preflight.ts'
-import { launchBrowser, openPage, readPageGlobals } from './lib/browser.ts'
-import { createSafeFetch, DEFAULT_USER_AGENT, type SafeFetch } from './lib/http.ts'
-import { fetchRobots } from './lib/robots.ts'
-import { createRobotsGate } from './lib/gate.ts'
-import { adapterFor, detectPlatform, type PlatformDecision } from './platforms/index.ts'
-import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
+import { createDeps, type PreflightOk } from './preflight.ts'
+import { prepare, PreflightRejected } from './session.ts'
+import type { launchBrowser } from './lib/browser.ts'
+import { adapterFor } from './platforms/index.ts'
+import { toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
-import type { DetectionProbe, PageGlobals, StepPermission } from './types.ts'
+import type { PageGlobals, StepPermission } from './types.ts'
 
 /** Caminhos que a jornada Shopify vai usar. Checados já aqui contra o robots. */
 export const JOURNEY_PATHS = [
@@ -113,118 +111,69 @@ async function runDetect(
 ): Promise<DetectResult> {
   const startedAt = Date.now()
 
-  const pre = await preflight(input, deps)
-  if (!pre.ok) {
-    const failed = pre as PreflightFailed
-    return {
-      ok: false,
-      input,
-      errorCode: failed.errorCode,
-      errorReason: failed.errorReason,
-      detail: failed.detail,
+  let prepared
+  try {
+    prepared = await prepare(input, options, deps, (b) => {
+      slot.session = b
+    })
+  } catch (e) {
+    if (e instanceof PreflightRejected) {
+      return {
+        ok: false,
+        input,
+        errorCode: e.failure.errorCode,
+        errorReason: e.failure.errorReason,
+        detail: e.failure.detail,
+      }
     }
+    throw e
   }
 
-  try {
-    const policy = await fetchRobots(pre.finalUrl, deps.safeFetch)
-    const gate = createRobotsGate(policy, { ownerVerified: options.ownerVerified === true })
+  const { preflight: pre, gate, probe, decision, opened, browser } = prepared
 
-    // Rede a partir dos adapters passa pelo portão: nada escapa por esquecimento.
-    const gatedFetch: SafeFetch = async (url, opts) => {
-      const permission = gate.check(url)
-      if (!permission.allowed) {
-        throw new AuditError('ROBOTS_DISALLOWED', `robots.txt proíbe ${permission.path}`, {
-          path: permission.path,
-        })
-      }
-      return createSafeFetch(deps.limiter)(url, opts)
-    }
+  // §19: quando não identificamos a plataforma, o HTML é o que resolve o
+  // problema em minutos. Salvar automático nesse caso.
+  let htmlSavedTo: string | null = null
+  if (decision.fellBackToGeneric || options.saveHtml === true) {
+    htmlSavedTo = await saveHtml(
+      options.outDir ?? DEFAULT_OUT_DIR,
+      new URL(probe.baseUrl).hostname,
+      'home',
+      opened.html,
+    )
+  }
 
-    const homePermission = gate.check(pre.finalUrl)
-    if (!homePermission.allowed) {
-      throw new AuditError('ROBOTS_DISALLOWED', `robots.txt proíbe a própria home (${homePermission.path})`, {
-        path: homePermission.path,
-      })
-    }
+  const entries: RobotsPlanEntry[] = JOURNEY_PATHS.map((path) => {
+    const permission = gate.check(new URL(path, probe.baseUrl).href)
+    return { path, permission: permission.reason, allowed: permission.allowed }
+  })
 
-    const session = await launchBrowser({
-      headed: options.headed !== false,
-      userAgent: DEFAULT_USER_AGENT,
-      timeoutMs: deps.deadline.clamp(30_000),
-    })
-    slot.session = session
-
-    deps.deadline.assertAlive('abertura da home no browser')
-    const opened = await openPage(session.page, pre.finalUrl, deps.deadline.clamp(30_000))
-    const globals = await readPageGlobals(session.page)
-
-    const probe: DetectionProbe = {
-      page: session.page,
-      html: opened.html,
-      headers: opened.headers,
-      baseUrl: new URL(opened.finalUrl).origin,
-      globals,
-      fetch: gatedFetch,
-      gate,
-    }
-
-    const decision: PlatformDecision = await detectPlatform(probe)
-
-    // §19: quando não identificamos a plataforma, o HTML é o que resolve o
-    // problema em minutos. Salvar automático nesse caso, sem depender de alguém
-    // lembrar de pedir.
-    let htmlSavedTo: string | null = null
-    if (decision.fellBackToGeneric || options.saveHtml === true) {
-      htmlSavedTo = await saveHtml(
-        options.outDir ?? DEFAULT_OUT_DIR,
-        new URL(probe.baseUrl).hostname,
-        'home',
-        opened.html,
-      )
-    }
-
-    const entries: RobotsPlanEntry[] = JOURNEY_PATHS.map((path) => {
-      const permission = gate.check(new URL(path, probe.baseUrl).href)
-      return { path, permission: permission.reason, allowed: permission.allowed }
-    })
-
-    return {
-      ok: true,
-      preflight: pre,
-      platform: {
-        id: decision.evidence.platform,
-        label: adapterFor(decision.evidence.platform)?.label ?? decision.evidence.platform,
-        confidence: decision.evidence.confidence,
-        signals: decision.evidence.signals,
-        notes: decision.evidence.notes ?? [],
-      },
-      alternatives: decision.alternatives.map((a) => ({
-        id: a.platform,
-        confidence: a.confidence,
-        signalCount: a.signals.length,
-      })),
-      fellBackToGeneric: decision.fellBackToGeneric,
-      journeySupported: decision.journeySupported,
-      robotsPlan: {
-        ownerVerified: gate.ownerVerified,
-        entries,
-        blockedPaths: entries.filter((e) => !e.allowed).map((e) => e.path),
-      },
-      globals,
-      htmlSavedTo,
-      blockedRequests: session.blockedRequests,
-      homeLoadMs: opened.loadMs,
-      timings: { totalMs: Date.now() - startedAt },
-    }
-  } catch (e) {
-    const err = toAuditError(e)
-    return {
-      ok: false,
-      input,
-      errorCode: err.code,
-      errorReason: err.message,
-      detail: err.detail,
-      preflight: pre,
-    }
+  return {
+    ok: true,
+    preflight: pre,
+    platform: {
+      id: decision.evidence.platform,
+      label: adapterFor(decision.evidence.platform)?.label ?? decision.evidence.platform,
+      confidence: decision.evidence.confidence,
+      signals: decision.evidence.signals,
+      notes: decision.evidence.notes ?? [],
+    },
+    alternatives: decision.alternatives.map((a) => ({
+      id: a.platform,
+      confidence: a.confidence,
+      signalCount: a.signals.length,
+    })),
+    fellBackToGeneric: decision.fellBackToGeneric,
+    journeySupported: decision.journeySupported,
+    robotsPlan: {
+      ownerVerified: gate.ownerVerified,
+      entries,
+      blockedPaths: entries.filter((e) => !e.allowed).map((e) => e.path),
+    },
+    globals: probe.globals,
+    htmlSavedTo,
+    blockedRequests: browser.blockedRequests,
+    homeLoadMs: opened.loadMs,
+    timings: { totalMs: Date.now() - startedAt },
   }
 }

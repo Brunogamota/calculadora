@@ -11,6 +11,7 @@
 
 import type { DetectionEvidence, DetectionProbe, PlatformAdapter, Signal } from '../types.ts'
 import { gradeConfidence, scriptHostSignal, signalFromHeader, signalFromHtml } from './signals.ts'
+import { shopifyJourney } from './shopify.journey.ts'
 
 /** Resposta mínima de /products.json que aceitamos como prova. */
 export function isShopifyProductsJson(body: string): boolean {
@@ -108,4 +109,6 @@ export const shopifyAdapter: PlatformAdapter = {
     if (decisive.length === 0) return null
     return { platform: 'shopify', confidence: gradeConfidence(signals), signals }
   },
+
+  journey: shopifyJourney,
 }

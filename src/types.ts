@@ -74,6 +74,12 @@ export interface PlatformAdapter {
 
 // ------------------------------------------------------------------- jornada
 
+export interface NavigationResult {
+  url: string
+  status: number | null
+  loadMs: number
+}
+
 export interface JourneyContext {
   page: Page
   baseUrl: string
@@ -81,6 +87,12 @@ export interface JourneyContext {
   gate: RobotsGate
   recorder: Recorder
   deadline: import('./lib/deadline.ts').Deadline
+  /**
+   * Navega respeitando robots e o limite de 1 req/s por domínio. O safeFetch
+   * cuida do que o motor pede; sem isto, a navegação do browser passaria por
+   * fora das duas regras.
+   */
+  navigate(url: string, timeoutMs?: number): Promise<NavigationResult>
 }
 
 export interface ProductRef {
@@ -166,8 +178,13 @@ export interface PaymentSnapshot {
 export interface JourneyDriver {
   findProduct(ctx: JourneyContext): Promise<ProductRef>
   addToCart(ctx: JourneyContext, product: ProductRef): Promise<AddToCartResult>
-  reachCheckout(ctx: JourneyContext, cart: AddToCartResult): Promise<CheckoutContext>
-  collectPayment(ctx: JourneyContext, checkout: CheckoutContext): Promise<PaymentSnapshot>
+  /**
+   * Ausentes enquanto o bloco 3b não existir — mesma regra do `journey?` do
+   * adapter: ausência diz "não faço isso". Um stub que lança seria um método
+   * que finge existir, e é de stub que nasce resultado inventado.
+   */
+  reachCheckout?(ctx: JourneyContext, cart: AddToCartResult): Promise<CheckoutContext>
+  collectPayment?(ctx: JourneyContext, checkout: CheckoutContext): Promise<PaymentSnapshot>
 }
 
 // -------------------------------------------------------------- infraestrutura
