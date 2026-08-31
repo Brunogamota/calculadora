@@ -9,7 +9,7 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkCooldown, type Ledger } from '../src/lib/cooldown.ts'
+import { checkCooldown, cooldownHours, attemptCooldownMinutes, type Ledger } from '../src/lib/cooldown.ts'
 
 const AGORA = Date.parse('2026-08-31T22:00:00Z')
 const h = (n: number) => n * 3600_000
@@ -106,5 +106,33 @@ describe('--force exige declaração de titularidade', () => {
     const { AuditError } = await import('../src/lib/errors.ts')
     const err = new AuditError('FORCE_WITHOUT_OWNERSHIP', 'x', {})
     assert.equal(err.code, 'FORCE_WITHOUT_OWNERSHIP')
+  })
+})
+
+describe('configuração lida a cada chamada, não no import', () => {
+  // Como constante de módulo, a variável definida depois do import não tinha
+  // efeito — e o sintoma era silencioso: parecia configurado e não estava.
+  test('a variável definida em tempo de execução vale', () => {
+    delete process.env['AUDIT_COOLDOWN_HOURS']
+    assert.equal(cooldownHours(), 24)
+    process.env['AUDIT_COOLDOWN_HOURS'] = '0'
+    assert.equal(cooldownHours(), 0)
+    delete process.env['AUDIT_COOLDOWN_HOURS']
+    assert.equal(cooldownHours(), 24)
+  })
+
+  test('valor inválido cai no padrão em vez de virar NaN', () => {
+    process.env['AUDIT_COOLDOWN_HOURS'] = 'muito'
+    assert.equal(cooldownHours(), 24)
+    process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '-3'
+    assert.equal(attemptCooldownMinutes(), 5)
+    delete process.env['AUDIT_COOLDOWN_HOURS']
+    delete process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES']
+  })
+
+  test('zero é valor válido, não ausência', () => {
+    process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
+    assert.equal(attemptCooldownMinutes(), 0)
+    delete process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES']
   })
 })

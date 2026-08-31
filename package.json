@@ -3,20 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Raio-X do Checkout — motor de auditoria (Fase 1: CLI)",
+  "description": "Raio-X do Checkout — motor de auditoria",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=20.11"
   },
   "scripts": {
-    "preflight": "tsx src/cli.ts preflight",
-    "audit": "tsx src/cli.ts audit",
-    "test": "node --import tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit",
-    "detect": "tsx src/cli.ts detect",
-    "smoke": "tsx scripts/smoke-browser.ts",
-    "sniff": "tsx scripts/sniff-html.ts",
-    "test:e2e": "node --import tsx --test test/e2e/*.test.ts",
-    "test:all": "npm test && npm run test:e2e"
+    "preflight": "tsx apps/worker/src/cli.ts preflight",
+    "detect": "tsx apps/worker/src/cli.ts detect",
+    "audit": "tsx apps/worker/src/cli.ts audit",
+    "smoke": "tsx apps/worker/scripts/smoke-browser.ts",
+    "sniff": "tsx apps/worker/scripts/sniff-html.ts",
+    "test": "node --import tsx --test apps/worker/test/*.test.ts packages/*/test/*.test.ts",
+    "test:e2e": "node --import tsx --test apps/worker/test/e2e/*.test.ts",
+    "test:all": "npm test && npm run test:e2e",
+    "typecheck": "tsc -p apps/worker --noEmit && tsc -p packages/types --noEmit"
   },
   "dependencies": {
     "playwright": "1.56.0",

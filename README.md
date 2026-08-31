@@ -386,10 +386,20 @@ erro de rede proíbem a coleta. Na dúvida, não se bate na loja.
 
 ## Estrutura
 
+Monorepo com npm workspaces. Os scripts rodam **da raiz**, então `.env`, `out/`
+e `blocklist.txt` continuam onde sempre estiveram — quem usa não precisa saber
+que virou monorepo.
+
 ```
-src/
-  cli.ts              entrypoint
-  preflight.ts        bloco 1 encadeado
+packages/types/       contrato de fio: AuditEvent, StepId, LiveState
+                      DE PROPÓSITO magro — só o que atravessa processo.
+                      A web não pode importar Playwright nem transitivamente.
+apps/worker/          o motor
+  src/
+    cli.ts              entrypoint
+    stream/
+      publisher.ts      barramento de eventos (§7.4)
+    preflight.ts        bloco 1 encadeado
   lib/
     guards.ts         normalização + SSRF (§6.1, §2.5)
     ipranges.ts       classificação de faixas IPv4/IPv6
@@ -407,10 +417,25 @@ src/
     index.ts          registry na ordem da §6.2
     signals.ts        extração de sinais (puro, testável)
     shopify.ts vtex.ts nuvemshop.ts woocommerce.ts generic.ts
-scripts/
-  smoke-browser.ts    valida browser, globais e guard de route
-test/                 offline, sem rede
+  scripts/
+    smoke-browser.ts    valida browser, globais e guard de route
+  test/                 offline, sem rede
 ```
+
+### O barramento de eventos
+
+A §3 e a §7.4 pedem: worker publica no Redis, servidor WebSocket assina, front
+recebe. A interface `Publisher` é exatamente esse contrato, e a implementação em
+memória permite construir a tela ao vivo inteira sem depender de Docker —
+trocar por Redis é escrever outra classe com os mesmos três métodos.
+
+Duas regras que os testes protegem:
+
+- **frame não entra no estado.** Quem reconecta recebe os passos, nunca o
+  histórico de frames (§7.4: frame perdido é frame perdido)
+- **`step:skip` existe.** A §7.3 só previa `done` e `fail`; forçar
+  `not_permitted_by_robots` em `fail` mostraria um X vermelho para a loja que
+  apenas respeitou o próprio robots
 
 ## Bloco 4 — checagens e nota (§8)
 

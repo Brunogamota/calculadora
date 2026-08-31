@@ -36,8 +36,23 @@ export type Ledger = Record<string, LedgerEntry>
  * custa duas requisições, e barrá-la por 24h trava o desenvolvimento sem
  * proteger ninguém — mas ainda precisa de um piso, senão volta a ser martelo.
  */
-export const DEFAULT_COOLDOWN_HOURS = Number(process.env['AUDIT_COOLDOWN_HOURS'] ?? 24)
-export const ATTEMPT_COOLDOWN_MINUTES = Number(process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] ?? 5)
+/**
+ * Lidas a CADA chamada, não no import.
+ *
+ * Como constantes de módulo elas eram avaliadas quando o arquivo era carregado,
+ * e qualquer coisa que definisse a variável depois — teste, script, o próprio
+ * .env — não tinha efeito nenhum. O sintoma era silencioso: a configuração
+ * parecia aplicada e não estava.
+ */
+export function cooldownHours(): number {
+  const value = Number(process.env['AUDIT_COOLDOWN_HOURS'])
+  return Number.isFinite(value) && value >= 0 ? value : 24
+}
+
+export function attemptCooldownMinutes(): number {
+  const value = Number(process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'])
+  return Number.isFinite(value) && value >= 0 ? value : 5
+}
 
 function ledgerPath(outDir: string): string {
   return path.join(outDir, '.audit-ledger.json')
@@ -88,9 +103,11 @@ export interface CooldownVerdict {
 export function checkCooldown(
   ledger: Ledger,
   domain: string,
-  cooldownHours = DEFAULT_COOLDOWN_HOURS,
+  // Valores padrão são avaliados a cada chamada, então a variável de ambiente
+  // definida depois do import continua valendo.
+  windowHours = cooldownHours(),
   now = Date.now(),
-  attemptMinutes = ATTEMPT_COOLDOWN_MINUTES,
+  attemptMinutes = attemptCooldownMinutes(),
 ): CooldownVerdict {
   const free: CooldownVerdict = {
     allowed: true,
@@ -114,7 +131,7 @@ export function checkCooldown(
   // Janela longa: só conta auditoria que percorreu a jornada de verdade.
   const lastFull = entry.lastFullAuditAt ? Date.parse(entry.lastFullAuditAt) : NaN
   if (!Number.isNaN(lastFull)) {
-    const until = lastFull + cooldownHours * 3600_000
+    const until = lastFull + windowHours * 3600_000
     if (until > now) return blocked(until, 'full-audit')
   }
 

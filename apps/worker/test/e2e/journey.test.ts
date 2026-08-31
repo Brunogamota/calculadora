@@ -20,9 +20,13 @@ import type { FakeStoreOptions } from '../fixtures/fake-shopify.ts'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
+process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
 
 const OUT = 'out/.test'
-const BASE = { headed: false, outDir: OUT, force: true } as const
+// Sem `force`: o intervalo é zerado por variável de ambiente, então não há o
+// que forçar. Usar --force aqui exigiria declarar titularidade, e isso ligaria
+// a exceção de robots — quebrando justamente o cenário que testa robots.
+const BASE = { headed: false, outDir: OUT } as const
 
 /** Uma loja, uma auditoria, muitas asserções. */
 async function auditFake(

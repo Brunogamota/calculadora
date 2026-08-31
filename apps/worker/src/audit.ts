@@ -12,7 +12,7 @@ import { createRecorder, makeStep } from './lib/recorder.ts'
 import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
 import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
-import { checkCooldown, readLedger, recordAudit, DEFAULT_COOLDOWN_HOURS } from './lib/cooldown.ts'
+import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
 import { normalizeUrl } from './lib/guards.ts'
 import { vantageContradiction } from './lib/environment.ts'
@@ -170,7 +170,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
             : `tentativa recente em ${domain} (${verdict.lastAuditedAt}). ` +
               `Aguarde até ${verdict.nextAllowedAt} ou use --force. ` +
               'Este é o piso entre tentativas, não o intervalo de 24h.',
-        errorDetail: { ...verdict, cooldownHours: DEFAULT_COOLDOWN_HOURS },
+        errorDetail: { ...verdict, cooldownHours: cooldownHours() },
         timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
       }
     }
