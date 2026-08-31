@@ -128,12 +128,21 @@ export interface ProductRef {
 }
 
 export interface AddToCartResult {
-  ok: boolean
+  /**
+   * true confirmado, false negado, `null` NÃO VERIFICÁVEL.
+   *
+   * Era `boolean`, e um carrinho que não deu para confirmar saía `ok: true` —
+   * afirmando sucesso sem saber. Mesma regra do resto do motor: sem certeza,
+   * `null`.
+   */
+  ok: boolean | null
   ms: number
   uiPattern: 'drawer' | 'modal' | 'redirect' | 'inline' | 'unknown'
   cartUrl: string
   /** Confirmado por API quando disponível (§6.4); null quando não deu para confirmar. */
   itemCount: number | null
+  /** Por que a confirmação falhou, e por qual caminho. Sem isto não há diagnóstico. */
+  cartReadNote: string | null
   clicks: number
   /**
    * Overlay cobrindo o botão de comprar. Não é obstáculo técnico, é achado:

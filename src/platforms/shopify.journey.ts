@@ -125,21 +125,57 @@ export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
  *
  * O robots continua sendo respeitado, e o rate limit também.
  */
-async function readCartCount(ctx: JourneyContext): Promise<number | null> {
+export interface CartReading {
+  count: number | null
+  /** Como foi lido, ou por que não deu. Um `catch` mudo não permite diagnóstico. */
+  note: string
+}
+
+/**
+ * Estado do carrinho, lido DE DENTRO da página.
+ *
+ * O safeFetch roda em node:https e não tem os cookies do browser — o carrinho
+ * do Shopify vive na sessão do navegador. Perguntar por fora devolve o carrinho
+ * de um visitante diferente, sempre vazio.
+ *
+ * Duas vias, porque uma pode falhar por motivo que não dá para prever daqui:
+ * `fetch` de dentro da página, e o APIRequestContext do Playwright, que também
+ * compartilha os cookies do contexto. A via usada fica registrada.
+ */
+async function readCart(ctx: JourneyContext): Promise<CartReading> {
   const url = new URL('/cart.js', ctx.baseUrl).href
-  if (!ctx.gate.check(url).allowed) return null
+  if (!ctx.gate.check(url).allowed) {
+    return { count: null, note: 'não lido: robots.txt proíbe /cart.js' }
+  }
+
   try {
-    const count = await ctx.rateLimited(() =>
+    const viaPage = await ctx.rateLimited(() =>
       ctx.page.evaluate(async (target: string) => {
-        const response = await fetch(target, { headers: { accept: 'application/json' } })
-        if (!response.ok) return null
-        const data = (await response.json()) as { item_count?: unknown }
-        return typeof data.item_count === 'number' ? data.item_count : null
+        try {
+          const response = await fetch(target, { headers: { accept: 'application/json' } })
+          if (!response.ok) return { count: null, why: `HTTP ${response.status}` }
+          const data = (await response.json()) as { item_count?: unknown }
+          if (typeof data.item_count !== 'number') return { count: null, why: 'sem item_count no JSON' }
+          return { count: data.item_count, why: 'ok' }
+        } catch (e) {
+          return { count: null, why: `fetch falhou: ${e instanceof Error ? e.message : 'erro'}` }
+        }
       }, url),
     )
-    return count
-  } catch {
-    return null
+    if (viaPage.count !== null) return { count: viaPage.count, note: 'lido via fetch na página' }
+
+    // Segunda via: request do contexto do browser, que compartilha os cookies.
+    const response = await ctx.rateLimited(() => ctx.page.context().request.get(url, { timeout: 8000 }))
+    if (!response.ok()) {
+      return { count: null, note: `fetch na página: ${viaPage.why}; request do contexto: HTTP ${response.status()}` }
+    }
+    const data = (await response.json()) as { item_count?: unknown }
+    if (typeof data.item_count === 'number') {
+      return { count: data.item_count, note: 'lido via request do contexto' }
+    }
+    return { count: null, note: `fetch na página: ${viaPage.why}; request do contexto: sem item_count` }
+  } catch (e) {
+    return { count: null, note: `leitura do carrinho falhou: ${e instanceof Error ? e.message : 'erro'}` }
   }
 }
 
@@ -242,7 +278,7 @@ export const shopifyJourney: JourneyDriver = {
     // ou só no checkout — a diferença é o achado PIX_DISCOUNT_LATE.
     ctx.scratch.set('productText', await ctx.page.textContent('body').catch(() => null))
 
-    const countBefore = await readCartCount(ctx)
+    const before = await readCart(ctx)
 
     // 1. formulário do Shopify
     let form = null
@@ -372,8 +408,9 @@ export const shopifyJourney: JourneyDriver = {
     const cartShot = await ctx.recorder.capture(ctx.page, 'carrinho')
 
     // 5. confirmação por API (§6.4)
-    const countAfter = await readCartCount(ctx)
-    const confirmed = countBefore !== null && countAfter !== null ? countAfter > countBefore : null
+    const after = await readCart(ctx)
+    const confirmed =
+      before.count !== null && after.count !== null ? after.count > before.count : null
 
     ctx.recorder.step(
       makeStep({
@@ -385,18 +422,23 @@ export const shopifyJourney: JourneyDriver = {
         outcome:
           confirmed === false
             ? { status: 'failed', code: 'CART_NOT_CONFIRMED', reason: '/cart.js não registrou o item' }
-            : { status: 'done' },
+            : confirmed === null
+              ? { status: 'skipped', reason: `clique feito, confirmação indisponível — ${after.note}` }
+              : { status: 'done' },
       }),
     )
 
     return {
-      ok: confirmed !== false,
+      // `confirmed` já é boolean | null: null significa não verificável, e é
+      // isso que sai. Antes virava `true`, afirmando sucesso sem saber.
+      ok: confirmed,
       ms: Date.now() - startedAt,
       // Carrinho não confirmado torna a leitura do padrão de UI não confiável:
       // não houve reação de carrinho para classificar.
       uiPattern: confirmed === false ? 'unknown' : uiPattern,
       cartUrl: new URL('/cart', ctx.baseUrl).href,
-      itemCount: countAfter,
+      itemCount: after.count,
+      cartReadNote: confirmed === null ? `antes: ${before.note} | depois: ${after.note}` : null,
       clicks,
       overlay,
     }

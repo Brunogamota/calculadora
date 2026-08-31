@@ -237,8 +237,12 @@ async function runAudit(
   try {
     cart = await journey.addToCart(ctx, product)
     result.cart = cart
-    if (cart.itemCount === null) {
-      incompleteBecause.push('carrinho não pôde ser confirmado por /cart.js')
+    if (cart.ok === null) {
+      incompleteBecause.push(
+        `carrinho não pôde ser confirmado${cart.cartReadNote ? ` — ${cart.cartReadNote}` : ''}`,
+      )
+    } else if (cart.ok === false) {
+      incompleteBecause.push('carrinho não recebeu o item: /cart.js não registrou nada')
     }
     if (cart.overlay.likelyAuditArtifact) {
       incompleteBecause.push(
@@ -424,6 +428,7 @@ export function summarize(result: AuditResult): Record<string, unknown> {
       ? {
           ok: result.cart.ok,
           itemCount: result.cart.itemCount,
+          cartReadNote: result.cart.cartReadNote,
           uiPattern: result.cart.uiPattern,
           clicks: result.cart.clicks,
           ms: result.cart.ms,
