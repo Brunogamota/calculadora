@@ -4,12 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Raio-X do Checkout — motor de auditoria (Fase 1: CLI)",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "preflight": "tsx src/cli.ts preflight",
     "audit": "tsx src/cli.ts audit",
     "test": "node --import tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "detect": "tsx src/cli.ts detect",
+    "smoke": "tsx scripts/smoke-browser.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",
