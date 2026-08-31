@@ -15,6 +15,7 @@ import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from '
 import { checkCooldown, readLedger, recordAudit, DEFAULT_COOLDOWN_HOURS } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
 import { normalizeUrl } from './lib/guards.ts'
+import { vantageContradiction } from './lib/environment.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import type {
   AddToCartResult,
@@ -119,7 +120,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
       timezone: 'America/Sao_Paulo',
       note:
         options.fromBrazil === true
-          ? null
+          ? vantageContradiction(options.fromBrazil)
           : 'ponto de observação não declarado como Brasil: tempos de carregamento e ' +
             'meios de pagamento visíveis podem não ser os que um comprador brasileiro vê ' +
             '(use --from-br quando a auditoria sair de IP brasileiro)',

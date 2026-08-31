@@ -20,7 +20,7 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 
 ```bash
 npm install
-npm test                                     # 252 testes, offline, ~2s
+npm test                                     # 260 testes, offline, ~2s
 npm run test:e2e                             # jornada completa na loja falsa, ~70s
 npm run preflight -- <url-da-loja> --pretty   # bloco 1
 npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
