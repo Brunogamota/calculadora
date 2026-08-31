@@ -11,18 +11,27 @@ import { createDeps, type PreflightOk } from './preflight.ts'
 import { createRecorder, makeStep } from './lib/recorder.ts'
 import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
 import { adapterFor } from './platforms/index.ts'
+import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import type {
   AddToCartResult,
+  CheckoutContext,
   JourneyContext,
   JourneyStep,
   NavigationResult,
+  PaymentSnapshot,
   ProductRef,
 } from './types.ts'
 import type { BrowserSession } from './lib/browser.ts'
 
 export interface AuditOptions extends PrepareOptions {
   outDir?: string
+  /**
+   * Preencher contato e entrega para alcançar a tela de meios de pagamento.
+   * Exige identidade no .env. Sem isto, a jornada para na primeira tela do
+   * checkout e a §6.6 sai quase toda como não aplicável.
+   */
+  fillCheckout?: boolean
 }
 
 export interface AuditResult {
@@ -36,6 +45,10 @@ export interface AuditResult {
   storefrontNotes: string[]
   product: ProductRef | null
   cart: AddToCartResult | null
+  checkout: CheckoutContext | null
+  payment: PaymentSnapshot | null
+  /** Identidade usada, sempre mascarada. O CPF inteiro nunca sai daqui. */
+  identity: Record<string, unknown> | null
   steps: JourneyStep[]
   screenshotsDir: string | null
   robots: {
@@ -68,6 +81,9 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     storefrontNotes: [],
     product: null,
     cart: null,
+    checkout: null,
+    payment: null,
+    identity: null,
     steps: [],
     screenshotsDir: null,
     robots: { ownerVerified: options.ownerVerified === true, blockedPaths: [], overridesUsed: [] },
@@ -167,7 +183,21 @@ async function runAudit(
     return finish(result, recorder.steps, incompleteBecause, startedAt)
   }
 
-  const ctx = makeJourneyContext(prepared, recorder, deps)
+  let identity: AuditIdentity | null = null
+  if (options.fillCheckout === true) {
+    loadDotEnv()
+    try {
+      identity = loadIdentity()
+      result.identity = describeIdentity(identity)
+    } catch (e) {
+      // Sem identidade não se preenche nada — e não se inventa nome nem CPF.
+      incompleteBecause.push(
+        `preenchimento do checkout desligado: ${e instanceof Error ? e.message : 'identidade ausente'}`,
+      )
+    }
+  }
+
+  const ctx = makeJourneyContext(prepared, recorder, deps, identity, outDir)
 
   // 1. encontrar produto
   let product: ProductRef
@@ -192,9 +222,10 @@ async function runAudit(
     return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot)
   }
 
-  // 3. checkout — bloco 3b
+  // 3. checkout (§6.5) e coleta na tela de pagamento (§6.6)
   const checkoutUrl = new URL('/checkout', prepared.probe.baseUrl).href
   const checkoutPermission = prepared.gate.check(checkoutUrl)
+
   if (!checkoutPermission.allowed) {
     recorder.step(
       makeStep({
@@ -210,17 +241,34 @@ async function runAudit(
       'checkout não auditado: robots.txt proíbe /checkout e não houve titularidade confirmada',
     )
   } else if (!journey.reachCheckout) {
-    recorder.step(
-      makeStep({
-        id: 'reach-checkout',
-        label: 'indo para o checkout',
-        url: checkoutUrl,
-        startedAt: Date.now(),
-        screenshot: null,
-        outcome: { status: 'skipped', reason: 'etapa de checkout ainda não implementada (bloco 3b)' },
-      }),
-    )
-    incompleteBecause.push('checkout não auditado: etapa ainda não implementada (bloco 3b)')
+    incompleteBecause.push('checkout não auditado: jornada sem etapa de checkout')
+  } else {
+    try {
+      const checkout = await journey.reachCheckout(ctx, cart)
+      result.checkout = checkout
+
+      if (!checkout.reachedPaymentScreen) {
+        incompleteBecause.push(
+          identity
+            ? 'não chegou à tela de meios de pagamento; HTML do checkout salvo para análise'
+            : 'parou na primeira tela do checkout: preenchimento não autorizado (use --fill-checkout)',
+        )
+      }
+      if (checkout.forcedLogin === true) {
+        incompleteBecause.push('a loja exige login antes do checkout')
+      }
+
+      if (journey.collectPayment && checkout.reachedPaymentScreen) {
+        result.payment = await journey.collectPayment(ctx, checkout)
+      } else if (!checkout.reachedPaymentScreen) {
+        // Não chegamos na tela: a §6.6 inteira fica não aplicável, e é assim
+        // que ela tem que sair — nunca preenchida por dedução.
+        incompleteBecause.push('dados da tela de pagamento (§6.6) não aplicáveis: tela não alcançada')
+      }
+    } catch (e) {
+      const shot = await recorder.capture(prepared.browser.page, 'falha-checkout')
+      return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot)
+    }
   }
 
   return finish(result, recorder.steps, incompleteBecause, startedAt)
@@ -230,6 +278,8 @@ function makeJourneyContext(
   prepared: Awaited<ReturnType<typeof prepare>>,
   recorder: ReturnType<typeof createRecorder>,
   deps: ReturnType<typeof createDeps>,
+  identity: AuditIdentity | null,
+  outDir: string,
 ): JourneyContext {
   return {
     page: prepared.browser.page,
@@ -238,6 +288,9 @@ function makeJourneyContext(
     gate: prepared.gate,
     recorder,
     deadline: deps.deadline,
+    identity,
+    outDir,
+    scratch: new Map<string, unknown>(),
 
     async navigate(url: string, timeoutMs = 30_000): Promise<NavigationResult> {
       const permission = prepared.gate.check(url)

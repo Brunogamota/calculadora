@@ -24,7 +24,7 @@ function usage(): never {
       'Uso:',
       '  npm run preflight -- <url> [--pretty]',
       '  npm run detect    -- <url> [--pretty] [--headless] [--owner-verified]',
-      '  npm run audit     -- <url> [--pretty] [--headless] [--owner-verified]',
+      '  npm run audit     -- <url> [--pretty] [--headless] [--owner-verified] [--fill-checkout]',
       '',
       'preflight  valida URL, SSRF, blocklist e robots. Não abre browser.',
       'detect     identifica a plataforma. Abre o browser.',
@@ -35,6 +35,9 @@ function usage(): never {
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
       '  --save-html        salva o HTML renderizado em out/ (automático quando',
       '                     a plataforma não é identificada)',
+      '  --fill-checkout    preenche contato e entrega para alcançar a tela de',
+      '                     meios de pagamento. Exige identidade no .env.',
+      '                     NUNCA preenche cartão nem conclui pedido (§2.1).',
       '  --owner-verified   audita caminhos proibidos pelo robots.txt sob',
       '                     titularidade confirmada. Na Fase 1 a titularidade é',
       '                     DECLARADA, não verificada. Use só com autorização do dono.',
@@ -64,7 +67,7 @@ async function main(): Promise<void> {
       ? await preflight(target, createDeps())
       : command === 'detect'
         ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
-        : await audit(target, shared)
+        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout') })
 
   console.log(JSON.stringify(result, null, indent))
   process.exit(result.ok ? 0 : 1)

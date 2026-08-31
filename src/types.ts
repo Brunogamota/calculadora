@@ -93,6 +93,11 @@ export interface JourneyContext {
    * fora das duas regras.
    */
   navigate(url: string, timeoutMs?: number): Promise<NavigationResult>
+  /** Identidade autorizada para preencher o checkout. null = não preencher. */
+  identity: import('./lib/identity.ts').AuditIdentity | null
+  outDir: string
+  /** Estado entre etapas — ex.: o texto da página de produto, lido no addToCart. */
+  scratch: Map<string, unknown>
 }
 
 export interface ProductRef {

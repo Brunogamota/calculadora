@@ -21,6 +21,11 @@ import {
   OVERLAY_DISMISS,
   describeSelector,
 } from './shopify.selectors.ts'
+import { readPageGlobals } from '../lib/browser.ts'
+import {
+  reachCheckout as reachCheckoutImpl,
+  collectPayment as collectPaymentImpl,
+} from './shopify.checkout.ts'
 import type { AddToCartResult, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
 
 interface ShopifyVariant {
@@ -218,6 +223,10 @@ export const shopifyJourney: JourneyDriver = {
     await ctx.navigate(product.url, ctx.deadline.clamp(30_000))
     const productShot = await ctx.recorder.capture(ctx.page, 'produto')
 
+    // Guardado para a §6.6 poder dizer se o desconto do Pix já aparecia AQUI
+    // ou só no checkout — a diferença é o achado PIX_DISCOUNT_LATE.
+    ctx.scratch.set('productText', await ctx.page.textContent('body').catch(() => null))
+
     const countBefore = await readCartCount(ctx)
 
     // 1. formulário do Shopify
@@ -349,7 +358,27 @@ export const shopifyJourney: JourneyDriver = {
     }
   },
 
-  // reachCheckout e collectPayment: bloco 3b, pendente de decisão de produto.
+  async reachCheckout(ctx, cart) {
+    return reachCheckoutImpl(ctx, cart, {
+      identity: ctx.identity,
+      productText: (ctx.scratch.get('productText') as string | null) ?? null,
+      outDir: ctx.outDir,
+    })
+  },
+
+  async collectPayment(ctx, checkout) {
+    const globals = await readPageGlobals(ctx.page)
+    return collectPaymentImpl(
+      ctx,
+      checkout,
+      {
+        identity: ctx.identity,
+        productText: (ctx.scratch.get('productText') as string | null) ?? null,
+        outDir: ctx.outDir,
+      },
+      globals.scriptHosts,
+    )
+  },
 }
 
 /**

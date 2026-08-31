@@ -13,7 +13,7 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 | 1 | Guards, normalização de URL, SSRF, robots.txt, rate limit, blocklist | **pronto** |
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
 | 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **pronto** |
-| 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | bloqueado por decisão de produto |
+| 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
 | 4 | Checagens (§8) e saída JSON | a fazer |
 
 ## Rodando
@@ -189,6 +189,61 @@ resistir, o clique acontece à força para registrar o carrinho, mas
 
 Decidido por **medida**, não por classe de tema: um drawer ocupa a altura toda,
 é estreito e fica colado numa borda. Quando a medida não decide, sai `unknown`.
+
+## Bloco 3b — checkout e tela de pagamento
+
+```bash
+cp .env.example .env    # preencha a identidade
+npm run audit -- <url> --pretty --fill-checkout
+```
+
+Sem `--fill-checkout`, a jornada para na primeira tela do checkout e quase toda
+a §6.6 sai como não aplicável — porque no Shopify os meios de pagamento só
+aparecem depois de contato e entrega preenchidos.
+
+### As travas da §2 são código, não comentário
+
+Duas listas consultadas antes de **todo** clique e **todo** preenchimento:
+
+- `FORBIDDEN_BUTTON_TEXT` — "pagar agora", "finalizar pedido", "concluir",
+  "place order". Bate, o motor lança `ORDER_SUBMISSION_REFUSED` e para.
+- `FORBIDDEN_AUTOCOMPLETE` — `cc-number`, `cc-csc`, `cc-exp`, `cc-name`. Campo
+  de cartão nunca é preenchido, mesmo que o rótulo engane.
+
+### Identidade nunca mora no código
+
+Vem do `.env`, que está no `.gitignore`. CPF, telefone e endereço num
+repositório Git ficam no histórico para sempre. O CPF é validado por dígito
+verificador antes de qualquer submissão — documento inválido por typo iria
+parar no admin de um lojista real — e **nunca** sai inteiro no JSON: só
+`449.xxx.xxx-02`.
+
+O motor não gera CPF nem inventa identidade. Sem `.env`, o preenchimento é
+desligado e a auditoria diz isso em `incompleteBecause`.
+
+**Consequência que precisa estar clara:** cada auditoria com `--fill-checkout`
+deixa esses dados no admin da loja auditada, como checkout abandonado.
+
+### Como os campos são encontrados
+
+Três estratégias, da mais estável para a menos:
+
+1. **`autocomplete`** — atributo padrão da WHATWG (`email`, `given-name`,
+   `postal-code`). Especificação, não convenção de tema.
+2. **rótulo visível** — acha o campo pelo texto que o comprador lê.
+3. **atributo `name`** — convenção do Shopify, o menos estável.
+
+O resultado registra qual estratégia achou cada campo. Nenhuma achou? O HTML do
+checkout é salvo em `out/` para corrigir com evidência.
+
+### A §6.6 lê texto, não seletor
+
+O checkout do Shopify é montado pelo Shopify, mas apps de pagamento brasileiros
+injetam blocos próprios com marcação própria. O que existe em todos é o texto
+que o comprador lê. Cada campo coletado carrega o trecho que o provou.
+
+Campo que não pôde ser lido sai `null`, nunca `false`: "não achei" e "não tem"
+são coisas diferentes, e só a segunda pode virar achado contra a loja.
 
 ## Bloco 1 — o que o preflight faz
 
