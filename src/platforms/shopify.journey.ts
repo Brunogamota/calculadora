@@ -13,6 +13,7 @@
  */
 
 import { AuditError } from '../lib/errors.ts'
+import { saveHtml } from '../lib/artifacts.ts'
 import { makeStep } from '../lib/recorder.ts'
 import {
   ADD_TO_CART_BUTTONS,
@@ -281,39 +282,68 @@ export const shopifyJourney: JourneyDriver = {
     const before = await readCart(ctx)
 
     // 1. formulário do Shopify
+    //
+    // `waitFor`, não `count()`: count é uma FOTO do DOM naquele instante, e a
+    // navegação só espera domcontentloaded. Numa loja que leva 10s para montar,
+    // o formulário às vezes ainda não existe quando a foto é tirada — foi o que
+    // aconteceu na Insider Store, que encontrava o formulário nas rodadas
+    // lentas e não encontrava nas rápidas. Esperar elimina a corrida.
+    const findTimeout = ctx.deadline.clamp(12_000)
     let form = null
     let formSpec = null
     for (const spec of ADD_TO_CART_FORMS) {
       const candidate = ctx.page.locator(spec.selector).first()
-      if ((await candidate.count()) > 0) {
+      try {
+        await candidate.waitFor({ state: 'attached', timeout: findTimeout })
         form = candidate
         formSpec = spec
         break
+      } catch {
+        continue
       }
     }
     if (!form || !formSpec) {
+      const html = await saveHtml(
+        ctx.outDir,
+        new URL(ctx.baseUrl).hostname,
+        'produto-sem-formulario',
+        await ctx.page.content(),
+      )
       throw new AuditError('NETWORK_ERROR', 'formulário de adicionar ao carrinho não encontrado na página', {
         tried: ADD_TO_CART_FORMS.map(describeSelector),
+        waitedMs: findTimeout,
         productUrl: product.url,
+        currentUrl: ctx.page.url(),
+        htmlSavedTo: html,
       })
     }
 
-    // 2. botão dentro dele
+    // 2. botão dentro dele, também esperando em vez de fotografar
     let button = null
     let buttonSpec = null
     for (const spec of ADD_TO_CART_BUTTONS) {
       const candidate = form.locator(spec.selector).first()
-      if ((await candidate.count()) > 0 && (await candidate.isVisible().catch(() => false))) {
+      try {
+        await candidate.waitFor({ state: 'visible', timeout: 5000 })
         button = candidate
         buttonSpec = spec
         break
+      } catch {
+        continue
       }
     }
     if (!button || !buttonSpec) {
+      const html = await saveHtml(
+        ctx.outDir,
+        new URL(ctx.baseUrl).hostname,
+        'produto-sem-botao',
+        await ctx.page.content(),
+      )
       throw new AuditError('NETWORK_ERROR', 'botão de comprar não encontrado dentro do formulário', {
         formMatched: describeSelector(formSpec),
         tried: ADD_TO_CART_BUTTONS.map(describeSelector),
         productUrl: product.url,
+        htmlSavedTo: html,
       })
     }
 

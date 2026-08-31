@@ -224,16 +224,18 @@ async function runAudit(
 
   // 1. encontrar produto
   let product: ProductRef
+  const findStartedAt = Date.now()
   try {
     product = await journey.findProduct(ctx)
     result.product = product
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-find-product')
-    return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot)
+    return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
   }
 
   // 2. adicionar ao carrinho
   let cart: AddToCartResult
+  const cartStartedAt = Date.now()
   try {
     cart = await journey.addToCart(ctx, product)
     result.cart = cart
@@ -252,7 +254,7 @@ async function runAudit(
     }
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
-    return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot)
+    return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)
   }
 
   // 3. checkout (§6.5) e coleta na tela de pagamento (§6.6)
@@ -276,6 +278,7 @@ async function runAudit(
   } else if (!journey.reachCheckout) {
     incompleteBecause.push('checkout não auditado: jornada sem etapa de checkout')
   } else {
+    const checkoutStartedAt = Date.now()
     try {
       const checkout = await journey.reachCheckout(ctx, cart)
       result.checkout = checkout
@@ -300,7 +303,7 @@ async function runAudit(
       }
     } catch (e) {
       const shot = await recorder.capture(prepared.browser.page, 'falha-checkout')
-      return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot)
+      return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot, checkoutStartedAt)
     }
   }
 
@@ -379,6 +382,10 @@ function failStep(
   label: string,
   startedAt: number,
   screenshot: string | null,
+  // Quando a etapa começou de verdade. Passar Date.now() aqui zerava a duração
+  // de toda etapa que falhava, escondendo se ela demorou 12s ou 0s — e essa
+  // diferença é o diagnóstico.
+  stepStartedAt: number,
 ): AuditResult {
   const err = toAuditError(error)
   const trail = [
@@ -387,7 +394,7 @@ function failStep(
       id,
       label,
       url: result.url,
-      startedAt: Date.now(),
+      startedAt: stepStartedAt,
       screenshot,
       outcome:
         err.code === 'ROBOTS_DISALLOWED'

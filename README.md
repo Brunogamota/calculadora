@@ -154,8 +154,15 @@ jornada não precisa adivinhar como o tema desenhou o seletor de tamanho.
 - `theme-convention` — convenção dos temas oficiais, **pode falhar** em tema
   customizado
 
-Nenhum casou? A etapa falha dizendo quais foram tentados. Sem fallback
-silencioso, que é como seletor errado passa despercebido.
+Nenhum casou? A etapa falha dizendo quais foram tentados, e o HTML da página é
+salvo em `out/`. Sem fallback silencioso, que é como seletor errado passa
+despercebido.
+
+**Elemento é esperado, não fotografado.** `locator.count()` lê o DOM daquele
+instante, e a navegação só espera `domcontentloaded`. Numa loja que leva 10s
+para montar, o formulário às vezes ainda não existe quando a foto é tirada — a
+Insider Store encontrava o formulário nas rodadas lentas e não encontrava nas
+rápidas, com o mesmo código. `waitFor` elimina a corrida.
 
 ### Escolha do produto (§6.3)
 
