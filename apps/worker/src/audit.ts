@@ -14,6 +14,9 @@ import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
+import { NullPublisher, type Publisher } from './stream/publisher.ts'
+import { Reporter } from './stream/reporter.ts'
+import { startScreencast, type Screencast } from './stream/screencast.ts'
 import { normalizeUrl } from './lib/guards.ts'
 import { vantageContradiction } from './lib/environment.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
@@ -36,6 +39,12 @@ export interface AuditOptions extends PrepareOptions {
    * checkout e a §6.6 sai quase toda como não aplicável.
    */
   fillCheckout?: boolean
+  /** Para onde transmitir o andamento. Padrão: não transmite (CLI da Fase 1). */
+  publisher?: Publisher
+  /** Sala da transmissão (§7.4). Gerado quando não informado. */
+  auditId?: string
+  /** Transmitir frames (§7.1). Padrão: só quando há publisher. */
+  screencast?: boolean
   /**
    * Ignora o intervalo mínimo entre auditorias do mesmo domínio. Use apenas em
    * loja própria: em loja de terceiro, repetir é o que a §2.2 proíbe.
@@ -94,7 +103,14 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
   const startedAt = Date.now()
   const deps = createDeps()
   const outDir = options.outDir ?? DEFAULT_OUT_DIR
-  const slot: { browser: BrowserSession | null } = { browser: null }
+  const slot: { browser: BrowserSession | null; cast: Screencast | null } = {
+    browser: null,
+    cast: null,
+  }
+  const reporter = new Reporter(
+    options.publisher ?? new NullPublisher(),
+    options.auditId ?? `audit_${Math.random().toString(36).slice(2, 10)}`,
+  )
 
   const base: AuditResult = {
     ok: false,
@@ -143,6 +159,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // desafio antibot numa loja de terceiro -- exatamente o que a §2.2 proíbe.
     // Exigir a declaração de titularidade junto torna a intenção explícita.
     if (options.force === true && options.ownerVerified !== true) {
+      reporter.aborted('FORCE_WITHOUT_OWNERSHIP', '--force exige --owner-verified')
       return {
         ...base,
         finalDomain: domain,
@@ -158,6 +175,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
 
     const verdict = checkCooldown(await readLedger(outDir), domain)
     if (!verdict.allowed && options.force !== true) {
+      reporter.aborted('COOLDOWN_ACTIVE', `${domain} auditado recentemente`)
       return {
         ...base,
         finalDomain: domain,
@@ -180,7 +198,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     await recordAudit(outDir, domain, options.force === true, 'attempt')
 
     const result = await deps.deadline.race(
-      runAudit(input, options, deps, slot, outDir, startedAt, base),
+      runAudit(input, options, deps, slot, outDir, startedAt, base, reporter),
       'auditoria',
     )
 
@@ -190,6 +208,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     return result
   } catch (e) {
     if (e instanceof PreflightRejected) {
+      reporter.aborted(e.failure.errorCode, e.failure.errorReason)
       return {
         ...base,
         errorCode: e.failure.errorCode,
@@ -199,6 +218,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
       }
     }
     const err = toAuditError(e)
+    reporter.aborted(err.code, err.message)
     return {
       ...base,
       errorCode: err.code,
@@ -207,6 +227,9 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
       timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
     }
   } finally {
+    // O screencast para ANTES do browser fechar: parar depois lança contra uma
+    // sessão CDP já morta, e o erro esconderia o resultado da auditoria.
+    await slot.cast?.stop().catch(() => undefined)
     await slot.browser?.close()
   }
 }
@@ -215,14 +238,25 @@ async function runAudit(
   input: string,
   options: AuditOptions,
   deps: ReturnType<typeof createDeps>,
-  slot: { browser: BrowserSession | null },
+  slot: { browser: BrowserSession | null; cast: Screencast | null },
   outDir: string,
   startedAt: number,
   base: AuditResult,
+  reporter: Reporter,
 ): Promise<AuditResult> {
+  reporter.start('identify')
   const prepared = await prepare(input, options, deps, (b) => {
     slot.browser = b
   })
+
+  // §7.1: a transmissão começa assim que há página, para o espectador ver a
+  // loja abrindo — e não uma tela preta até o primeiro passo terminar.
+  const querTransmitir = options.screencast ?? options.publisher !== undefined
+  if (querTransmitir && options.publisher) {
+    slot.cast = await startScreencast(prepared.browser.page, options.publisher, reporter.auditId).catch(
+      () => null,
+    )
+  }
 
   const pre: PreflightOk = prepared.preflight
   const hostname = new URL(prepared.probe.baseUrl).hostname
@@ -249,6 +283,10 @@ async function runAudit(
     timings: { totalMs: 0, homeLoadMs: prepared.opened.loadMs },
   }
 
+  reporter.done(
+    'identify',
+    `${prepared.decision.evidence.platform} (${prepared.decision.evidence.confidence})`,
+  )
   const homeShot = await recorder.capture(prepared.browser.page, 'home')
   recorder.step(
     makeStep({
@@ -269,6 +307,9 @@ async function runAudit(
     incompleteBecause.push(
       `jornada não implementada para ${prepared.decision.evidence.platform} nesta fase`,
     )
+    for (const id of ['open-product', 'add-to-cart', 'reach-checkout', 'read-payment'] as const) {
+      reporter.skip(id, `jornada de ${prepared.decision.evidence.platform} é de outra fase`)
+    }
     // Sem jornada para esta plataforma: o HTML fica salvo para quem for
     // implementar o adapter depois.
     await saveHtml(outDir, hostname, 'home', prepared.opened.html)
@@ -297,20 +338,35 @@ async function runAudit(
   // 1. encontrar produto
   let product: ProductRef
   const findStartedAt = Date.now()
+  reporter.start('open-product')
   try {
     product = await journey.findProduct(ctx)
     result.product = product
+    reporter.done('open-product', product.title)
   } catch (e) {
+    reporter.fail('open-product', toAuditError(e).message)
     const shot = await recorder.capture(prepared.browser.page, 'falha-find-product')
+    const err = toAuditError(e)
+    if (isProtectedSite(err.code)) reporter.aborted(err.code, err.message)
     return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
   }
 
   // 2. adicionar ao carrinho
   let cart: AddToCartResult
   const cartStartedAt = Date.now()
+  reporter.start('add-to-cart')
   try {
     cart = await journey.addToCart(ctx, product)
     result.cart = cart
+    reporter.done(
+      'add-to-cart',
+      cart.itemCount === null ? 'clique feito, confirmação indisponível' : `${cart.itemCount} item no carrinho`,
+      cart.overlay.present ? null : null,
+    )
+    // §7.3: achado durante a execução, não só no fim.
+    if (cart.overlay.present && !cart.overlay.dismissed && !cart.overlay.likelyAuditArtifact) {
+      reporter.finding('BUY_BUTTON_OBSCURED', 'alta', 'Botão de comprar coberto por sobreposição')
+    }
     if (cart.ok === null) {
       incompleteBecause.push(
         `carrinho não pôde ser confirmado${cart.cartReadNote ? ` — ${cart.cartReadNote}` : ''}`,
@@ -326,6 +382,9 @@ async function runAudit(
     }
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
+    const err = toAuditError(e)
+    if (isProtectedSite(err.code)) reporter.aborted(err.code, err.message)
+    else reporter.fail('add-to-cart', err.message)
     return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)
   }
 
@@ -347,13 +406,19 @@ async function runAudit(
     incompleteBecause.push(
       'checkout não auditado: robots.txt proíbe /checkout e não houve titularidade confirmada',
     )
+    reporter.skip('reach-checkout', 'robots.txt proíbe /checkout')
+    reporter.skip('read-payment', 'a tela de pagamento não foi alcançada')
   } else if (!journey.reachCheckout) {
     incompleteBecause.push('checkout não auditado: jornada sem etapa de checkout')
+    reporter.skip('reach-checkout', 'jornada sem etapa de checkout')
+    reporter.skip('read-payment', 'a tela de pagamento não foi alcançada')
   } else {
     const checkoutStartedAt = Date.now()
+    reporter.start('reach-checkout')
     try {
       const checkout = await journey.reachCheckout(ctx, cart)
       result.checkout = checkout
+      reporter.done('reach-checkout', `${checkout.stepsFromProduct} passo(s) do produto`)
 
       if (!checkout.reachedPaymentScreen) {
         incompleteBecause.push(
@@ -367,22 +432,37 @@ async function runAudit(
       }
 
       if (journey.collectPayment && checkout.reachedPaymentScreen) {
+        reporter.start('read-payment')
         result.payment = await journey.collectPayment(ctx, checkout)
+        reporter.done('read-payment', `${result.payment.methods.length} meio(s) visíveis`)
       } else if (!checkout.reachedPaymentScreen) {
+        reporter.skip('read-payment', 'a tela de meios de pagamento não foi alcançada')
         // Não chegamos na tela: a §6.6 inteira fica não aplicável, e é assim
         // que ela tem que sair — nunca preenchida por dedução.
         incompleteBecause.push('dados da tela de pagamento (§6.6) não aplicáveis: tela não alcançada')
       }
     } catch (e) {
       const shot = await recorder.capture(prepared.browser.page, 'falha-checkout')
+      reporter.fail('reach-checkout', toAuditError(e).message)
       return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot, checkoutStartedAt)
     }
   }
 
-  return finish(result, recorder.steps, incompleteBecause, startedAt, {
+  reporter.skip('mobile', 'a jornada em mobile (§6.7) não roda nesta fase')
+  reporter.start('report')
+
+  const final = finish(result, recorder.steps, incompleteBecause, startedAt, {
     productText: (ctx.scratch.get('productText') as string | null) ?? null,
     blockedBySite: false,
   })
+
+  // Achados que só existem depois das checagens (§7.3: durante, não só no fim).
+  for (const achado of final.checks?.findings ?? []) {
+    reporter.finding(achado.id, achado.severity, achado.title)
+  }
+  reporter.done('report', `${final.checks?.findings.length ?? 0} achado(s)`)
+  reporter.complete(final.checks?.score ?? null, final.checks?.scoreCaveat ?? null)
+  return final
 }
 
 function makeJourneyContext(

@@ -18,18 +18,22 @@
     "smoke": "tsx apps/worker/scripts/smoke-browser.ts",
     "sniff": "tsx apps/worker/scripts/sniff-html.ts",
     "test": "node --import tsx --test apps/worker/test/*.test.ts packages/*/test/*.test.ts",
-    "test:e2e": "node --import tsx --test apps/worker/test/e2e/*.test.ts",
+    "test:e2e": "node --import tsx --test apps/worker/test/e2e/*.test.ts apps/realtime/test/*.test.ts",
     "test:all": "npm test && npm run test:e2e",
-    "typecheck": "tsc -p apps/worker --noEmit && tsc -p packages/types --noEmit",
-    "screencast": "tsx apps/worker/scripts/screencast-probe.ts"
+    "typecheck": "tsc -p apps/worker --noEmit && tsc -p packages/types --noEmit && tsc -p apps/realtime --noEmit",
+    "screencast": "tsx apps/worker/scripts/screencast-probe.ts",
+    "live": "tsx apps/realtime/src/server.ts",
+    "live:demo": "tsx apps/realtime/scripts/live-demo.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@types/ws": "^8.5.13"
   }
 }

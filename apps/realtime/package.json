@@ -1,0 +1,13 @@
+{
+  "name": "@raio-x/realtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor WebSocket: repassa os eventos da auditoria para a sala do auditId",
+  "main": "src/server.ts",
+  "dependencies": {
+    "@raio-x/types": "*",
+    "@raio-x/worker": "*",
+    "ws": "^8.18.0"
+  }
+}

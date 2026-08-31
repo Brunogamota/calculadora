@@ -422,6 +422,50 @@ apps/worker/          o motor
   test/                 offline, sem rede
 ```
 
+## Bloco 8 — canal de tempo real (§7.4)
+
+```bash
+npm run live:demo                  # auditoria na loja falsa, eventos no terminal
+npm run live -- # sobe o servidor em http://localhost:4000
+```
+
+O `live:demo` mostra o canal funcionando antes de existir tela:
+
+```
+ 0.0s  step:start  identify        identificando a loja
+ 1.0s  step:done   identify        shopify (high)
+ 2.0s  step:done   open-product    Camiseta Básica
+ 5.0s  step:done   add-to-cart     1 item no carrinho
+ 6.1s  step:done   read-payment    3 meio(s) visíveis
+ 6.1s  step:skip   mobile          a jornada em mobile (§6.7) não roda nesta fase
+ 6.1s  finding     HTTPS_ISSUE     Alguma etapa fora de HTTPS
+ 6.1s  complete                    nota 56
+```
+
+API (§12):
+
+| | |
+|---|---|
+| `POST /api/audit` | `{ url }` → `{ auditId }`, roda em background |
+| `GET /api/audit/:id` | estado atual dos passos |
+| `WS /live?auditId=` | transmissão |
+
+### Reconexão recebe passos, não frames
+
+Quem reconecta começa por um evento `state` com os passos que já aconteceram, e
+**nenhum frame antigo**. Reenviar histórico de frames despejaria megabytes de
+JPEG que já passaram — a §7.4 é explícita: frame perdido é frame perdido.
+
+O socket também descarta frame novo quando o buffer passa de 512 KB: frame
+acumulado é frame velho, e atrasar a transmissão inteira para entregar uma tela
+que já passou é pior do que perdê-la.
+
+### Os achados chegam durante, não só no fim
+
+A §7.3 observa que publicar achado durante a execução aumenta muito a retenção.
+O `Reporter` emite conforme eles aparecem — o overlay cobrindo o botão vira
+evento no momento em que é detectado, antes de o relatório existir.
+
 ## Bloco 6 — screencast (§7.1)
 
 ```bash
