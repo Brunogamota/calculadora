@@ -34,9 +34,21 @@ export async function launchBrowser(options: LaunchOptions): Promise<BrowserSess
 
   if (headed && !process.env['DISPLAY']) {
     throw new AuditError(
-      'NETWORK_ERROR',
-      'Modo headed pedido mas não há DISPLAY. Rode com `xvfb-run -a npm run ...` ' +
-        'ou passe --headless. Em máquina com tela, isto não acontece.',
+      'NO_DISPLAY',
+      [
+        'Modo headed pedido, mas não há DISPLAY nesta máquina.',
+        'O padrão do projeto é headed (§19), então isto falha em vez de cair para',
+        'headless em silêncio — ver a tela é o que permite depurar loja real.',
+        '',
+        'Em servidor ou devcontainer sem tela, escolha um:',
+        '  xvfb-run -a npm run smoke          (headed de verdade, em display virtual)',
+        '  npm run smoke -- --headless        (sem janela)',
+        '  xvfb-run -a npm run detect -- <url>',
+        '  npm run detect -- <url> --headless',
+        '',
+        'Se faltar o xvfb: apt-get install -y xvfb',
+        'Em máquina com tela, nada disso é necessário.',
+      ].join('\n'),
     )
   }
 

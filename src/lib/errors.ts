@@ -22,6 +22,7 @@ export type AuditErrorCode =
   | 'RESPONSE_TOO_LARGE'
   | 'NETWORK_ERROR'
   | 'HOME_NOT_OK'
+  | 'NO_DISPLAY'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

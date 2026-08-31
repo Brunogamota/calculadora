@@ -19,16 +19,20 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 
 ```bash
 npm install
-npm run preflight -- loja.com.br --pretty   # bloco 1
-npm run detect    -- loja.com.br --pretty   # bloco 2 (abre o browser)
+npm run preflight -- <url-da-loja> --pretty   # bloco 1
+npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
 npm test                                     # 115 testes, tudo offline
 npm run smoke                                # valida o browser de verdade
 npm run typecheck
 ```
 
-Em servidor sem tela, prefixe com `xvfb-run -a` — o padrão do projeto é
-`headless: false` (§19), e sem display o motor falha com mensagem explicando,
-em vez de estourar cru. `--headless` desliga.
+Na primeira vez, baixe o Chromium: `npx playwright install chromium`.
+
+Em servidor ou devcontainer sem tela, prefixe com `xvfb-run -a` (instale com
+`apt-get install -y xvfb`) ou passe `--headless`. O padrão do projeto é
+`headless: false` (§19), então sem display o motor **falha com a mensagem
+explicando** em vez de cair para headless em silêncio — ver a tela é o que
+permite depurar loja real.
 
 `npm run audit` só passa a existir a partir do bloco 3.
 
