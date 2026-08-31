@@ -73,9 +73,38 @@ export interface DetectOptions {
   ownerVerified?: boolean
 }
 
+interface SessionSlot {
+  session: Awaited<ReturnType<typeof launchBrowser>> | null
+}
+
+/**
+ * §14: o orçamento global precisa CORTAR, não só ser consultado. `assertAlive`
+ * só vale nos pontos em que é chamado — uma etapa que trava entre dois
+ * checkpoints passaria por cima dele para sempre. Por isso o trabalho inteiro
+ * corre contra o deadline, e o browser é fechado no finally aconteça o que
+ * acontecer.
+ */
 export async function detect(input: string, options: DetectOptions = {}): Promise<DetectResult> {
-  const startedAt = Date.now()
   const deps = createDeps()
+  const slot: SessionSlot = { session: null }
+
+  try {
+    return await deps.deadline.race(runDetect(input, options, deps, slot), 'detecção de plataforma')
+  } catch (e) {
+    const err = toAuditError(e)
+    return { ok: false, input, errorCode: err.code, errorReason: err.message, detail: err.detail }
+  } finally {
+    await slot.session?.close()
+  }
+}
+
+async function runDetect(
+  input: string,
+  options: DetectOptions,
+  deps: ReturnType<typeof createDeps>,
+  slot: SessionSlot,
+): Promise<DetectResult> {
+  const startedAt = Date.now()
 
   const pre = await preflight(input, deps)
   if (!pre.ok) {
@@ -89,7 +118,6 @@ export async function detect(input: string, options: DetectOptions = {}): Promis
     }
   }
 
-  let session: Awaited<ReturnType<typeof launchBrowser>> | null = null
   try {
     const policy = await fetchRobots(pre.finalUrl, deps.safeFetch)
     const gate = createRobotsGate(policy, { ownerVerified: options.ownerVerified === true })
@@ -112,11 +140,12 @@ export async function detect(input: string, options: DetectOptions = {}): Promis
       })
     }
 
-    session = await launchBrowser({
+    const session = await launchBrowser({
       headed: options.headed !== false,
       userAgent: DEFAULT_USER_AGENT,
       timeoutMs: deps.deadline.clamp(30_000),
     })
+    slot.session = session
 
     deps.deadline.assertAlive('abertura da home no browser')
     const opened = await openPage(session.page, pre.finalUrl, deps.deadline.clamp(30_000))
@@ -175,7 +204,5 @@ export async function detect(input: string, options: DetectOptions = {}): Promis
       detail: err.detail,
       preflight: pre,
     }
-  } finally {
-    await session?.close()
   }
 }

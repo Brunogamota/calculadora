@@ -40,4 +40,34 @@ export class Deadline {
   clamp(requestedMs: number): number {
     return Math.max(1, Math.min(requestedMs, this.remainingMs()))
   }
+
+  /**
+   * Corta a execução quando o orçamento acaba, e não só quando alguém lembra
+   * de perguntar. `assertAlive` só serve nos pontos onde é chamado; uma etapa
+   * que trava entre dois checkpoints passa por cima dela para sempre.
+   *
+   * O trabalho perdedor da corrida continua rodando em background — quem chama
+   * é responsável por fechar o browser no `finally`.
+   */
+  async race<T>(work: Promise<T>, label: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined
+    const expiry = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new AuditError('DEADLINE_EXCEEDED', `Orçamento de ${this.budgetMs}ms estourou em: ${label}`, {
+            step: label,
+            elapsedMs: this.elapsedMs(),
+            budgetMs: this.budgetMs,
+          }),
+        )
+      }, this.remainingMs())
+      timer.unref?.()
+    })
+
+    try {
+      return await Promise.race([work, expiry])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
 }

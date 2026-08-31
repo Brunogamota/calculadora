@@ -126,6 +126,12 @@ público na checagem e um privado no connect. Por isso o `safeFetch` é escrito 
 `node:https` em vez de `fetch` — só assim dá para passar um `lookup` que reprova o
 endereço no momento exato da conexão.
 
+**O orçamento global corta, não só avisa.** `assertAlive` só vale nos pontos em
+que é chamado — uma etapa que trava entre dois checkpoints passaria por cima
+dele para sempre. Por isso a execução inteira corre contra o deadline
+(`MAX_AUDIT_MS`, padrão 120s) e o browser é fechado aconteça o que acontecer.
+Execução travada termina em `DEADLINE_EXCEEDED`, nunca pendurada.
+
 **robots.txt indisponível falha fechado.** 4xx libera tudo (RFC 9309), mas 5xx e
 erro de rede proíbem a coleta. Na dúvida, não se bate na loja.
 
@@ -142,7 +148,7 @@ src/
     robots.ts         parser e política (§2.3)
     ratelimit.ts      1 req/s por domínio
     blocklist.ts      §2.6
-    deadline.ts       orçamento global de 120s (§14)
+    deadline.ts       orçamento global de 120s, que CORTA (§14)
     errors.ts         códigos estáveis -> errorReason
     gate.ts           portão de robots + exceção por titularidade
     browser.ts        Playwright: launch, guard de route, captura da sonda
