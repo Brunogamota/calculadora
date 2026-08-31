@@ -47,6 +47,21 @@ export interface Scoreboard {
   /** Soma dos pesos disparados e o denominador usado, para a conta ser auditável. */
   weightFailed: number
   weightApplicable: number
+  /**
+   * Quanto da §8 foi de fato medido, em peso.
+   *
+   * Sem isto, "nota 100" com 3 de 13 checagens aplicáveis lê igual a "nota 100"
+   * com as 13 — e a primeira é quase uma promessa falsa. Aconteceu numa
+   * auditoria real: a loja proibia /checkout no robots, 10 checagens saíram não
+   * aplicáveis, e a nota saiu 100.
+   */
+  coverage: {
+    weightTotal: number
+    ratio: number
+    checksTotal: number
+  }
+  /** Preenchido quando a nota se apoia em pouca coisa. */
+  scoreCaveat: string | null
 }
 
 export interface ChecksReport extends Scoreboard {
@@ -70,11 +85,22 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
 
   const weightApplicable = applicable.reduce((sum, r) => sum + SEVERITY_WEIGHT[r.severity], 0)
   const weightFailed = failed.reduce((sum, r) => sum + SEVERITY_WEIGHT[r.severity], 0)
+  const weightTotal = results.reduce((sum, r) => sum + SEVERITY_WEIGHT[r.severity], 0)
+  const ratio = weightTotal === 0 ? 0 : weightApplicable / weightTotal
 
   // Sem nenhuma checagem aplicável não existe nota. Devolver 100 diria "loja
   // impecável" para uma auditoria que não mediu nada.
   const score =
     weightApplicable === 0 ? null : Math.round(100 * (1 - weightFailed / weightApplicable))
+
+  // A nota é honesta dentro do que foi medido, mas apresentada sozinha ela
+  // engana quando pouco foi medido. O aviso viaja junto com o número.
+  const scoreCaveat =
+    score === null || ratio >= 0.6
+      ? null
+      : `esta nota cobre apenas ${Math.round(ratio * 100)}% da §8 em peso ` +
+        `(${applicable.length} de ${results.length} checagens aplicáveis). ` +
+        'Ela diz que nada falhou no que foi possível medir, não que a loja está impecável.'
 
   return {
     score,
@@ -84,6 +110,8 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
     notApplicable: results.length - applicable.length,
     weightFailed,
     weightApplicable,
+    coverage: { weightTotal, ratio: Math.round(ratio * 100) / 100, checksTotal: results.length },
+    scoreCaveat,
     results,
     findings: [...failed].sort(
       (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9),

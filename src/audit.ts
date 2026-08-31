@@ -561,6 +561,8 @@ export function summarize(result: AuditResult): Record<string, unknown> {
     checks: result.checks
       ? {
           score: result.checks.score,
+          ressalva: result.checks.scoreCaveat,
+          cobertura: `${Math.round(result.checks.coverage.ratio * 100)}% da §8 em peso`,
           aplicaveis: result.checks.applicable,
           passaram: result.checks.passed,
           falharam: result.checks.failed,

@@ -115,6 +115,46 @@ describe('nota — normalizada pelas checagens aplicáveis', () => {
   })
 })
 
+describe('cobertura — nota 100 medindo pouco não pode ler igual a nota 100 medindo tudo', () => {
+  // Aconteceu numa auditoria real: a loja proibia /checkout no robots, dez
+  // checagens saíram não aplicáveis, e a nota saiu 100. Verdadeira dentro do
+  // que foi medido, e quase uma promessa falsa apresentada sozinha.
+  test('nota apoiada em pouca coisa vem com ressalva', () => {
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
+    assert.equal(r.score, 100)
+    assert.ok(r.coverage.ratio < 0.6, `cobertura foi ${r.coverage.ratio}`)
+    assert.ok(r.scoreCaveat, 'faltou a ressalva')
+    assert.match(r.scoreCaveat!, /não que a loja está impecável/)
+  })
+
+  test('nota apoiada em quase tudo não tem ressalva', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        checkout: checkout(),
+        payment: PAGAMENTO_BOM,
+        productText: 'Pix 5% de desconto. Cartão em 10x.',
+        auditedFromBrazil: true,
+      }),
+    )
+    assert.ok(r.coverage.ratio >= 0.6, `cobertura foi ${r.coverage.ratio}`)
+    assert.equal(r.scoreCaveat, null)
+  })
+
+  test('a cobertura é medida em peso, não em contagem', () => {
+    // Uma crítica não medida pesa mais que três baixas não medidas.
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
+    assert.equal(r.coverage.weightTotal > r.weightApplicable, true)
+    assert.equal(r.coverage.checksTotal, r.applicable + r.notApplicable)
+  })
+
+  test('sem nota não há ressalva a dar', () => {
+    const r = runChecks(entrada())
+    assert.equal(r.score, null)
+    assert.equal(r.scoreCaveat, null)
+  })
+})
+
 describe('robots proibindo /checkout não penaliza a loja', () => {
   const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
 

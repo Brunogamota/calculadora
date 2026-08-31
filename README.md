@@ -424,6 +424,22 @@ aplicável diz o motivo, e há teste exigindo isso.
 Sem nenhuma checagem aplicável, a nota é `null` — não 100. Devolver 100 diria
 "loja impecável" para uma auditoria que não mediu nada.
 
+### E a nota viaja com a cobertura
+
+Numa auditoria real da Insider Store, a loja proibia `/checkout` no robots, dez
+checagens saíram não aplicáveis, e a nota saiu **100**. Verdadeira dentro do que
+foi medido — e quase uma promessa falsa apresentada sozinha.
+
+Então a nota carrega `coverage` (quanto da §8 foi medido, **em peso**, porque
+uma crítica não medida vale mais que três baixas) e, abaixo de 60%, uma
+ressalva explícita:
+
+> esta nota cobre apenas 27% da §8 em peso (2 de 13 checagens aplicáveis). Ela
+> diz que nada falhou no que foi possível medir, não que a loja está impecável.
+
+Na Fase 3, essa ressalva precisa aparecer **ao lado do número grande** no
+relatório, não num rodapé.
+
 ### O que muda conforme o ponto de observação
 
 `CHECKOUT_SPEED` só julga quando `--from-br` foi declarado: medir de fora infla

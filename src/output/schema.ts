@@ -32,6 +32,12 @@ const checksReport = z.object({
   notApplicable: z.number().int().nonnegative(),
   weightFailed: z.number().nonnegative(),
   weightApplicable: z.number().nonnegative(),
+  coverage: z.object({
+    weightTotal: z.number().nonnegative(),
+    ratio: z.number().min(0).max(1),
+    checksTotal: z.number().int().nonnegative(),
+  }),
+  scoreCaveat: z.string().nullable(),
   results: z.array(checkResult),
   findings: z.array(checkResult),
 })
