@@ -78,10 +78,27 @@ export const INTEREST_TERMS = ['sem juros', 'com juros', 'juros de', 'acréscimo
 /** "12x de R$ 99,90" / "10 x R$ 50,00" / "3x sem juros". */
 export const INSTALLMENT_PATTERN = /(\d{1,2})\s*x\s*(?:de\s*)?(?:R\$\s*([\d.,]+))?/gi
 
+/**
+ * Minúsculas e SEM acento.
+ *
+ * O léxico é quase todo em português, e depender de acento bater exatamente
+ * cria falso negativo silencioso: loja que serve UTF-8 sem declarar charset
+ * chega com o texto mexido, "salvar cartão" não casa, e a §6.6 diz "não
+ * oferece salvar cartão" para uma loja que oferece. Falso negativo é tão ruim
+ * quanto falso positivo — os dois são resultado inventado.
+ *
+ * A normalização preserva o comprimento em quase todos os casos (NFD separa o
+ * diacrítico como caractere próprio, que é removido), então os índices
+ * continuam servindo para ordenar os achados.
+ */
+export function fold(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 export function findTerm(haystack: string, terms: string[]): LexiconHit | null {
-  const lower = haystack.toLowerCase()
+  const lower = fold(haystack)
   for (const term of terms) {
-    const index = lower.indexOf(term.toLowerCase())
+    const index = lower.indexOf(fold(term))
     if (index === -1) continue
     return {
       term,

@@ -140,3 +140,28 @@ describe('classifyAddress — faixas', () => {
     assert.equal(classifyAddress('100.127.255.255').isPublic, false)
   })
 })
+
+describe('AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS — a única brecha, e ela é fechada por padrão', () => {
+  test('sem a variável, localhost e 127.0.0.1 continuam barrados', () => {
+    delete process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS']
+    assert.equal(shapeError('http://127.0.0.1:8080'), 'PORT_NOT_ALLOWED')
+    assert.equal(shapeError('http://127.0.0.1'), 'IP_LITERAL')
+    assert.equal(shapeError('localhost'), 'BLOCKED_HOSTNAME')
+  })
+
+  test('valor diferente de "1" não abre a brecha', () => {
+    process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = 'true'
+    assert.equal(shapeError('http://127.0.0.1'), 'IP_LITERAL')
+    delete process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS']
+  })
+
+  test('com a variável, só o alvo local passa — o resto do guard continua de pé', () => {
+    process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+    assert.equal(shapeError('http://127.0.0.1:4000'), 'NO_ERROR')
+    // Faixas privadas que NÃO são o alvo local seguem barradas.
+    assert.equal(shapeError('http://169.254.169.254'), 'IP_LITERAL')
+    assert.equal(shapeError('http://192.168.0.1'), 'IP_LITERAL')
+    assert.equal(shapeError('http://10.0.0.1'), 'IP_LITERAL')
+    delete process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS']
+  })
+})

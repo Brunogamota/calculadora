@@ -20,6 +20,8 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 
 ```bash
 npm install
+npm test                                     # 224 testes, offline, ~2s
+npm run test:e2e                             # jornada completa na loja falsa, ~70s
 npm run preflight -- <url-da-loja> --pretty   # bloco 1
 npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
 npm run audit     -- <url-da-loja> --pretty   # bloco 3a (jornada + screenshots)
@@ -389,6 +391,34 @@ scripts/
   smoke-browser.ts    valida browser, globais e guard de route
 test/                 offline, sem rede
 ```
+
+## A loja falsa
+
+`test/fixtures/fake-shopify.ts` sobe uma loja em `127.0.0.1` com o formato do
+Shopify: `/products.json`, página de produto com `form[action="/cart/add"]`,
+`/cart.js` com sessão por cookie, e checkout com os campos de `autocomplete`.
+`npm run test:e2e` roda a jornada inteira contra ela.
+
+**Ela não substitui loja real.** Responde o que eu espero, e por isso não prova
+que uma loja real responde igual. O que prova é que o código funciona quando a
+loja segue o contrato público do Shopify — e é essa a classe de bug que vinha
+aparecendo uma por vez em produção. Cada cenário dela reproduz um bug que
+aconteceu de verdade:
+
+| Cenário | Bug que ele trava |
+|---|---|
+| formulário injetado com atraso | `count()` fotografa o DOM em vez de esperar |
+| produto de R$ 0 no catálogo | "mais barato" sem piso pega item de teste |
+| desafio antibot | virava "formulário não encontrado", culpando a loja |
+| robots proibindo `/checkout` | precisa ser `partial`, não erro |
+| modal de região | não pode virar achado contra a loja |
+| carrinho | `/cart.js` era lido de outra sessão, sempre vazio |
+
+Para isso funcionar, o guard de SSRF tem **uma** brecha:
+`AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS=1` libera `127.0.0.1`. Desligada por
+padrão, lida do ambiente a cada chamada, e o resto do guard continua de pé —
+`169.254.169.254` e faixas privadas seguem barradas mesmo com ela ligada. Se
+essa variável estiver ligada em produção, a proteção da §2.5 não existe.
 
 ### O que os testes provam, e o que não provam
 

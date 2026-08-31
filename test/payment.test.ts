@@ -157,3 +157,29 @@ describe('§2.1 — travas contra finalizar pedido', () => {
     }
   })
 })
+
+describe('léxico sem acento — falso negativo também é resultado inventado', () => {
+  test('casa mesmo quando o acento se perde no caminho', () => {
+    // Loja que serve UTF-8 sem declarar charset chega assim. Sem a
+    // normalização, a §6.6 diria "não oferece salvar cartão" para uma loja que
+    // oferece — e falso negativo é tão ruim quanto falso positivo.
+    const semAcento = 'Salvar cartao para a proxima compra. Compra segura. Cupom de desconto. CPF'
+    const snap = collectFromText({ text: semAcento, scriptHosts: [] })
+    assert.equal(snap.saveCard, true)
+    assert.equal(snap.couponField, true)
+    assert.equal(snap.trustSignals.present, true)
+    assert.equal(snap.cpfField, true)
+  })
+
+  test('e continua casando com acento', () => {
+    const comAcento = 'Salvar cartão. Compra segura. Cupom de desconto.'
+    const snap = collectFromText({ text: comAcento, scriptHosts: [] })
+    assert.equal(snap.saveCard, true)
+    assert.equal(snap.couponField, true)
+  })
+
+  test('a ordem dos meios sobrevive à normalização', () => {
+    const methods = extractMethods('Boleto bancario. Cartao de credito. Pix.')
+    assert.deepEqual(methods.map((m) => m.label), ['Boleto', 'Cartão de crédito', 'Pix'])
+  })
+})

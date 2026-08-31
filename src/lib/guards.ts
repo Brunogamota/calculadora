@@ -15,6 +15,18 @@ import { classifyAddress, type AddressVerdict } from './ipranges.ts'
 /** Portas aceitas. Loja real não roda em porta exótica; porta exótica é alvo interno. */
 const ALLOWED_PORTS = new Set(['', '80', '443'])
 
+/**
+ * ÚNICA brecha no guard de SSRF do projeto, e ela existe só para o teste de
+ * jornada contra a loja falsa em 127.0.0.1.
+ *
+ * Lida do ambiente a cada chamada, nunca cacheada, e desligada por padrão. Se
+ * esta variável estiver ligada em produção, a proteção da §2.5 não existe —
+ * por isso ela tem nome longo e explícito, e o motor avisa no resultado.
+ */
+export function localTargetsAllowed(): boolean {
+  return process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] === '1'
+}
+
 /** Hostnames e sufixos que nunca saem para a internet pública. */
 const BLOCKED_EXACT = new Set(['localhost', 'ip6-localhost', 'ip6-loopback'])
 const BLOCKED_SUFFIXES = [
@@ -69,7 +81,7 @@ export function normalizeUrl(input: string): NormalizedUrl {
   if (url.username || url.password) {
     throw new AuditError('HAS_CREDENTIALS', 'URL com credencial embutida não é aceita', { input })
   }
-  if (!ALLOWED_PORTS.has(url.port)) {
+  if (!ALLOWED_PORTS.has(url.port) && !localTargetsAllowed()) {
     throw new AuditError('PORT_NOT_ALLOWED', `Porta não permitida: ${url.port}`, {
       input,
       port: url.port,
@@ -97,6 +109,10 @@ export function normalizeUrl(input: string): NormalizedUrl {
  */
 export function assertUrlShapeIsSafe(normalized: NormalizedUrl): void {
   const host = normalized.hostname.toLowerCase()
+
+  if (localTargetsAllowed() && (host === '127.0.0.1' || host === 'localhost' || host === '::1')) {
+    return
+  }
 
   // `new URL` já converte 2130706433 e 0x7f.0.0.1 para forma pontuada,
   // então basta perguntar ao net se o resultado é IP.
@@ -145,7 +161,7 @@ export async function resolveHostSafely(hostname: string): Promise<ResolvedHost>
 
   const addresses = records.map((r) => classifyAddress(r.address))
   const blocked = addresses.find((a) => !a.isPublic)
-  if (blocked) {
+  if (blocked && !localTargetsAllowed()) {
     throw new AuditError('PRIVATE_ADDRESS', `${hostname} resolve para faixa não pública`, {
       hostname,
       address: blocked.address,

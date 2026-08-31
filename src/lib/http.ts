@@ -17,7 +17,7 @@ import zlib from 'node:zlib'
 import { Readable } from 'node:stream'
 import { AuditError, toAuditError } from './errors.ts'
 import { classifyAddress } from './ipranges.ts'
-import { assertUrlShapeIsSafe, normalizeUrl, type NormalizedUrl } from './guards.ts'
+import { assertUrlShapeIsSafe, localTargetsAllowed, normalizeUrl, type NormalizedUrl } from './guards.ts'
 import { HostRateLimiter } from './ratelimit.ts'
 
 export const DEFAULT_USER_AGENT =
@@ -83,7 +83,7 @@ function guardedLookup(
     }
     for (const record of list) {
       const verdict = classifyAddress(record.address)
-      if (!verdict.isPublic) {
+      if (!verdict.isPublic && !localTargetsAllowed()) {
         const error = new AuditError(
           'PRIVATE_ADDRESS',
           `${hostname} resolveu para ${record.address} (${verdict.blockedBy})`,
