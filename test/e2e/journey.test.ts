@@ -15,6 +15,7 @@ import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { audit, type AuditResult } from '../../src/audit.ts'
 import { startFakeStore, type FakeStore } from '../fixtures/fake-shopify.ts'
+import { validateAuditResult } from '../../src/output/schema.ts'
 import type { FakeStoreOptions } from '../fixtures/fake-shopify.ts'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
@@ -238,5 +239,60 @@ describe('checkout e coleta da §6.6', { concurrency: false }, () => {
     // A loja falsa expõe esse botão. Clicar nele quebraria este teste.
     assert.equal(result.errorCode, null)
     assert.equal(result.checkout?.reachedPaymentScreen, true)
+  })
+})
+
+describe('§8 — nota e achados sobre a jornada real da loja falsa', { concurrency: false }, () => {
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    Object.assign(process.env, {
+      AUDIT_NAME: 'Teste Auditoria',
+      AUDIT_EMAIL: 'auditoria@exemplo.com',
+      AUDIT_PHONE: '(11) 90000-0000',
+      AUDIT_POSTAL_CODE: '01310-100',
+      AUDIT_ADDRESS: 'Avenida Exemplo',
+      AUDIT_ADDRESS_NUMBER: '1000',
+      AUDIT_CITY: 'São Paulo',
+      AUDIT_CPF: '529.982.247-25',
+    })
+    const run = await auditFake({}, { fillCheckout: true, fromBrazil: true })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('produz uma nota', () => {
+    assert.notEqual(result.checks?.score, null)
+    assert.ok(result.checks!.score! >= 0 && result.checks!.score! <= 100)
+  })
+
+  test('a conta bate com os pesos', () => {
+    const c = result.checks!
+    assert.equal(c.score, Math.round(100 * (1 - c.weightFailed / c.weightApplicable)))
+  })
+
+  test('MOBILE_PARITY e DESCRIPTOR_UNCLEAR saem não aplicáveis nesta fase', () => {
+    for (const id of ['MOBILE_PARITY', 'DESCRIPTOR_UNCLEAR']) {
+      const check = result.checks?.results.find((r) => r.id === id)
+      assert.equal(check?.status, 'not_applicable', id)
+      assert.ok((check?.notApplicableReason ?? '').length > 10, `${id} sem motivo`)
+    }
+  })
+
+  test('a loja falsa não menciona pagamento no produto: PAY_VISIBILITY falha', () => {
+    assert.equal(result.checks?.results.find((r) => r.id === 'PAY_VISIBILITY')?.status, 'fail')
+  })
+
+  test('e as checagens da tela de pagamento passam, porque a tela foi lida', () => {
+    for (const id of ['INSTALLMENT_UNCLEAR', 'NO_COUPON_FIELD', 'NO_SAVED_CARD', 'NO_TRUST_SIGNAL']) {
+      assert.equal(result.checks?.results.find((r) => r.id === id)?.status, 'pass', id)
+    }
+  })
+
+  test('a saída bate com o esquema Zod declarado (§17: JSON tipado)', () => {
+    const validation = validateAuditResult(result)
+    assert.equal(validation.valid, true, validation.issues.join(' | '))
   })
 })

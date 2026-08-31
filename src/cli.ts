@@ -14,6 +14,7 @@
 import { preflight, createDeps } from './preflight.ts'
 import { detect } from './detect.ts'
 import { audit, summarize } from './audit.ts'
+import { validateAuditResult } from './output/schema.ts'
 
 const COMMANDS = ['preflight', 'detect', 'audit'] as const
 type Command = (typeof COMMANDS)[number]
@@ -80,6 +81,16 @@ async function main(): Promise<void> {
             ...(flags.has('--from-br') ? { fromBrazil: true } : {}),
             force: flags.has('--force'),
           })
+
+  // §17 pede JSON tipado. O motor valida o próprio resultado antes de imprimir:
+  // saída malformada é a versão silenciosa de resultado inventado.
+  if (command === 'audit') {
+    const validation = validateAuditResult(result)
+    if (!validation.valid) {
+      console.error('AVISO: a saída não bate com o esquema declarado:')
+      for (const issue of validation.issues) console.error(`  - ${issue}`)
+    }
+  }
 
   const output =
     command === 'audit' && flags.has('--summary')

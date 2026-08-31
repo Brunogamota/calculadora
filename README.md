@@ -14,13 +14,13 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
 | 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **pronto** |
 | 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
-| 4 | Checagens (§8) e saída JSON | a fazer |
+| 4 | Checagens (§8), nota e saída JSON validada | **pronto** |
 
 ## Rodando
 
 ```bash
 npm install
-npm test                                     # 224 testes, offline, ~2s
+npm test                                     # 252 testes, offline, ~2s
 npm run test:e2e                             # jornada completa na loja falsa, ~70s
 npm run preflight -- <url-da-loja> --pretty   # bloco 1
 npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
@@ -394,6 +394,57 @@ scripts/
   smoke-browser.ts    valida browser, globais e guard de route
 test/                 offline, sem rede
 ```
+
+## Bloco 4 — checagens e nota (§8)
+
+As 12 checagens da tabela da §8, mais uma marcada como adição. Cada uma sai com
+severidade, evidência, recomendação e, quando há, o print.
+
+```
+"score": 48, "aplicaveis": 11, "passaram": 7, "falharam": 4, "naoAplicaveis": 2,
+"achados": [
+  "[critica] HTTPS_ISSUE: identificando a loja: http://…",
+  "[alta] PAY_VISIBILITY: nenhum meio de pagamento é mencionado na página do produto",
+  "[alta] PIX_DISCOUNT_LATE: o desconto no Pix só aparece no checkout",
+  "[alta] BUY_BUTTON_OBSCURED: sobreposição \"consent\" cobre o botão: div#cookieBar"
+]
+```
+
+### `not_applicable` sai do denominador
+
+`nota = 100 × (1 − pesos_falhos / pesos_aplicáveis)`. Pesos: crítica 30, alta
+15, média 8, baixa 4 — a escala é da §8, os números são escolha nossa, e como a
+nota é normalizada o que importa é a proporção.
+
+Checagem não aplicável **não é meio-termo entre passar e falhar**: ela sai da
+conta. Uma loja não perde nota porque o robots proibiu `/checkout`, porque a
+loja bloqueou a auditoria, ou porque auditamos do país errado. Toda não
+aplicável diz o motivo, e há teste exigindo isso.
+
+Sem nenhuma checagem aplicável, a nota é `null` — não 100. Devolver 100 diria
+"loja impecável" para uma auditoria que não mediu nada.
+
+### O que muda conforme o ponto de observação
+
+`CHECKOUT_SPEED` só julga quando `--from-br` foi declarado: medir de fora infla
+o número por latência que o comprador da loja não tem. `BUY_BUTTON_OBSCURED`
+nunca dispara em modal de região visto de fora do Brasil.
+
+### Uma checagem além da §8
+
+`BUY_BUTTON_OBSCURED` não está na tabela do documento. Ela nasceu do achado mais
+concreto que os testes contra loja real produziram: um modal cobrindo o botão de
+comprar. Está marcada com `beyondSpec: true` e um teste garante que qualquer
+regra fora da tabela carregue essa marca — então vetá-la é remover uma linha de
+`RULES`, sem procurar.
+
+### A saída é validada contra o próprio esquema
+
+§17 pede JSON tipado. O motor valida o resultado com Zod antes de imprimir e
+avisa no `stderr` se não bater. Parece redundante com o TypeScript, mas não é: o
+TS garante a forma em compilação, e o Zod pega o que escapa em execução. Numa
+ferramenta cujo princípio nº 1 é não entregar resultado inventado, JSON
+malformado é a versão silenciosa do mesmo problema.
 
 ## A loja falsa
 

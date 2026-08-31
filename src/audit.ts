@@ -13,6 +13,7 @@ import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
 import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, DEFAULT_COOLDOWN_HOURS } from './lib/cooldown.ts'
+import { runChecks, type ChecksReport } from './checks/index.ts'
 import { normalizeUrl } from './lib/guards.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import type {
@@ -61,6 +62,8 @@ export interface AuditResult {
   payment: PaymentSnapshot | null
   /** Identidade usada, sempre mascarada. O CPF inteiro nunca sai daqui. */
   identity: Record<string, unknown> | null
+  /** §8 — checagens, achados e nota. null quando a auditoria nem começou. */
+  checks: ChecksReport | null
   steps: JourneyStep[]
   screenshotsDir: string | null
   robots: {
@@ -105,6 +108,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     checkout: null,
     payment: null,
     identity: null,
+    checks: null,
     steps: [],
     screenshotsDir: null,
     robots: { ownerVerified: options.ownerVerified === true, blockedPaths: [], overridesUsed: [] },
@@ -248,7 +252,10 @@ async function runAudit(
     // Sem jornada para esta plataforma: o HTML fica salvo para quem for
     // implementar o adapter depois.
     await saveHtml(outDir, hostname, 'home', prepared.opened.html)
-    return finish(result, recorder.steps, incompleteBecause, startedAt)
+    return finish(result, recorder.steps, incompleteBecause, startedAt, {
+      productText: null,
+      blockedBySite: false,
+    })
   }
 
   let identity: AuditIdentity | null = null
@@ -352,7 +359,10 @@ async function runAudit(
     }
   }
 
-  return finish(result, recorder.steps, incompleteBecause, startedAt)
+  return finish(result, recorder.steps, incompleteBecause, startedAt, {
+    productText: (ctx.scratch.get('productText') as string | null) ?? null,
+    blockedBySite: false,
+  })
 }
 
 function makeJourneyContext(
@@ -408,14 +418,28 @@ function finish(
   steps: ReadonlyArray<JourneyStep>,
   incompleteBecause: string[],
   startedAt: number,
+  extra: { productText: string | null; blockedBySite: boolean },
 ): AuditResult {
+  const withSteps = { ...result, steps: [...steps] }
   return {
-    ...result,
+    ...withSteps,
     ok: true,
     status: incompleteBecause.length > 0 ? 'partial' : 'done',
-    steps: [...steps],
     incompleteBecause,
-    timings: { ...result.timings, totalMs: Date.now() - startedAt },
+    checks: runChecks({
+      product: withSteps.product,
+      cart: withSteps.cart,
+      checkout: withSteps.checkout,
+      payment: withSteps.payment,
+      steps: withSteps.steps,
+      productText: extra.productText,
+      homeLoadMs: withSteps.timings.homeLoadMs,
+      mobile: null,
+      auditedFromBrazil: withSteps.vantage.auditedFromBrazil,
+      robotsBlockedPaths: withSteps.robots.blockedPaths,
+      blockedBySite: extra.blockedBySite,
+    }),
+    timings: { ...withSteps.timings, totalMs: Date.now() - startedAt },
   }
 }
 
@@ -468,6 +492,19 @@ function failStep(
     status: 'partial',
     steps: trail,
     incompleteBecause: [explanation],
+    checks: runChecks({
+      product: result.product,
+      cart: result.cart,
+      checkout: result.checkout,
+      payment: result.payment,
+      steps: trail,
+      productText: null,
+      homeLoadMs: result.timings.homeLoadMs,
+      mobile: null,
+      auditedFromBrazil: result.vantage.auditedFromBrazil,
+      robotsBlockedPaths: result.robots.blockedPaths,
+      blockedBySite: isProtectedSite(err.code),
+    }),
     errorCode: err.code,
     errorReason: err.message,
     errorDetail: Object.keys(err.detail).length > 0 ? err.detail : null,
@@ -517,6 +554,20 @@ export function summarize(result: AuditResult): Record<string, unknown> {
           installments: result.payment.installments,
           couponField: result.payment.couponField,
           gateway: result.payment.gateway,
+        }
+      : null,
+    score: result.checks?.score ?? null,
+    checks: result.checks
+      ? {
+          score: result.checks.score,
+          aplicaveis: result.checks.applicable,
+          passaram: result.checks.passed,
+          falharam: result.checks.failed,
+          naoAplicaveis: result.checks.notApplicable,
+          achados: result.checks.findings.map((f) => `[${f.severity}] ${f.id}: ${f.evidence[0] ?? ''}`),
+          naoAplicavelPorque: result.checks.results
+            .filter((r) => r.status === 'not_applicable')
+            .map((r) => `${r.id}: ${r.notApplicableReason ?? ''}`),
         }
       : null,
     steps: result.steps.map((s) => ({ id: s.id, ms: s.ms, outcome: s.outcome.status })),
