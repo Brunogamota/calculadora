@@ -17,12 +17,26 @@ import type { Publisher } from './publisher.ts'
 export class Reporter {
   readonly #publisher: Publisher
   readonly #auditId: string
+  readonly #stepDelayMs: number
   /** Achados já anunciados, para não repetir o mesmo na tela. */
   readonly #announced = new Set<string>()
 
-  constructor(publisher: Publisher, auditId: string) {
+  constructor(publisher: Publisher, auditId: string, stepDelayMs = 0) {
     this.#publisher = publisher
     this.#auditId = auditId
+    this.#stepDelayMs = stepDelayMs
+  }
+
+  /**
+   * §7.5: um leve atraso entre passos. A execução crua é rápida e ilegível —
+   * a jornada na loja falsa termina em 6 segundos, com passos piscando.
+   *
+   * Fica mais lento de propósito, e é isso que a torna assistível. Zero no CLI,
+   * onde não há ninguém assistindo.
+   */
+  async pace(): Promise<void> {
+    if (this.#stepDelayMs <= 0) return
+    await new Promise((resolve) => setTimeout(resolve, this.#stepDelayMs))
   }
 
   get auditId(): string {

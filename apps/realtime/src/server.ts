@@ -83,6 +83,8 @@ const server = createServer((req, res) => {
         publisher: bus,
         auditId,
         headed: process.env['AUDIT_HEADED'] === '1',
+        // §7.5: sem o atraso a execução termina antes de dar para ler.
+        stepDelayMs: Number(process.env['AUDIT_STEP_DELAY_MS'] ?? 800),
         fromBrazil: process.env['AUDIT_FROM_BR'] === '1',
       })
         .catch(() => undefined)

@@ -45,6 +45,8 @@ export interface AuditOptions extends PrepareOptions {
   auditId?: string
   /** Transmitir frames (§7.1). Padrão: só quando há publisher. */
   screencast?: boolean
+  /** §7.5: atraso entre passos, para a execução ficar assistível. */
+  stepDelayMs?: number
   /**
    * Ignora o intervalo mínimo entre auditorias do mesmo domínio. Use apenas em
    * loja própria: em loja de terceiro, repetir é o que a §2.2 proíbe.
@@ -110,6 +112,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
   const reporter = new Reporter(
     options.publisher ?? new NullPublisher(),
     options.auditId ?? `audit_${Math.random().toString(36).slice(2, 10)}`,
+    options.stepDelayMs ?? 0,
   )
 
   const base: AuditResult = {
@@ -287,6 +290,7 @@ async function runAudit(
     'identify',
     `${prepared.decision.evidence.platform} (${prepared.decision.evidence.confidence})`,
   )
+  await reporter.pace()
   const homeShot = await recorder.capture(prepared.browser.page, 'home')
   recorder.step(
     makeStep({
@@ -343,6 +347,7 @@ async function runAudit(
     product = await journey.findProduct(ctx)
     result.product = product
     reporter.done('open-product', product.title)
+    await reporter.pace()
   } catch (e) {
     reporter.fail('open-product', toAuditError(e).message)
     const shot = await recorder.capture(prepared.browser.page, 'falha-find-product')
@@ -367,6 +372,7 @@ async function runAudit(
     if (cart.overlay.present && !cart.overlay.dismissed && !cart.overlay.likelyAuditArtifact) {
       reporter.finding('BUY_BUTTON_OBSCURED', 'alta', 'Botão de comprar coberto por sobreposição')
     }
+    await reporter.pace()
     if (cart.ok === null) {
       incompleteBecause.push(
         `carrinho não pôde ser confirmado${cart.cartReadNote ? ` — ${cart.cartReadNote}` : ''}`,
@@ -419,6 +425,7 @@ async function runAudit(
       const checkout = await journey.reachCheckout(ctx, cart)
       result.checkout = checkout
       reporter.done('reach-checkout', `${checkout.stepsFromProduct} passo(s) do produto`)
+      await reporter.pace()
 
       if (!checkout.reachedPaymentScreen) {
         incompleteBecause.push(
@@ -435,6 +442,7 @@ async function runAudit(
         reporter.start('read-payment')
         result.payment = await journey.collectPayment(ctx, checkout)
         reporter.done('read-payment', `${result.payment.methods.length} meio(s) visíveis`)
+        await reporter.pace()
       } else if (!checkout.reachedPaymentScreen) {
         reporter.skip('read-payment', 'a tela de meios de pagamento não foi alcançada')
         // Não chegamos na tela: a §6.6 inteira fica não aplicável, e é assim
@@ -449,6 +457,7 @@ async function runAudit(
   }
 
   reporter.skip('mobile', 'a jornada em mobile (§6.7) não roda nesta fase')
+  await reporter.pace()
   reporter.start('report')
 
   const final = finish(result, recorder.steps, incompleteBecause, startedAt, {
@@ -459,6 +468,7 @@ async function runAudit(
   // Achados que só existem depois das checagens (§7.3: durante, não só no fim).
   for (const achado of final.checks?.findings ?? []) {
     reporter.finding(achado.id, achado.severity, achado.title)
+    await reporter.pace()
   }
   reporter.done('report', `${final.checks?.findings.length ?? 0} achado(s)`)
   reporter.complete(final.checks?.score ?? null, final.checks?.scoreCaveat ?? null)

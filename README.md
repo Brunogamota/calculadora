@@ -422,6 +422,46 @@ apps/worker/          o motor
   test/                 offline, sem rede
 ```
 
+## Bloco 9 — a tela de execução (§13)
+
+```bash
+npm run live
+```
+
+Abre em `http://localhost:4000`. Cole a URL, e a tela mostra os passos à
+esquerda e o navegador ao vivo à direita.
+
+```bash
+npm run ui:shot     # captura home, execução, veredito e mobile em out/ui/
+```
+
+### Por que HTML e JS puros, sem framework
+
+A tela precisa de uma lista de passos e um `<img>` que troca de `src` oito
+vezes por segundo. Um Next.js aqui traria build, roteamento e dependências
+antes de a tela existir. Na Fase 3, com relatório, og:image dinâmica e captura
+de e-mail, ele se paga — e aí a migração é de uma página só.
+
+### Detalhes da §7.5 que estão implementados
+
+- **atraso entre passos** (`AUDIT_STEP_DELAY_MS`, padrão 800ms). A execução crua
+  termina em 6 segundos com os passos piscando: ilegível
+- **último frame congelado e escurecido** antes do veredito
+- **compartilhar visível durante a execução**, e destacado no fim — é ali que o
+  link circula
+- **no mobile o navegador em cima**, ocupando 60% da altura
+
+### A ressalva fica ao lado do número, não num rodapé
+
+`nota 100` medindo 27% da §8 lê como promessa falsa. Quando a cobertura é baixa,
+a ressalva aparece colada na nota, em destaque.
+
+### Reconexão numa auditoria terminada
+
+Frames não são reenviados (§7.4), então uma auditoria já concluída ficaria em
+"abrindo a loja…" para sempre. O evento `state` traz `finished`, e a tela
+mostra o veredito direto.
+
 ## Bloco 8 — canal de tempo real (§7.4)
 
 ```bash

@@ -128,6 +128,19 @@ describe('servidor de tempo real', { concurrency: false }, () => {
     assert.equal(pedido.status, 400)
   })
 
+  test('GET / entrega a tela de execução', async () => {
+    const res = await fetch(`${base}/`)
+    const html = await res.text()
+    assert.equal(res.status, 200)
+    assert.match(html, /Raio-X do Checkout/)
+    assert.match(html, /\/live\?auditId=/, 'a tela precisa saber conectar no canal')
+  })
+
+  test('não serve arquivo fora de public/', async () => {
+    const res = await fetch(`${base}/nao-existe.html`)
+    assert.equal(res.status, 404)
+  })
+
   test('WebSocket sem auditId é encerrado explicando', async () => {
     const eventos = await new Promise<Record<string, unknown>[]>((resolve) => {
       const recebidos: Record<string, unknown>[] = []

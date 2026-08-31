@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raio-X do Checkout</title>
+<style>
+  :root {
+    --fundo: #0b0d12;
+    --painel: #12151d;
+    --borda: #1e2330;
+    --texto: #e8eaf0;
+    --apagado: #7c8598;
+    --marca: #ff2d6e;
+    --ok: #35d07f;
+    --pulado: #5b6478;
+    --alta: #ffb020;
+    --critica: #ff4d4d;
+  }
+  * { box-sizing: border-box }
+  body {
+    margin: 0; background: var(--fundo); color: var(--texto);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* ---------------------------------------------------------------- home */
+  .home { max-width: 620px; margin: 18vh auto; padding: 0 24px; text-align: center }
+  .home h1 { font-size: 34px; margin: 0 0 8px; letter-spacing: -0.02em }
+  .home p { color: var(--apagado); margin: 0 0 32px }
+  .campo { display: flex; gap: 10px }
+  .campo input {
+    flex: 1; padding: 15px 18px; font-size: 16px; border-radius: 10px;
+    border: 1px solid var(--borda); background: var(--painel); color: var(--texto);
+  }
+  .campo input:focus { outline: 2px solid var(--marca); outline-offset: -1px }
+  .campo button {
+    padding: 15px 26px; font-size: 16px; font-weight: 600; border: 0; border-radius: 10px;
+    background: var(--marca); color: #fff; cursor: pointer;
+  }
+  .campo button:disabled { opacity: .5; cursor: default }
+  .erro { color: var(--critica); margin-top: 16px; min-height: 22px; font-size: 14px }
+
+  /* ----------------------------------------------------------- execução */
+  .exec { display: none; height: 100vh; grid-template-columns: 380px 1fr }
+  .exec.ativo { display: grid }
+
+  .lateral { border-right: 1px solid var(--borda); padding: 20px; overflow-y: auto; background: var(--painel) }
+  .alvo { font-size: 13px; color: var(--apagado); word-break: break-all; margin-bottom: 20px }
+
+  .passo { display: flex; gap: 12px; padding: 9px 0; align-items: flex-start }
+  .marca-passo {
+    width: 20px; height: 20px; flex: none; border-radius: 50%; margin-top: 1px;
+    border: 2px solid var(--borda); display: grid; place-items: center; font-size: 11px;
+  }
+  .passo[data-s="running"] .marca-passo { border-color: var(--marca); animation: pulsa 1s ease-in-out infinite }
+  .passo[data-s="done"] .marca-passo { border-color: var(--ok); color: var(--ok) }
+  .passo[data-s="skipped"] .marca-passo { border-color: var(--pulado); color: var(--pulado) }
+  .passo[data-s="failed"] .marca-passo { border-color: var(--critica); color: var(--critica) }
+  .passo[data-s="pending"] { opacity: .35 }
+  @keyframes pulsa { 50% { transform: scale(1.25); opacity: .6 } }
+
+  .rotulo { font-size: 14px }
+  .detalhe { font-size: 12px; color: var(--apagado); margin-top: 2px }
+
+  .achados { margin-top: 28px; border-top: 1px solid var(--borda); padding-top: 18px }
+  .achados h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--apagado); margin: 0 0 12px }
+  .achado {
+    padding: 10px 12px; border-radius: 8px; background: #171b25; margin-bottom: 8px;
+    border-left: 3px solid var(--alta); font-size: 13px;
+    animation: entra .3s ease-out;
+  }
+  .achado[data-sev="critica"] { border-left-color: var(--critica) }
+  .achado[data-sev="media"], .achado[data-sev="baixa"] { border-left-color: var(--apagado) }
+  .achado code { font-size: 11px; color: var(--apagado); display: block; margin-top: 2px }
+  @keyframes entra { from { opacity: 0; transform: translateY(-6px) } }
+
+  /* ------------------------------------------------------------ palco */
+  .palco { position: relative; display: grid; place-items: center; background: #05070b; overflow: hidden }
+  .palco img { max-width: 100%; max-height: 100%; display: block; transition: filter .6s ease }
+  .palco.fim img { filter: brightness(.35) }
+  .esperando { position: absolute; color: var(--apagado); font-size: 14px }
+
+  .topo {
+    position: absolute; top: 0; left: 0; right: 0; padding: 14px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    /* Acima do veredito: §13 quer o compartilhar disponível, e é no fim que a
+       pessoa compartilha. Atrás da camada do veredito ele ficava inclicável. */
+    background: linear-gradient(#05070bcc, transparent); z-index: 4;
+  }
+  .ponto { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--apagado) }
+  .ponto::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--critica);
+    animation: pulsa 1.4s ease-in-out infinite;
+  }
+  .compartilhar {
+    border: 1px solid var(--borda); background: #12151dcc; color: var(--texto);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+  }
+  /* No fim ele ganha destaque: é o momento em que o link circula. */
+  .palco.fim .compartilhar { background: var(--marca); border-color: var(--marca); font-weight: 600 }
+
+  .veredito {
+    position: absolute; inset: 0; display: none; place-items: center; z-index: 3;
+    background: #05070bd9; padding: 24px; text-align: center;
+  }
+  .veredito.ativo { display: grid }
+  .nota { font-size: 84px; font-weight: 700; line-height: 1; letter-spacing: -0.03em }
+  .nota small { font-size: 22px; color: var(--apagado); font-weight: 400 }
+  .ressalva {
+    max-width: 460px; margin: 18px auto 0; font-size: 13px; color: var(--alta);
+    border: 1px solid #3a2f13; background: #1c1710; padding: 12px 14px; border-radius: 8px;
+  }
+  .resumo { color: var(--apagado); font-size: 14px; margin-top: 14px }
+
+  @media (max-width: 860px) {
+    /* §7.5: no mobile o navegador em cima, ocupando 60% da altura. */
+    .exec.ativo { grid-template-columns: 1fr; grid-template-rows: 60vh 1fr }
+    .palco { order: -1 }
+    .lateral { border-right: 0; border-top: 1px solid var(--borda) }
+  }
+</style>
+</head>
+<body>
+
+<main class="home" id="home">
+  <h1>Raio-X do Checkout</h1>
+  <p>Cole a URL da sua loja. O robô faz a compra na sua frente.</p>
+  <form class="campo" id="form">
+    <input id="url" type="text" placeholder="minhaloja.com.br" autocomplete="url" required>
+    <button type="submit" id="botao">Auditar</button>
+  </form>
+  <div class="erro" id="erro"></div>
+</main>
+
+<section class="exec" id="exec">
+  <aside class="lateral">
+    <div class="alvo" id="alvo"></div>
+    <div id="passos"></div>
+    <div class="achados" id="blocoAchados" hidden>
+      <h2>Achados</h2>
+      <div id="achados"></div>
+    </div>
+  </aside>
+
+  <div class="palco" id="palco">
+    <div class="topo">
+      <span class="ponto" id="ponto">auditando ao vivo</span>
+      <button class="compartilhar" id="compartilhar">Compartilhar</button>
+    </div>
+    <span class="esperando" id="esperando">abrindo a loja…</span>
+    <img id="frame" alt="" hidden>
+    <div class="veredito" id="veredito">
+      <div>
+        <div class="nota" id="nota"></div>
+        <div class="ressalva" id="ressalva" hidden></div>
+        <div class="resumo" id="resumo"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script type="module">
+  const $ = (id) => document.getElementById(id)
+
+  // Ordem e rótulos da §7.3. A lista aparece inteira desde o início: ver o que
+  // ainda vem é parte do que torna a espera assistível.
+  const PASSOS = [
+    ['identify', 'identificando a loja'],
+    ['open-product', 'abrindo um produto'],
+    ['add-to-cart', 'adicionando ao carrinho'],
+    ['reach-checkout', 'indo pro checkout'],
+    ['read-payment', 'lendo os meios de pagamento'],
+    ['mobile', 'repetindo no celular'],
+    ['report', 'montando o relatório'],
+  ]
+  const MARCAS = { pending: '', running: '', done: '✓', skipped: '–', failed: '✕' }
+
+  function montarPassos() {
+    $('passos').innerHTML = PASSOS.map(([id, rotulo]) => `
+      <div class="passo" data-s="pending" data-id="${id}">
+        <div class="marca-passo"></div>
+        <div><div class="rotulo">${rotulo}</div><div class="detalhe" data-detalhe></div></div>
+      </div>`).join('')
+  }
+
+  function situacao(id, estado, detalhe) {
+    const el = $('passos').querySelector(`[data-id="${id}"]`)
+    if (!el) return
+    el.dataset.s = estado
+    el.querySelector('.marca-passo').textContent = MARCAS[estado] ?? ''
+    if (detalhe) el.querySelector('[data-detalhe]').textContent = detalhe
+  }
+
+  const jaMostrado = new Set()
+  function achado(evento) {
+    if (jaMostrado.has(evento.code)) return
+    jaMostrado.add(evento.code)
+    $('blocoAchados').hidden = false
+    const div = document.createElement('div')
+    div.className = 'achado'
+    div.dataset.sev = evento.severity
+    div.innerHTML = `${evento.title}<code>${evento.code}</code>`
+    $('achados').append(div)
+  }
+
+  function mostrarNota(score, caveat) {
+    $('nota').innerHTML = score === null ? '<small>sem nota</small>' : `${score}<small> / 100</small>`
+    // A ressalva de cobertura fica AO LADO do número, não num rodapé: "nota
+    // 100" medindo 27% da §8 lê como promessa falsa sem ela.
+    if (caveat) {
+      $('ressalva').hidden = false
+      $('ressalva').textContent = caveat
+    }
+  }
+
+  function encerrar(texto) {
+    $('palco').classList.add('fim')
+    $('ponto').style.display = 'none'
+    $('veredito').classList.add('ativo')
+    $('resumo').textContent = texto
+  }
+
+  function conectar(auditId) {
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/live?auditId=${auditId}`)
+
+    ws.onmessage = (msg) => {
+      const e = JSON.parse(msg.data)
+
+      switch (e.type) {
+        case 'state':
+          // Reconexão: os passos voltam, os frames não (§7.4).
+          for (const passo of e.state.steps) situacao(passo.id, passo.status, passo.detail)
+          for (const f of e.state.findings) achado(f)
+
+          // Auditoria já terminada: sem esta parte a tela ficaria em "abrindo
+          // a loja…" para sempre, porque frame antigo nunca é reenviado.
+          if (e.state.finished) {
+            $('esperando').textContent = 'esta auditoria já terminou'
+            mostrarNota(e.state.score, e.state.caveat)
+            encerrar('auditoria concluída')
+          }
+          break
+
+        case 'frame': {
+          $('esperando').hidden = true
+          $('frame').hidden = false
+          $('frame').src = `data:image/jpeg;base64,${e.data}`
+          break
+        }
+
+        case 'step:start': situacao(e.id, 'running'); break
+        case 'step:done': situacao(e.id, 'done', e.detail); break
+        case 'step:skip': situacao(e.id, 'skipped', e.reason); break
+        case 'step:fail': situacao(e.id, 'failed', e.reason); break
+        case 'finding': achado(e); break
+
+        case 'complete':
+          mostrarNota(e.score, e.caveat)
+          encerrar('auditoria concluída')
+          break
+
+        case 'aborted':
+          $('nota').innerHTML = '<small>não concluída</small>'
+          encerrar(e.reason)
+          break
+      }
+    }
+
+    ws.onerror = () => encerrar('conexão perdida')
+  }
+
+  $('form').addEventListener('submit', async (evento) => {
+    evento.preventDefault()
+    const url = $('url').value.trim()
+    if (!url) return
+
+    $('botao').disabled = true
+    $('erro').textContent = ''
+
+    try {
+      const res = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const corpo = await res.json()
+      if (!res.ok) throw new Error(corpo.error ?? 'não foi possível iniciar')
+
+      $('home').style.display = 'none'
+      $('exec').classList.add('ativo')
+      $('alvo').textContent = url
+      montarPassos()
+      history.replaceState(null, '', `?a=${corpo.auditId}`)
+      conectar(corpo.auditId)
+    } catch (err) {
+      $('erro').textContent = err.message
+      $('botao').disabled = false
+    }
+  })
+
+  // §7.5: compartilhar visível DURANTE a execução, não só no fim.
+  $('compartilhar').addEventListener('click', async () => {
+    const link = location.href
+    if (navigator.share) {
+      await navigator.share({ title: 'Raio-X do Checkout', url: link }).catch(() => {})
+      return
+    }
+    await navigator.clipboard.writeText(link).catch(() => {})
+    $('compartilhar').textContent = 'link copiado'
+    setTimeout(() => ($('compartilhar').textContent = 'Compartilhar'), 2000)
+  })
+
+  // Voltar para uma auditoria em andamento pelo link.
+  const emAndamento = new URLSearchParams(location.search).get('a')
+  if (emAndamento) {
+    $('home').style.display = 'none'
+    $('exec').classList.add('ativo')
+    montarPassos()
+    conectar(emAndamento)
+  }
+</script>
+</body>
+</html>
