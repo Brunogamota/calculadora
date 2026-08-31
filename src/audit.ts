@@ -139,19 +139,31 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
         finalDomain: domain,
         errorCode: 'COOLDOWN_ACTIVE',
         errorReason:
-          `${domain} foi auditado há pouco (${verdict.lastAuditedAt}). ` +
-          `Faltam ${verdict.hoursRemaining}h para a próxima auditoria. ` +
-          'Repetir contra loja de terceiro é o que a §2.2 proíbe; em loja própria, use --force.',
+          verdict.blockedBy === 'full-audit'
+            ? `${domain} foi auditado por completo há pouco (${verdict.lastAuditedAt}). ` +
+              `Faltam ${verdict.hoursRemaining}h. Repetir contra loja de terceiro é o que ` +
+              'a §2.2 proíbe; em loja própria, use --force.'
+            : `tentativa recente em ${domain} (${verdict.lastAuditedAt}). ` +
+              `Aguarde até ${verdict.nextAllowedAt} ou use --force. ` +
+              'Este é o piso entre tentativas, não o intervalo de 24h.',
         errorDetail: { ...verdict, cooldownHours: DEFAULT_COOLDOWN_HOURS },
         timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
       }
     }
-    await recordAudit(outDir, domain, options.force === true)
+    // Registra a TENTATIVA aqui; a auditoria completa só é registrada quando a
+    // jornada de fato roda. Antes eu registrava tudo antes de começar, e uma
+    // falha local (sem DISPLAY, por exemplo) queimava 24h sem ter auditado nada.
+    await recordAudit(outDir, domain, options.force === true, 'attempt')
 
-    return await deps.deadline.race(
+    const result = await deps.deadline.race(
       runAudit(input, options, deps, slot, outDir, startedAt, base),
       'auditoria',
     )
+
+    if (result.cart !== null || result.checkout !== null) {
+      await recordAudit(outDir, domain, options.force === true, 'full')
+    }
+    return result
   } catch (e) {
     if (e instanceof PreflightRejected) {
       return {

@@ -198,9 +198,12 @@ Rodar a mesma loja repetidamente atrai o bloqueio, e a §2.2 é explícita sobre
 não repetir tentativa para provocar. Regra que depende de alguém lembrar dela
 não é regra, então ela está no código:
 
-- **intervalo mínimo de 24h por domínio** (`AUDIT_COOLDOWN_HOURS`), checado
-  antes de qualquer requisição sair. Registro em `out/.audit-ledger.json`; na
-  Fase 3 vira o cache do §12
+- **duas janelas, porque o custo para a loja é diferente:**
+  auditoria que percorreu a jornada faz ~10 requisições e põe item no carrinho —
+  24h (`AUDIT_COOLDOWN_HOURS`). Tentativa que morreu cedo custa duas
+  requisições — 5 minutos (`AUDIT_ATTEMPT_COOLDOWN_MINUTES`). Tratar as duas
+  igual travava um dia inteiro por falha de configuração local, sem proteger
+  ninguém. Registro em `out/.audit-ledger.json`; na Fase 3 vira o cache do §12
 - `--force` ignora o intervalo e fica **marcado como forçada** no registro. Use
   só em loja própria
 - **429 da loja para a auditoria** com `RATE_LIMITED_BY_SITE`, respeitando

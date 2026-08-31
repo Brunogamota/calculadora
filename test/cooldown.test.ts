@@ -14,7 +14,13 @@ import { checkCooldown, type Ledger } from '../src/lib/cooldown.ts'
 const AGORA = Date.parse('2026-08-31T22:00:00Z')
 const h = (n: number) => n * 3600_000
 
+/** Auditoria completa: percorreu a jornada. */
 function ledgerCom(iso: string): Ledger {
+  return { 'loja.com.br': { lastAuditedAt: iso, lastFullAuditAt: iso, count: 1, forced: 0 } }
+}
+
+/** Só tentativa: morreu antes da jornada. */
+function ledgerTentativa(iso: string): Ledger {
   return { 'loja.com.br': { lastAuditedAt: iso, count: 1, forced: 0 } }
 }
 
@@ -55,6 +61,31 @@ describe('checkCooldown', () => {
   test('registro corrompido não trava a ferramenta', () => {
     const v = checkCooldown({ 'loja.com.br': { lastAuditedAt: 'lixo', count: 1, forced: 0 } }, 'loja.com.br', 24, AGORA)
     assert.equal(v.allowed, true)
+  })
+
+  test('diz qual janela barrou', () => {
+    assert.equal(checkCooldown(ledgerCom(new Date(AGORA - h(2)).toISOString()), 'loja.com.br', 24, AGORA).blockedBy, 'full-audit')
+  })
+
+  test('tentativa que morreu cedo NÃO queima as 24h', () => {
+    // O caso real: a rodada falhou com NO_DISPLAY, sem auditar nada, e mesmo
+    // assim travava o domínio por um dia inteiro.
+    const dezMinAtras = new Date(AGORA - 10 * 60_000).toISOString()
+    const v = checkCooldown(ledgerTentativa(dezMinAtras), 'loja.com.br', 24, AGORA)
+    assert.equal(v.allowed, true, 'tentativa antiga não deve barrar')
+  })
+
+  test('mas tentativa recente ainda é barrada pelo piso', () => {
+    const umMinAtras = new Date(AGORA - 60_000).toISOString()
+    const v = checkCooldown(ledgerTentativa(umMinAtras), 'loja.com.br', 24, AGORA)
+    assert.equal(v.allowed, false)
+    assert.equal(v.blockedBy, 'attempt')
+  })
+
+  test('registro no formato antigo não queima 24h por engano', () => {
+    // Formato anterior não distinguia tentativa de auditoria completa.
+    const antigo: Ledger = { 'loja.com.br': { lastAuditedAt: new Date(AGORA - h(1)).toISOString(), count: 1, forced: 0 } }
+    assert.equal(checkCooldown(antigo, 'loja.com.br', 24, AGORA).allowed, true)
   })
 
   test('as oito rodadas da Insider seriam barradas a partir da segunda', () => {
