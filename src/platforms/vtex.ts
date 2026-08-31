@@ -21,6 +21,23 @@ export function isVtexCatalogResponse(body: string): boolean {
   }
 }
 
+/**
+ * Hosts de asset da VTEX. `vteximg.com.br` é o CDN legado e continua em uso:
+ * foi o ÚNICO rastro de VTEX na Zee Dog, que não emite `vtexassets.com` nem
+ * `window.vtex` por rodar storefront headless. Sem ele a loja caía no genérico.
+ */
+const VTEX_ASSET_HOSTS = ['vtexassets.com', 'vteximg.com.br']
+
+/**
+ * O subdomínio do CDN carrega o nome da conta VTEX da loja
+ * (`grupooscar.vtexassets.com`, `zeedog.vteximg.com.br`). Isso é bem mais forte
+ * que um match de string: é a conta da própria loja, não uma menção solta.
+ */
+export function extractVtexAccount(html: string): string | null {
+  const match = html.match(/https?:\/\/([a-z0-9][a-z0-9-]*)\.(?:vtexassets\.com|vteximg\.com\.br)/i)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
 export function collectVtexSignals(probe: Pick<DetectionProbe, 'html' | 'headers' | 'globals'>): Signal[] {
   const out: Signal[] = []
 
@@ -33,12 +50,26 @@ export function collectVtexSignals(probe: Pick<DetectionProbe, 'html' | 'headers
     })
   }
 
-  const assets = scriptHostSignal(probe.globals, 'vtexassets.com', 'high')
-  if (assets) out.push(assets)
-  else {
-    const inHtml = signalFromHtml(probe.html, 'vtexassets.com', 'high')
-    if (inHtml) out.push(inHtml)
+  const account = extractVtexAccount(probe.html)
+  if (account) {
+    out.push({
+      where: 'html',
+      detail: `assets servidos pela conta VTEX "${account}"`,
+      weight: 'high',
+    })
+  } else {
+    for (const host of VTEX_ASSET_HOSTS) {
+      const s = scriptHostSignal(probe.globals, host, 'high') ?? signalFromHtml(probe.html, host, 'high')
+      if (s) {
+        out.push(s)
+        break
+      }
+    }
   }
+
+  // Domínio do checkout da VTEX: se aparece, o checkout da loja é VTEX.
+  const secure = signalFromHtml(probe.html, 'secure.vtex.com', 'high')
+  if (secure) out.push(secure)
 
   const stable = signalFromHtml(probe.html, 'vtexcommercestable', 'high')
   if (stable) out.push(stable)

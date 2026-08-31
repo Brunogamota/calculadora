@@ -11,6 +11,7 @@ import { vtexAdapter } from './vtex.ts'
 import { nuvemshopAdapter } from './nuvemshop.ts'
 import { woocommerceAdapter } from './woocommerce.ts'
 import { genericAdapter } from './generic.ts'
+import { detectStorefront } from './storefront.ts'
 
 export const ADAPTERS: PlatformAdapter[] = [
   shopifyAdapter,
@@ -34,6 +35,19 @@ export interface PlatformDecision {
   journeySupported: boolean
 }
 
+/** Anexa observações que valem para qualquer plataforma detectada. */
+function withNotes(evidence: DetectionEvidence, probe: DetectionProbe): DetectionEvidence {
+  const storefront = detectStorefront(probe.html, probe.globals)
+  if (!storefront) return evidence
+  return {
+    ...evidence,
+    notes: [
+      `storefront headless ${storefront.name} (${storefront.evidence}) — ` +
+        'o DOM não segue o padrão da plataforma, a jornada precisa contar com isso',
+    ],
+  }
+}
+
 export async function detectPlatform(probe: DetectionProbe): Promise<PlatformDecision> {
   const matches: DetectionEvidence[] = []
 
@@ -46,7 +60,7 @@ export async function detectPlatform(probe: DetectionProbe): Promise<PlatformDec
   if (matches.length > 0) {
     const [winner, ...alternatives] = matches as [DetectionEvidence, ...DetectionEvidence[]]
     return {
-      evidence: winner,
+      evidence: withNotes(winner, probe),
       alternatives,
       fellBackToGeneric: false,
       journeySupported: adapterFor(winner.platform)?.journey !== undefined,
@@ -55,7 +69,7 @@ export async function detectPlatform(probe: DetectionProbe): Promise<PlatformDec
 
   const generic = await genericAdapter.detect(probe)
   return {
-    evidence: generic ?? { platform: 'generic', confidence: 'low', signals: [] },
+    evidence: withNotes(generic ?? { platform: 'generic', confidence: 'low', signals: [] }, probe),
     alternatives: [],
     fellBackToGeneric: true,
     journeySupported: false,

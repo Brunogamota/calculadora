@@ -91,6 +91,11 @@ detecção se baseou:
 ]
 ```
 
+Além dos sinais, a evidência pode trazer `notes`: observações que **não** provam
+plataforma mas mudam a jornada. Uma loja VTEX com storefront headless deco.cx
+tem checkout de VTEX e DOM que não é o de VTEX — quem audita precisa saber das
+duas coisas, e elas não podem morar no mesmo campo.
+
 Nota: `high` com um sinal forte, `medium` com dois médios, `low` no resto. Casos
 em que a graduação foi deliberadamente rebaixada:
 

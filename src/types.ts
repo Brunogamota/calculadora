@@ -54,6 +54,12 @@ export interface DetectionEvidence {
   platform: PlatformId
   confidence: Confidence
   signals: Signal[]
+  /**
+   * Observações que NÃO são prova de plataforma mas mudam a jornada — o
+   * storefront ser deco.cx, por exemplo, significa DOM fora do padrão da
+   * plataforma. Separado de `signals` de propósito: um prova, o outro avisa.
+   */
+  notes?: string[]
 }
 
 export interface PlatformAdapter {

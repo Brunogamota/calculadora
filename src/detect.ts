@@ -41,6 +41,7 @@ export interface DetectOk {
     label: string
     confidence: string
     signals: Array<{ where: string; detail: string; weight: string }>
+    notes: string[]
   }
   alternatives: Array<{ id: string; confidence: string; signalCount: number }>
   fellBackToGeneric: boolean
@@ -195,6 +196,7 @@ async function runDetect(
         label: adapterFor(decision.evidence.platform)?.label ?? decision.evidence.platform,
         confidence: decision.evidence.confidence,
         signals: decision.evidence.signals,
+        notes: decision.evidence.notes ?? [],
       },
       alternatives: decision.alternatives.map((a) => ({
         id: a.platform,
