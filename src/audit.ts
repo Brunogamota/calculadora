@@ -398,3 +398,57 @@ function failStep(
     timings: { ...result.timings, totalMs: Date.now() - startedAt },
   }
 }
+
+/**
+ * Resumo do que interessa para conferir uma rodada. O JSON completo tem
+ * centenas de linhas — colar isso inteiro num chat ou num ticket é ruído.
+ */
+export function summarize(result: AuditResult): Record<string, unknown> {
+  return {
+    status: result.status,
+    domain: result.finalDomain,
+    platform: result.platform,
+    confidence: result.platformConfidence,
+    product: result.product
+      ? {
+          title: result.product.title,
+          priceCents: result.product.priceCents,
+          requiresVariantChoice: result.product.requiresVariantChoice,
+        }
+      : null,
+    cart: result.cart
+      ? {
+          ok: result.cart.ok,
+          itemCount: result.cart.itemCount,
+          uiPattern: result.cart.uiPattern,
+          clicks: result.cart.clicks,
+          ms: result.cart.ms,
+          overlay: result.cart.overlay,
+        }
+      : null,
+    checkout: result.checkout
+      ? {
+          reachedPaymentScreen: result.checkout.reachedPaymentScreen,
+          forcedLogin: result.checkout.forcedLogin,
+          stepsFromProduct: result.checkout.stepsFromProduct,
+        }
+      : null,
+    payment: result.payment
+      ? {
+          methods: result.payment.methods.map((m) => m.label),
+          pix: result.payment.pix,
+          installments: result.payment.installments,
+          couponField: result.payment.couponField,
+          gateway: result.payment.gateway,
+        }
+      : null,
+    steps: result.steps.map((s) => ({ id: s.id, ms: s.ms, outcome: s.outcome.status })),
+    robots: result.robots,
+    vantage: result.vantage,
+    incompleteBecause: result.incompleteBecause,
+    errorCode: result.errorCode,
+    errorReason: result.errorReason,
+    screenshotsDir: result.screenshotsDir,
+    timings: result.timings,
+  }
+}

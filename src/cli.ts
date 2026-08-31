@@ -13,7 +13,7 @@
 
 import { preflight, createDeps } from './preflight.ts'
 import { detect } from './detect.ts'
-import { audit } from './audit.ts'
+import { audit, summarize } from './audit.ts'
 
 const COMMANDS = ['preflight', 'detect', 'audit'] as const
 type Command = (typeof COMMANDS)[number]
@@ -32,6 +32,7 @@ function usage(): never {
       '',
       'Flags:',
       '  --pretty           JSON indentado',
+      '  --summary          só o que interessa para conferir a rodada (audit)',
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
       '  --save-html        salva o HTML renderizado em out/ (automático quando',
       '                     a plataforma não é identificada)',
@@ -72,7 +73,12 @@ async function main(): Promise<void> {
         ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
         : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout'), fromBrazil: flags.has('--from-br') })
 
-  console.log(JSON.stringify(result, null, indent))
+  const output =
+    command === 'audit' && flags.has('--summary')
+      ? summarize(result as Awaited<ReturnType<typeof audit>>)
+      : result
+
+  console.log(JSON.stringify(output, null, indent))
   process.exit(result.ok ? 0 : 1)
 }
 
