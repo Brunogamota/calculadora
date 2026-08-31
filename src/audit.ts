@@ -12,6 +12,8 @@ import { createRecorder, makeStep } from './lib/recorder.ts'
 import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
 import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
+import { checkCooldown, readLedger, recordAudit, DEFAULT_COOLDOWN_HOURS } from './lib/cooldown.ts'
+import { normalizeUrl } from './lib/guards.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import type {
   AddToCartResult,
@@ -32,6 +34,11 @@ export interface AuditOptions extends PrepareOptions {
    * checkout e a §6.6 sai quase toda como não aplicável.
    */
   fillCheckout?: boolean
+  /**
+   * Ignora o intervalo mínimo entre auditorias do mesmo domínio. Use apenas em
+   * loja própria: em loja de terceiro, repetir é o que a §2.2 proíbe.
+   */
+  force?: boolean
   /**
    * Declare true quando a auditoria sai de um IP brasileiro. Muda a leitura de
    * modal de redirecionamento geográfico e a confiança nos tempos medidos.
@@ -120,6 +127,27 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
   }
 
   try {
+    // §2.2 / §12: intervalo mínimo entre auditorias do mesmo domínio, checado
+    // ANTES de qualquer requisição sair. A regra que depende de alguém lembrar
+    // dela não é regra: foi assim que a Insider Store levou oito rodadas
+    // seguidas até começar a desafiar.
+    const domain = normalizeUrl(input).hostname
+    const verdict = checkCooldown(await readLedger(outDir), domain)
+    if (!verdict.allowed && options.force !== true) {
+      return {
+        ...base,
+        finalDomain: domain,
+        errorCode: 'COOLDOWN_ACTIVE',
+        errorReason:
+          `${domain} foi auditado há pouco (${verdict.lastAuditedAt}). ` +
+          `Faltam ${verdict.hoursRemaining}h para a próxima auditoria. ` +
+          'Repetir contra loja de terceiro é o que a §2.2 proíbe; em loja própria, use --force.',
+        errorDetail: { ...verdict, cooldownHours: DEFAULT_COOLDOWN_HOURS },
+        timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+      }
+    }
+    await recordAudit(outDir, domain, options.force === true)
+
     return await deps.deadline.race(
       runAudit(input, options, deps, slot, outDir, startedAt, base),
       'auditoria',

@@ -238,6 +238,17 @@ export function createSafeFetch(limiter: HostRateLimiter) {
       const exec = () => requestOnce(url, { method, timeoutMs, maxBytes, headers })
       const result = opts.skipRateLimit ? await exec() : await limiter.schedule(url.hostname, exec)
 
+      // 429 é a loja dizendo "devagar". Insistir é o comportamento que a §2.2
+      // proíbe, então vira erro tipado e a auditoria para.
+      if (result.status === 429) {
+        const retryAfter = result.headers['retry-after'] ?? null
+        throw new AuditError(
+          'RATE_LIMITED_BY_SITE',
+          `a loja respondeu 429 em ${current.href}${retryAfter ? ` (Retry-After: ${retryAfter})` : ''}`,
+          { url: current.href, retryAfter },
+        )
+      }
+
       const location = result.headers['location']
       if (REDIRECT_STATUSES.has(result.status) && location) {
         if (hop === maxRedirects) {

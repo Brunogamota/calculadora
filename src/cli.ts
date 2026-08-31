@@ -36,6 +36,9 @@ function usage(): never {
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
       '  --save-html        salva o HTML renderizado em out/ (automático quando',
       '                     a plataforma não é identificada)',
+      '  --force            ignora o intervalo mínimo entre auditorias do mesmo',
+      '                     domínio. Só em loja própria: repetir contra loja de',
+      '                     terceiro é o que a §2.2 proíbe.',
       '  --from-br          declara que a auditoria sai de IP brasileiro. Sem isto,',
       '                     modal de redirecionamento regional é tratado como provável',
       '                     artefato e não vira achado contra a loja.',
@@ -75,6 +78,7 @@ async function main(): Promise<void> {
             // undefined, não false: sem a flag NÃO se sabe de onde a auditoria
             // sai. `false` afirmaria "não é Brasil", que ninguém declarou.
             ...(flags.has('--from-br') ? { fromBrazil: true } : {}),
+            force: flags.has('--force'),
           })
 
   const output =

@@ -190,11 +190,32 @@ marcador **mais** a página pequena no lugar do conteúdo esperado.
 E isso nunca vira achado contra a loja: proteger a vitrine é decisão legítima
 do lojista, e o comprador dela passa pelo desafio normalmente.
 
-### Consequência prática para quem desenvolve
+### O motor se limita sozinho
 
 Rodar a mesma loja repetidamente atrai o bloqueio, e a §2.2 é explícita sobre
-não repetir tentativa para provocar. Para desenvolver a jornada, use uma loja
-própria — não a de terceiro, por mais conveniente que seja.
+não repetir tentativa para provocar. Regra que depende de alguém lembrar dela
+não é regra, então ela está no código:
+
+- **intervalo mínimo de 24h por domínio** (`AUDIT_COOLDOWN_HOURS`), checado
+  antes de qualquer requisição sair. Registro em `out/.audit-ledger.json`; na
+  Fase 3 vira o cache do §12
+- `--force` ignora o intervalo e fica **marcado como forçada** no registro. Use
+  só em loja própria
+- **429 da loja para a auditoria** com `RATE_LIMITED_BY_SITE`, respeitando
+  `Retry-After`. Insistir depois de um 429 é o comportamento que a §2.2 proíbe
+
+### O que separa auditoria de ataque
+
+| | Auditoria | Ataque |
+|---|---|---|
+| Volume | uma jornada por loja | repetição até passar |
+| Identidade | UA identificável, página pública, opt-out | disfarce |
+| Consentimento | o dono pediu | ninguém pediu |
+| Ao ser bloqueado | para e relata | tenta contornar |
+
+O produto acerta os quatro por natureza: o lojista cola a URL da própria loja e
+recebe um relatório. O risco está no desenvolvimento, não no uso — e é ali que
+o intervalo mínimo protege.
 
 ## De onde a auditoria é feita muda o resultado
 
