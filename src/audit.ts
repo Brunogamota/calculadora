@@ -72,6 +72,8 @@ export interface AuditResult {
   }
   errorCode: AuditErrorCode | null
   errorReason: string | null
+  /** Contexto da falha: URL no momento, HTML salvo, seletores tentados. */
+  errorDetail: Record<string, unknown> | null
   timings: { totalMs: number; homeLoadMs: number | null }
 }
 
@@ -113,6 +115,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     },
     errorCode: null,
     errorReason: null,
+    errorDetail: null,
     timings: { totalMs: 0, homeLoadMs: null },
   }
 
@@ -127,6 +130,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
         ...base,
         errorCode: e.failure.errorCode,
         errorReason: e.failure.errorReason,
+        errorDetail: Object.keys(e.failure.detail).length > 0 ? e.failure.detail : null,
         timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
       }
     }
@@ -135,6 +139,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
       ...base,
       errorCode: err.code,
       errorReason: err.message,
+      errorDetail: Object.keys(err.detail).length > 0 ? err.detail : null,
       timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
     }
   } finally {
@@ -410,6 +415,7 @@ function failStep(
     incompleteBecause: [`${label}: ${err.message}`],
     errorCode: err.code,
     errorReason: err.message,
+    errorDetail: Object.keys(err.detail).length > 0 ? err.detail : null,
     timings: { ...result.timings, totalMs: Date.now() - startedAt },
   }
 }
@@ -464,6 +470,7 @@ export function summarize(result: AuditResult): Record<string, unknown> {
     incompleteBecause: result.incompleteBecause,
     errorCode: result.errorCode,
     errorReason: result.errorReason,
+    errorDetail: result.errorDetail,
     screenshotsDir: result.screenshotsDir,
     timings: result.timings,
   }
