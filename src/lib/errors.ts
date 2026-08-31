@@ -30,6 +30,7 @@ export type AuditErrorCode =
   | 'ORDER_SUBMISSION_REFUSED'
   | 'BOT_CHALLENGE'
   | 'COOLDOWN_ACTIVE'
+  | 'FORCE_WITHOUT_OWNERSHIP'
   | 'RATE_LIMITED_BY_SITE'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'

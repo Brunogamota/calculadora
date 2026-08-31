@@ -97,3 +97,14 @@ describe('checkCooldown', () => {
     }
   })
 })
+
+describe('--force exige declaração de titularidade', () => {
+  // Aconteceu de verdade: --force sugerido para depurar, segunda rodada minutos
+  // depois da primeira, e a loja respondeu com desafio da Cloudflare. O IP era
+  // residencial brasileiro — o gatilho foi a repetição, não a origem.
+  test('o código de erro existe e explica o motivo', async () => {
+    const { AuditError } = await import('../src/lib/errors.ts')
+    const err = new AuditError('FORCE_WITHOUT_OWNERSHIP', 'x', {})
+    assert.equal(err.code, 'FORCE_WITHOUT_OWNERSHIP')
+  })
+})

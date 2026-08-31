@@ -204,8 +204,11 @@ não é regra, então ela está no código:
   requisições — 5 minutos (`AUDIT_ATTEMPT_COOLDOWN_MINUTES`). Tratar as duas
   igual travava um dia inteiro por falha de configuração local, sem proteger
   ninguém. Registro em `out/.audit-ledger.json`; na Fase 3 vira o cache do §12
-- `--force` ignora o intervalo e fica **marcado como forçada** no registro. Use
-  só em loja própria
+- `--force` ignora o intervalo, **exige `--owner-verified` junto** e fica
+  marcado como forçada no registro. Sozinho ele era atalho de conveniência:
+  numa auditoria real, uma segunda rodada minutos depois da primeira provocou
+  desafio da Cloudflare numa loja de terceiro — de IP residencial brasileiro.
+  O gatilho foi a repetição, não a origem
 - **429 da loja para a auditoria** com `RATE_LIMITED_BY_SITE`, respeitando
   `Retry-After`. Insistir depois de um 429 é o comportamento que a §2.2 proíbe
 
@@ -247,6 +250,20 @@ O motor lida com isso assim:
 
 **Consequência para a Fase 3:** o worker precisa rodar no Brasil. Não é
 otimização, é condição para o relatório valer.
+
+### O que é artefato de origem e o que não é
+
+Medido contra a mesma loja, do datacenter e de IP residencial brasileiro:
+
+| Observado | Do datacenter | Do Brasil | Conclusão |
+|---|---|---|---|
+| Modal "dedicated store for your region" | aparece | some | artefato de origem |
+| Home carregando | ~10s | ~4,9s | metade era latência |
+| Desafio da Cloudflare | aparece | **também aparece** | resposta à repetição, não à origem |
+
+O desafio antibot foi provocado por duas rodadas em minutos, do Brasil. É por
+isso que o intervalo entre auditorias existe, e por que `--force` passou a
+exigir declaração de titularidade.
 
 ### Overlay cobrindo o botão de comprar
 

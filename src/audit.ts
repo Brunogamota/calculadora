@@ -137,6 +137,25 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // dela não é regra: foi assim que a Insider Store levou oito rodadas
     // seguidas até começar a desafiar.
     const domain = normalizeUrl(input).hostname
+
+    // --force existe para loja PRÓPRIA. Sozinho ele vira atalho de conveniência,
+    // e foi assim que uma segunda rodada minutos depois da primeira provocou
+    // desafio antibot numa loja de terceiro -- exatamente o que a §2.2 proíbe.
+    // Exigir a declaração de titularidade junto torna a intenção explícita.
+    if (options.force === true && options.ownerVerified !== true) {
+      return {
+        ...base,
+        finalDomain: domain,
+        errorCode: 'FORCE_WITHOUT_OWNERSHIP',
+        errorReason:
+          '--force ignora o intervalo entre auditorias e só faz sentido em loja própria. ' +
+          'Use junto com --owner-verified para declarar que a loja é sua. Em loja de terceiro, ' +
+          'repetir é o que a §2.2 proíbe — e provoca bloqueio.',
+        errorDetail: { domain, flags: ['--force'] },
+        timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+      }
+    }
+
     const verdict = checkCooldown(await readLedger(outDir), domain)
     if (!verdict.allowed && options.force !== true) {
       return {
