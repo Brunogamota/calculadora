@@ -71,7 +71,11 @@ async function main(): Promise<void> {
       ? await preflight(target, createDeps())
       : command === 'detect'
         ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
-        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout'), fromBrazil: flags.has('--from-br') })
+        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout'),
+            // undefined, não false: sem a flag NÃO se sabe de onde a auditoria
+            // sai. `false` afirmaria "não é Brasil", que ninguém declarou.
+            ...(flags.has('--from-br') ? { fromBrazil: true } : {}),
+          })
 
   const output =
     command === 'audit' && flags.has('--summary')
