@@ -379,6 +379,15 @@ function finish(
   }
 }
 
+/**
+ * Desafio antibot não é defeito da loja nem erro do motor: é a loja exercendo o
+ * direito de se proteger. §18 pede partial explicado; §2.2 proíbe testar a
+ * proteção de terceiros, então não se contorna, se relata.
+ */
+function isProtectedSite(code: AuditErrorCode): boolean {
+  return code === 'BOT_CHALLENGE' || code === 'HOME_NOT_OK'
+}
+
 function failStep(
   result: AuditResult,
   steps: ReadonlyArray<JourneyStep>,
@@ -407,12 +416,18 @@ function failStep(
           : { status: 'failed', code: err.code, reason: err.message },
     }),
   ]
+  const explanation = isProtectedSite(err.code)
+    ? `${err.message}. Isto NÃO é achado contra a loja: proteger a vitrine é decisão ` +
+      'legítima do lojista, e o comprador dela passa pelo desafio normalmente. A auditoria ' +
+      'não tenta contornar (§2.2).'
+    : `${label}: ${err.message}`
+
   return {
     ...result,
     ok: true,
     status: 'partial',
     steps: trail,
-    incompleteBecause: [`${label}: ${err.message}`],
+    incompleteBecause: [explanation],
     errorCode: err.code,
     errorReason: err.message,
     errorDetail: Object.keys(err.detail).length > 0 ? err.detail : null,

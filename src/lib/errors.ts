@@ -28,6 +28,7 @@ export type AuditErrorCode =
   | 'IDENTITY_INVALID'
   | 'PAYMENT_FIELD_REFUSED'
   | 'ORDER_SUBMISSION_REFUSED'
+  | 'BOT_CHALLENGE'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

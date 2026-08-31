@@ -170,6 +170,32 @@ Disponível, sem variação obrigatória, e o mais barato dentro disso. Vale-pre
 é pulado de propósito: não tem frete e distorce a jornada de checkout. Preço que
 não dá para ler vira `null` e vai para o fim da fila, nunca para zero.
 
+## Loja protegida: reconhecer, parar, explicar
+
+§18 pede que site protegido retorne `partial` explicado, nunca erro cru. §2.2
+proíbe testar a proteção de terceiros. Então a única resposta correta a um
+desafio antibot é reconhecê-lo e parar — contornar transformaria auditoria em
+ataque, que é a linha que o documento traça.
+
+Aconteceu de verdade: depois de várias auditorias seguidas do mesmo IP, a
+Insider Store passou a servir uma página de 10 KB com `_cf_chl_opt` no lugar da
+página de produto. Sem reconhecer o desafio, o motor dizia "formulário de
+adicionar ao carrinho não encontrado" — culpando a loja por algo que não é
+defeito dela.
+
+Marcador de fornecedor sozinho **não** basta para acusar desafio: milhares de
+lojas usam Cloudflare como CDN sem desafiar ninguém. O que caracteriza é o
+marcador **mais** a página pequena no lugar do conteúdo esperado.
+
+E isso nunca vira achado contra a loja: proteger a vitrine é decisão legítima
+do lojista, e o comprador dela passa pelo desafio normalmente.
+
+### Consequência prática para quem desenvolve
+
+Rodar a mesma loja repetidamente atrai o bloqueio, e a §2.2 é explícita sobre
+não repetir tentativa para provocar. Para desenvolver a jornada, use uma loja
+própria — não a de terceiro, por mais conveniente que seja.
+
 ## De onde a auditoria é feita muda o resultado
 
 Auditando a Insider Store de um Codespaces fora do Brasil, um modal cobriu o

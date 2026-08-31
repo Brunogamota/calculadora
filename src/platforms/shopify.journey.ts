@@ -14,6 +14,7 @@
 
 import { AuditError } from '../lib/errors.ts'
 import { saveHtml } from '../lib/artifacts.ts'
+import { detectBotChallenge } from '../lib/challenge.ts'
 import { makeStep } from '../lib/recorder.ts'
 import {
   ADD_TO_CART_BUTTONS,
@@ -274,6 +275,18 @@ export const shopifyJourney: JourneyDriver = {
 
     await ctx.navigate(product.url, ctx.deadline.clamp(30_000))
     const productShot = await ctx.recorder.capture(ctx.page, 'produto')
+
+    // Antes de procurar qualquer elemento: a loja está nos desafiando?
+    // Procurar formulário numa página de desafio produz "formulário não
+    // encontrado", que culpa a loja por algo que não é defeito dela.
+    const challenge = detectBotChallenge(await ctx.page.content(), ctx.page.url())
+    if (challenge) {
+      throw new AuditError(
+        'BOT_CHALLENGE',
+        `a loja respondeu com desafio antibot (${challenge.vendor}) na página do produto`,
+        { vendor: challenge.vendor, signals: challenge.signals, url: ctx.page.url() },
+      )
+    }
 
     // Guardado para a §6.6 poder dizer se o desconto do Pix já aparecia AQUI
     // ou só no checkout — a diferença é o achado PIX_DISCOUNT_LATE.
