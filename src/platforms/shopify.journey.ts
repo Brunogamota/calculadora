@@ -112,23 +112,46 @@ async function readCartCount(ctx: JourneyContext): Promise<number | null> {
 export const shopifyJourney: JourneyDriver = {
   async findProduct(ctx: JourneyContext): Promise<ProductRef> {
     const startedAt = Date.now()
-    const url = new URL('/products.json?limit=250', ctx.baseUrl).href
 
-    const permission = ctx.gate.check(url)
+    const permission = ctx.gate.check(new URL('/products.json', ctx.baseUrl).href)
     if (!permission.allowed) {
       throw new AuditError('ROBOTS_DISALLOWED', 'robots.txt proíbe /products.json', { path: permission.path })
     }
 
-    const res = await ctx.fetch(url, { timeoutMs: ctx.deadline.clamp(15_000), maxBytes: 4 * 1024 * 1024 })
+    // Não precisamos do catálogo inteiro, só de um item barato e disponível.
+    // Catálogo grande com body_html e imagens passa fácil de alguns MB — pedir
+    // 250 produtos era gastar banda para jogar fora quase tudo.
+    let res
+    let usedLimit = 50
+    try {
+      res = await ctx.fetch(new URL(`/products.json?limit=${usedLimit}`, ctx.baseUrl).href, {
+        timeoutMs: ctx.deadline.clamp(15_000),
+        maxBytes: 8 * 1024 * 1024,
+      })
+    } catch (e) {
+      if (!(e instanceof AuditError) || e.code !== 'RESPONSE_TOO_LARGE') throw e
+      // Catálogo com produtos muito pesados: tenta de novo pedindo bem menos.
+      usedLimit = 5
+      res = await ctx.fetch(new URL(`/products.json?limit=${usedLimit}`, ctx.baseUrl).href, {
+        timeoutMs: ctx.deadline.clamp(15_000),
+        maxBytes: 8 * 1024 * 1024,
+      })
+    }
+
     if (res.status !== 200) {
       throw new AuditError('NETWORK_ERROR', `/products.json respondeu ${res.status}`, { status: res.status })
     }
 
+    const url = res.url
     let products: ShopifyProduct[]
     try {
       products = (JSON.parse(res.body) as { products: ShopifyProduct[] }).products
     } catch {
-      throw new AuditError('NETWORK_ERROR', '/products.json não devolveu JSON válido')
+      throw new AuditError('NETWORK_ERROR', '/products.json não devolveu JSON válido', {
+        limit: usedLimit,
+        bytes: res.body.length,
+        primeiros120: res.body.slice(0, 120),
+      })
     }
     if (!Array.isArray(products) || products.length === 0) {
       throw new AuditError('NETWORK_ERROR', 'catálogo vazio em /products.json')

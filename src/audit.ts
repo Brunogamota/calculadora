@@ -141,14 +141,14 @@ async function runAudit(
     timings: { totalMs: 0, homeLoadMs: prepared.opened.loadMs },
   }
 
-  await recorder.capture(prepared.browser.page, 'home')
+  const homeShot = await recorder.capture(prepared.browser.page, 'home')
   recorder.step(
     makeStep({
       id: 'open-home',
       label: 'identificando a loja',
       url: pre.finalUrl,
       startedAt,
-      screenshot: null,
+      screenshot: homeShot,
       outcome: { status: 'done' },
     }),
   )
@@ -175,7 +175,8 @@ async function runAudit(
     product = await journey.findProduct(ctx)
     result.product = product
   } catch (e) {
-    return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt)
+    const shot = await recorder.capture(prepared.browser.page, 'falha-find-product')
+    return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot)
   }
 
   // 2. adicionar ao carrinho
@@ -187,7 +188,8 @@ async function runAudit(
       incompleteBecause.push('carrinho não pôde ser confirmado por /cart.js')
     }
   } catch (e) {
-    return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt)
+    const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
+    return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot)
   }
 
   // 3. checkout — bloco 3b
@@ -284,6 +286,7 @@ function failStep(
   id: string,
   label: string,
   startedAt: number,
+  screenshot: string | null,
 ): AuditResult {
   const err = toAuditError(error)
   const trail = [
@@ -293,7 +296,7 @@ function failStep(
       label,
       url: result.url,
       startedAt: Date.now(),
-      screenshot: null,
+      screenshot,
       outcome:
         err.code === 'ROBOTS_DISALLOWED'
           ? { status: 'not_permitted_by_robots', path: String(err.detail['path'] ?? '') }

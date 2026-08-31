@@ -31,6 +31,12 @@ export interface SafeFetchOptions {
   maxBytes?: number
   /** Desliga o rate limit apenas para robots.txt, que é pré-requisito da própria política. */
   skipRateLimit?: boolean
+  /**
+   * Aceita corpo cortado no limite de bytes. Padrão é NÃO aceitar: devolver
+   * corpo truncado em silêncio faz o JSON.parse do chamador quebrar e o erro
+   * sair como "resposta inválida", culpando o site por um limite nosso.
+   */
+  allowTruncated?: boolean
 }
 
 export interface SafeResponse {
@@ -241,6 +247,14 @@ export function createSafeFetch(limiter: HostRateLimiter) {
         current = next
         chain.push(next.href)
         continue
+      }
+
+      if (result.truncated && opts.allowTruncated !== true) {
+        throw new AuditError(
+          'RESPONSE_TOO_LARGE',
+          `resposta de ${current.href} passou de ${maxBytes} bytes e foi cortada`,
+          { url: current.href, maxBytes },
+        )
       }
 
       return {
