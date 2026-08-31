@@ -23,6 +23,7 @@ export type AuditErrorCode =
   | 'NETWORK_ERROR'
   | 'HOME_NOT_OK'
   | 'NO_DISPLAY'
+  | 'BROWSER_LAUNCH_FAILED'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

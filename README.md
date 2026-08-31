@@ -26,7 +26,15 @@ npm run smoke                                # valida o browser de verdade
 npm run typecheck
 ```
 
-Na primeira vez, baixe o Chromium: `npx playwright install chromium`.
+Na primeira vez:
+
+```bash
+npx playwright install chromium            # baixa o browser
+sudo npx playwright install-deps chromium  # bibliotecas do sistema (Linux)
+```
+
+Sem o segundo comando o launch falha com `BROWSER_LAUNCH_FAILED` dizendo qual
+dos dois rodar.
 
 Em servidor ou devcontainer sem tela, prefixe com `xvfb-run -a` (instale com
 `apt-get install -y xvfb`) ou passe `--headless`. O padrão do projeto é

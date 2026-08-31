@@ -29,6 +29,38 @@ export interface BrowserSession {
   close(): Promise<void>
 }
 
+/**
+ * Traduz as falhas de launch do Playwright em erro tipado. Sem isto, a mensagem
+ * do Playwright (com caixote ASCII e tudo) ia inteira para `errorReason`, e
+ * falta de biblioteca do sistema saía classificada como erro de rede.
+ */
+async function launchChromium(headed: boolean): Promise<Browser> {
+  try {
+    return await chromium.launch({ headless: !headed })
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
+
+    if (/missing dependencies/i.test(raw)) {
+      throw new AuditError(
+        'BROWSER_LAUNCH_FAILED',
+        'O Chromium está instalado mas faltam bibliotecas do sistema. ' +
+          'Rode: sudo npx playwright install-deps chromium',
+        { hint: 'install-deps' },
+      )
+    }
+    if (/executable doesn'?t exist|please run the following command/i.test(raw)) {
+      throw new AuditError(
+        'BROWSER_LAUNCH_FAILED',
+        'O Chromium não está baixado. Rode: npx playwright install chromium',
+        { hint: 'install-browser' },
+      )
+    }
+    throw new AuditError('BROWSER_LAUNCH_FAILED', `Falha ao abrir o Chromium: ${raw.split('\n')[0]}`, {
+      raw: raw.slice(0, 500),
+    })
+  }
+}
+
 export async function launchBrowser(options: LaunchOptions): Promise<BrowserSession> {
   const headed = options.headed !== false
 
@@ -52,7 +84,7 @@ export async function launchBrowser(options: LaunchOptions): Promise<BrowserSess
     )
   }
 
-  const browser = await chromium.launch({ headless: !headed })
+  const browser = await launchChromium(headed)
   const context = await browser.newContext({
     userAgent: options.userAgent,
     viewport: DESKTOP_VIEWPORT,
