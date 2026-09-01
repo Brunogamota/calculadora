@@ -24,7 +24,8 @@
     "screencast": "tsx apps/worker/scripts/screencast-probe.ts",
     "live": "tsx apps/realtime/src/server.ts",
     "live:demo": "tsx apps/realtime/scripts/live-demo.ts",
-    "ui:shot": "tsx apps/realtime/scripts/screenshot-ui.ts"
+    "ui:shot": "tsx apps/realtime/scripts/screenshot-ui.ts",
+    "live:fake": "tsx apps/realtime/scripts/live-fake.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",
