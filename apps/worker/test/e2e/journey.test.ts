@@ -453,3 +453,59 @@ describe('a cadeia de quatro caminhos até o carrinho', { concurrency: false }, 
     assert.equal(padrao.cart?.uiPattern, 'unknown')
   })
 })
+
+describe('loja sem etapa de carrinho', { concurrency: false }, () => {
+  /* A regra de sucesso era uma só: /cart.js precisa contar um item a mais.
+     Isso reprova a loja em que o botão leva direto para o checkout — o
+     carrinho nunca existe, e a jornada dava a compra como falhada procurando
+     um sinal que naquela loja jamais apareceria. Carrinho vazio não é o mesmo
+     que compra que não começou. */
+
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    const run = await auditFake({ semCarrinho: true })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('o item entrar no checkout conta como sucesso', () => {
+    assert.equal(result.cart?.ondeEntrou, 'checkout', result.cart?.viasTentadas.join(' | '))
+    assert.equal(result.cart?.ok, true)
+  })
+
+  test('a prova é o produto NA tela, conferido por título e preço', () => {
+    // "aparece um produto" não basta: vitrine de recomendados na lateral do
+    // checkout também mostra produto, e não é a compra.
+    assert.match(result.cart?.provaDeEntrada ?? '', /Camiseta Básica/)
+    assert.match(result.cart?.provaDeEntrada ?? '', /89\.90/)
+  })
+
+  test('o passo sai como PULADO pela loja, nunca como falha', () => {
+    const passo = result.steps.find((s) => s.id === 'add-to-cart')
+    assert.equal(passo?.outcome.status, 'skipped')
+    assert.match(
+      passo?.outcome.status === 'skipped' ? passo.outcome.reason : '',
+      /não tem etapa de carrinho/,
+    )
+  })
+
+  test('e vira nota sobre a LOJA, não limitação nossa', () => {
+    // Jornada mais curta é fato sobre ela, e o lojista precisa saber.
+    assert.ok(
+      result.storefrontNotes.some((n) => /não tem etapa de carrinho/.test(n)),
+      `notas: ${result.storefrontNotes.join(' | ')}`,
+    )
+    assert.ok(
+      !result.incompleteBecause.some((m) => /carrinho/.test(m)),
+      `não pode entrar como limitação: ${result.incompleteBecause.join(' | ')}`,
+    )
+  })
+
+  test('a auditoria chega ao fim e dá nota', () => {
+    assert.equal(result.errorCode, null, result.errorReason ?? '')
+    assert.ok((result.checks?.score ?? 0) > 0)
+  })
+})

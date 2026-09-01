@@ -26,6 +26,12 @@ export interface FakeStoreOptions {
   botChallenge?: boolean
   /** `/cart/add.js` responde 422: exercita a queda para o caminho seguinte. */
   apiRecusaAdd?: boolean
+  /**
+   * Loja SEM etapa de carrinho: o botão leva direto para o checkout, e
+   * /cart.js nunca conta nada. É o formato que reprovava a compra por
+   * procurar uma confirmação que naquela loja jamais apareceria.
+   */
+  semCarrinho?: boolean
   /** Catálogo inclui produto de teste a R$ 0. */
   includeZeroPriceProduct?: boolean
   /**
@@ -88,8 +94,21 @@ function productPage(handle: string, options: FakeStoreOptions): string {
      "Comprar" é um botão solto que manda o item por fetch. Tema assim era
      auditoria perdida — a jornada exigia o formulário clássico antes de
      procurar qualquer botão. */
+  /* Sem etapa de carrinho: o botão manda direto para o checkout. Nenhum
+     form de /cart/add, nenhum carrinho para confirmar. */
   const form =
-    options.buyButton === 'sem-formulario'
+    options.semCarrinho === true
+      ? `
+    <div class="product-buy">
+      <button type="button" id="comprar" class="btn-buy">Comprar</button>
+    </div>
+    <script>
+      document.getElementById('comprar').addEventListener('click', async function () {
+        await fetch('/cart/add.js', { method: 'POST' })
+        location.href = '/checkout'
+      })
+    </script>`
+      : options.buyButton === 'sem-formulario'
       ? `
     <div class="product-buy">
       <button type="button" id="comprar" class="btn-buy">Comprar</button>
@@ -215,6 +234,8 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       return send(200, 'application/json', productsJson(options.includeZeroPriceProduct === true))
     }
     if (path === '/cart.js') {
+      // Loja sem etapa de carrinho: o carrinho existe e está sempre vazio.
+      if (options.semCarrinho === true) return send(200, 'application/json', JSON.stringify({ item_count: 0 }))
       return send(200, 'application/json', JSON.stringify({ item_count: carts.get(session) ?? 0 }))
     }
     if (path === '/cart/add') {
@@ -228,6 +249,12 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
        teste passava pelo segundo caminho sem que ninguém percebesse. */
     if (path === '/cart/add.js') {
       if (req.method !== 'POST') return send(405, 'text/plain', 'method not allowed')
+      /* Sem etapa de carrinho, o add responde 200 e joga a pessoa no
+         checkout: a compra ENTROU, e mesmo assim o /cart.js segue zerado. */
+      if (options.semCarrinho === true) {
+        carts.set(session, 1)
+        return send(200, 'application/json', JSON.stringify({ id: 111, quantity: 1 }))
+      }
       // Variante inexistente responde 422, como o Shopify de verdade.
       if (options.apiRecusaAdd === true) {
         return send(422, 'application/json', JSON.stringify({ status: 422, message: 'Cart Error' }))
@@ -252,6 +279,19 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       )
     }
 
+    if (path === '/checkout' && options.semCarrinho === true) {
+      const p = PRODUCTS[0]!
+      return send(
+        200,
+        'text/html',
+        `<html><body><h1>Finalizar compra</h1>
+         <h2>Resumo do pedido</h2>
+         <p>${p.title} — R$ ${p.price}</p>
+         <p>E-mail</p><p>Endereço de entrega</p><p>Frete</p>
+         <p>Forma de pagamento: Pix, cartão, boleto</p>
+         </body></html>`,
+      )
+    }
     if (path === '/checkout') {
       return send(200, 'text/html', CHECKOUT_PAGE)
     }

@@ -310,6 +310,9 @@ describe('BUY_BUTTON_OBSCURED — fora da tabela da §8', () => {
     via: 'texto' as const,
     viaDetalhe: 'texto de intenção de compra: "Comprar"',
     viasTentadas: [],
+    ondeEntrou: 'carrinho' as const,
+    provaDeEntrada: '/cart.js: 0 -> 1 item(ns)',
+    lojaSemCarrinho: false,
     overlay: {
       present: true,
       identity: 'div#modal',

@@ -31,7 +31,8 @@ import {
   reachCheckout as reachCheckoutImpl,
   collectPayment as collectPaymentImpl,
 } from './shopify.checkout.ts'
-import type { AddToCartResult, AddToCartVia, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
+import type { AddToCartResult, AddToCartVia, JourneyContext, JourneyDriver, OndeEntrou, ProductRef } from '../types.ts'
+import { fold } from '../journey/vocabulary.ts'
 import { idleCursor, moveCursorToElement } from '../journey/cursor.ts'
 
 interface ShopifyVariant {
@@ -155,8 +156,12 @@ export interface CartReading {
  * Carrinho que não muda também é resposta — devolve a última leitura, e quem
  * chama decide o que fazer com ela (§6.4: nunca afirmar que entrou).
  */
-async function esperarCarrinhoMudar(ctx: JourneyContext, antes: number | null): Promise<CartReading> {
-  const teto = Date.now() + ctx.deadline.clamp(5000)
+async function esperarCarrinhoMudar(
+  ctx: JourneyContext,
+  antes: number | null,
+  tetoMs = 2500,
+): Promise<CartReading> {
+  const teto = Date.now() + ctx.deadline.clamp(tetoMs)
   let ultima = await readCart(ctx)
   while (Date.now() < teto) {
     if (ultima.count !== null && ultima.count !== antes) return ultima
@@ -207,7 +212,9 @@ async function adicionarPorApi(
     )
     .catch((e: unknown) => ({ status: 0, corpo: e instanceof Error ? e.message : 'evaluate falhou' }))
 
-  if (r.status === 200) return { ok: true, nota: `200 na variante ${id}` }
+  // O corpo vai junto mesmo no sucesso: "200" sozinho não deixa conferir
+  // depois se o item que entrou é o item que a jornada escolheu.
+  if (r.status === 200) return { ok: true, nota: `200 na variante ${id} — ${r.corpo.slice(0, 160)}` }
   // 422 é a resposta do Shopify para variante sem estoque ou id inválido: a
   // API respondeu certo, o produto é que não serve. Vale dizer isso, e não
   // "a API falhou".
@@ -241,6 +248,71 @@ async function submeterFormulario(
   } catch (e) {
     return { ok: false, nota: e instanceof Error ? e.message.slice(0, 120) : 'submit falhou' }
   }
+}
+
+/**
+ * O item entrou na jornada de compra? Três formas de responder que sim.
+ *
+ * A pergunta era só uma — "o /cart.js conta um item a mais?" — e ela reprova a
+ * loja que não tem etapa de carrinho: o botão leva direto para o checkout, o
+ * carrinho nunca existe, e a jornada concluía que a compra falhou porque
+ * procurava um sinal que naquela loja nunca ia aparecer.
+ *
+ * A ordem importa. O carrinho é a prova mais forte, porque é um número que a
+ * própria plataforma dá. As outras duas são de texto, e texto pede cuidado:
+ * "o produto aparece na tela" só vale se for O produto que a jornada escolheu,
+ * conferido por título E por preço. Uma vitrine de recomendados na lateral do
+ * checkout também mostra produto, e não é a compra.
+ */
+async function ondeOItemEntrou(
+  ctx: JourneyContext,
+  product: ProductRef,
+  antes: CartReading,
+  depois: CartReading,
+): Promise<{ onde: OndeEntrou; prova: string } | null> {
+  // 1. Carrinho: a prova mais forte, e um número, não texto.
+  if (antes.count !== null && depois.count !== null && depois.count > antes.count) {
+    return { onde: 'carrinho', prova: `/cart.js: ${antes.count} -> ${depois.count} item(ns)` }
+  }
+
+  const url = ctx.page.url()
+  const texto = ((await ctx.page.textContent('body').catch(() => null)) ?? '').toLowerCase()
+  if (texto.length === 0) return null
+
+  const titulo = fold(product.title)
+  const temTitulo = titulo.length > 3 && fold(texto).includes(titulo)
+  /* Preço em centavos vira "149,00" e "149.00": a loja escreve dos dois
+     jeitos. Produto sem preço conhecido não desqualifica — aí o título
+     sozinho decide, e a prova diz que foi assim. */
+  const reais = product.priceCents === null ? null : (product.priceCents / 100).toFixed(2)
+  const temPreco = reais === null ? null : texto.includes(reais) || texto.includes(reais.replace('.', ','))
+  const temProduto = temTitulo && temPreco !== false
+  const comoConferi = reais === null ? 'só pelo título (produto sem preço)' : `"${product.title}" e ${reais}`
+
+  // 2. Tela de checkout com o item presente.
+  const naTelaDeCheckout =
+    /\/checkouts?\//.test(url) || /\/checkout(\?|$)/.test(url) || (await looksLikeCheckout(ctx))
+  if (naTelaDeCheckout && temProduto) {
+    return { onde: 'checkout', prova: `checkout em ${url} com ${comoConferi} na tela` }
+  }
+
+  // 3. Resumo do pedido com o produto, mesmo sem carrinho nenhum.
+  const temResumo = /resumo do pedido|resumo da compra|order summary|seu pedido/.test(texto)
+  if (temResumo && temProduto) {
+    return { onde: 'resumo-do-pedido', prova: `resumo do pedido com ${comoConferi}` }
+  }
+
+  return null
+}
+
+/** Sinais de tela de checkout que não dependem do endereço. */
+async function looksLikeCheckout(ctx: JourneyContext): Promise<boolean> {
+  const texto = ((await ctx.page.textContent('body').catch(() => null)) ?? '').toLowerCase()
+  const pedePagamento = /forma de pagamento|meio de pagamento|payment method/.test(texto)
+  const pedeEntrega = /endereco de entrega|endereço de entrega|dados de entrega|frete/.test(texto)
+  const pedeContato = /e-mail|email/.test(texto)
+  // Duas das três: uma sozinha aparece em rodapé de qualquer página.
+  return [pedePagamento, pedeEntrega, pedeContato].filter(Boolean).length >= 2
 }
 
 async function readCart(ctx: JourneyContext): Promise<CartReading> {
@@ -438,7 +510,11 @@ export const shopifyJourney: JourneyDriver = {
 
     /* Confirmar entre uma tentativa e a próxima evita o pior erro possível
        aqui: insistir depois de já ter dado certo e somar o item duas vezes. */
-    const entrou = async (): Promise<CartReading> => esperarCarrinhoMudar(ctx, before.count)
+    let perguntou = false
+    const entrou = async (): Promise<CartReading> => {
+      perguntou = true
+      return esperarCarrinhoMudar(ctx, before.count)
+    }
     const confirmou = (leitura: CartReading): boolean =>
       leitura.count !== null && before.count !== null && leitura.count > before.count
     let after: CartReading = before
@@ -505,11 +581,14 @@ export const shopifyJourney: JourneyDriver = {
     {
       const escopo = form ?? ctx.page.locator('body')
 
-      // 3. atributo — estrutura, não texto.
+      /* Quando um caminho anterior já resolveu, esta busca é só para OLHAR o
+         overlay — e aí não vale esperar 5s por um botão que talvez nem exista.
+         Quando ela É o caminho, o teto cheio continua valendo. */
+      const tetoBotao = via ? 1500 : 5000
       await escopo
         .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
         .first()
-        .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
+        .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(tetoBotao) })
         .catch(() => undefined)
       for (const spec of ADD_TO_CART_BUTTONS) {
         const candidato = escopo.locator(spec.selector).first()
@@ -636,6 +715,13 @@ export const shopifyJourney: JourneyDriver = {
         await button.evaluate((el) => (el as HTMLElement).click())
         await ctx.page.waitForTimeout(1000)
       }
+
+      /* O clique pode NAVEGAR — é o que faz a loja sem etapa de carrinho, que
+         manda direto para o checkout. Perguntar onde o item está enquanto o
+         navegador ainda está saindo da página do produto lê a página errada, e
+         a resposta sai "não entrou em lugar nenhum". */
+      await ctx.page.waitForLoadState('domcontentloaded', { timeout: ctx.deadline.clamp(8000) }).catch(() => undefined)
+      perguntou = false
     }
 
     // A confirmação final. Para os caminhos que já confirmaram acima, esta
@@ -646,7 +732,18 @@ export const shopifyJourney: JourneyDriver = {
     // fica quieta nunca — pixel, chat, analytics batem a cada poucos segundos
     // — então o networkidle NUNCA acontecia e a espera cobrava os 5 segundos
     // inteiros, em toda auditoria, sem esperar por nada.
-    if (!confirmou(after)) after = await entrou()
+    /* Só pergunta de novo se nenhum caminho chegou a perguntar. Repetir aqui
+       custava mais 2,5s de espera por uma resposta que já tínhamos. */
+    if (!perguntou) after = await entrou()
+
+    /* AQUI a regra de sucesso, que era o defeito de verdade.
+       
+       Ela perguntava uma coisa só: o /cart.js conta um item a mais? Loja que
+       manda o botão direto para o checkout não tem etapa de carrinho, o
+       carrinho nunca existe para ser confirmado, e a jornada dava a compra
+       como falhada — procurando um sinal que naquela loja jamais apareceria.
+       Carrinho vazio não é o mesmo que compra que não começou. */
+    const entrada = await ondeOItemEntrou(ctx, product, before, after)
 
     /* O padrão de UI (gaveta, modal, redirecionamento) é a REAÇÃO ao clique.
        Sem clique não há reação para classificar: entrar por API ou por submit
@@ -668,8 +765,13 @@ export const shopifyJourney: JourneyDriver = {
         // Carrinho inacessível não invalida a jornada: o item já foi somado.
       }
     }
-    const confirmed =
-      before.count !== null && after.count !== null ? after.count > before.count : null
+    /* Entrou pelo checkout ou pelo resumo: a loja PULOU a etapa de carrinho.
+       O passo não falha — ele sai como pulado pela loja, e isso é informação
+       sobre ela: jornada mais curta, um toque a menos até pagar. Marcar isso
+       como falha nossa esconderia um fato do lojista e ainda mentiria sobre
+       de quem foi o problema. */
+    const lojaSemCarrinho = entrada !== null && entrada.onde !== 'carrinho'
+    const confirmed = entrada !== null ? true : after.count === null ? null : false
 
     ctx.recorder.step(
       makeStep({
@@ -678,12 +780,22 @@ export const shopifyJourney: JourneyDriver = {
         url: ctx.page.url(),
         startedAt,
         screenshot: cartShot ?? productShot,
-        outcome:
-          confirmed === false
-            ? { status: 'failed', code: 'CART_NOT_CONFIRMED', reason: '/cart.js não registrou o item' }
+        outcome: lojaSemCarrinho
+          ? {
+              status: 'skipped',
+              reason:
+                `esta loja não tem etapa de carrinho: o item apareceu direto ` +
+                `${entrada?.onde === 'checkout' ? 'no checkout' : 'no resumo do pedido'} — ${entrada?.prova}`,
+            }
+          : confirmed === true
+            ? { status: 'done' }
             : confirmed === null
-              ? { status: 'skipped', reason: `clique feito, confirmação indisponível — ${after.note}` }
-              : { status: 'done' },
+              ? { status: 'skipped', reason: `não deu para confirmar em lugar nenhum — ${after.note}` }
+              : {
+                  status: 'failed',
+                  code: 'CART_NOT_CONFIRMED',
+                  reason: 'o item não apareceu no carrinho, nem no checkout, nem em resumo de pedido',
+                },
       }),
     )
 
@@ -693,8 +805,10 @@ export const shopifyJourney: JourneyDriver = {
       ok: confirmed,
       ms: Date.now() - startedAt,
       // Carrinho não confirmado torna a leitura do padrão de UI não confiável:
-      // não houve reação de carrinho para classificar.
-      uiPattern: confirmed === false ? 'unknown' : uiPattern,
+      // não houve reação de carrinho para classificar. Loja sem carrinho
+      // também não tem padrão de carrinho para ler — e o certo ali é
+      // 'redirect', que é o que de fato aconteceu.
+      uiPattern: lojaSemCarrinho ? 'redirect' : confirmed === false ? 'unknown' : uiPattern,
       cartUrl: new URL('/cart', ctx.baseUrl).href,
       itemCount: after.count,
       cartReadNote: confirmed === null ? `antes: ${before.note} | depois: ${after.note}` : null,
@@ -703,6 +817,9 @@ export const shopifyJourney: JourneyDriver = {
       via,
       viaDetalhe: comoAchou,
       viasTentadas: tentativas,
+      ondeEntrou: entrada?.onde ?? null,
+      provaDeEntrada: entrada?.prova ?? null,
+      lojaSemCarrinho,
     }
   },
 

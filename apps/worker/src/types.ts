@@ -137,6 +137,22 @@ export interface ProductRef {
  */
 export type AddToCartVia = 'api' | 'formulario' | 'atributo' | 'texto'
 
+/**
+ * ONDE o item foi encontrado depois de entrar na jornada.
+ *
+ * A regra de sucesso era uma só: /cart.js precisa mostrar um item a mais. Isso
+ * reprovava a loja que NÃO TEM etapa de carrinho — o botão leva direto para o
+ * checkout, e o carrinho nunca existe para ser confirmado. A jornada dava a
+ * compra como falhada porque procurava um sinal que naquela loja nunca ia
+ * aparecer.
+ *
+ * Carrinho vazio não é o mesmo que compra que não começou. Então são três
+ * formas de o item estar na jornada, e a auditoria grava qual foi — porque a
+ * diferença é informação sobre a LOJA, não erro nosso: loja sem etapa de
+ * carrinho tem jornada mais curta, e isso muda a contagem de passos.
+ */
+export type OndeEntrou = 'carrinho' | 'checkout' | 'resumo-do-pedido'
+
 export interface AddToCartResult {
   /**
    * true confirmado, false negado, `null` NÃO VERIFICÁVEL.
@@ -154,8 +170,20 @@ export interface AddToCartResult {
   /** Por que a confirmação falhou, e por qual caminho. Sem isto não há diagnóstico. */
   cartReadNote: string | null
   clicks: number
-  /** Qual dos quatro caminhos colocou o item no carrinho. */
+  /** Qual dos quatro caminhos colocou o item na jornada. */
   via: AddToCartVia | null
+  /**
+   * Onde o item apareceu: carrinho, tela de checkout, ou resumo do pedido.
+   * `null` quando não apareceu em lugar nenhum — aí sim a compra não entrou.
+   */
+  ondeEntrou: OndeEntrou | null
+  /** O que sustenta a afirmação: contagem do /cart.js, URL, texto observado. */
+  provaDeEntrada: string | null
+  /**
+   * A loja pulou a etapa de carrinho. Não é falha: é jornada mais curta, e
+   * some um passo da contagem que o comprador dá até pagar.
+   */
+  lojaSemCarrinho: boolean
   /** O seletor, o id da variante ou o rótulo que resolveu — evidência. */
   viaDetalhe: string | null
   /** O que cada caminho respondeu, na ordem. É o diagnóstico quando falha. */

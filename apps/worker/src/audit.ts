@@ -9,7 +9,7 @@
 import { prepare, PreflightRejected, type PrepareOptions } from './session.ts'
 import { createDeps, type PreflightOk } from './preflight.ts'
 import { createRecorder, makeStep } from './lib/recorder.ts'
-import { DEFAULT_OUT_DIR, saveHtml } from './lib/artifacts.ts'
+import { DEFAULT_OUT_DIR, saveHtml, saveJson } from './lib/artifacts.ts'
 import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
@@ -384,12 +384,43 @@ async function runAudit(
       reporter.finding('BUY_BUTTON_OBSCURED', 'alta', 'Botão de comprar coberto por sobreposição')
     }
     await reporter.pace()
-    if (cart.ok === null) {
+    /* A evidência da compra fica em disco, e não só no JSON que a tela
+       consome. Perguntaram-me "o que o POST /cart/add.js respondeu e o que o
+       /cart.js mostrou depois?" sobre uma auditoria já feita, e eu não tinha
+       como responder: nada disso era gravado. Agora é. */
+    await saveJson(outDir, new URL(result.url).hostname, 'carrinho', {
+      quando: new Date().toISOString(),
+      via: cart.via,
+      viaDetalhe: cart.viaDetalhe,
+      viasTentadas: cart.viasTentadas,
+      ondeEntrou: cart.ondeEntrou,
+      provaDeEntrada: cart.provaDeEntrada,
+      lojaSemCarrinho: cart.lojaSemCarrinho,
+      itemCount: cart.itemCount,
+      cartReadNote: cart.cartReadNote,
+      cartUrl: cart.cartUrl,
+      uiPattern: cart.uiPattern,
+      cliques: cart.clicks,
+      overlay: cart.overlay,
+    }).catch(() => undefined)
+
+    if (cart.lojaSemCarrinho) {
+      /* Fato sobre a LOJA, não limitação nossa — por isso vai em observações e
+         não em `incompleteBecause`. Jornada sem etapa de carrinho é um toque a
+         menos até pagar, e o lojista precisa saber que a dele é assim. */
+      result.storefrontNotes.push(
+        `esta loja não tem etapa de carrinho: o item foi direto para ` +
+          `${cart.ondeEntrou === 'checkout' ? 'a tela de checkout' : 'o resumo do pedido'}. ` +
+          `Jornada mais curta, um toque a menos até pagar. Prova: ${cart.provaDeEntrada}`,
+      )
+    } else if (cart.ok === null) {
       incompleteBecause.push(
         `carrinho não pôde ser confirmado${cart.cartReadNote ? ` — ${cart.cartReadNote}` : ''}`,
       )
     } else if (cart.ok === false) {
-      incompleteBecause.push('carrinho não recebeu o item: /cart.js não registrou nada')
+      incompleteBecause.push(
+        'o item não apareceu no carrinho, nem na tela de checkout, nem em resumo de pedido',
+      )
     }
     if (cart.overlay.likelyAuditArtifact) {
       incompleteBecause.push(
