@@ -15,6 +15,7 @@
 import { AuditError } from '../lib/errors.ts'
 import { saveHtml } from '../lib/artifacts.ts'
 import { detectBotChallenge } from '../lib/challenge.ts'
+import { matchBuyIntent } from '../journey/buyIntent.ts'
 import { makeStep } from '../lib/recorder.ts'
 import {
   ADD_TO_CART_BUTTONS,
@@ -331,30 +332,56 @@ export const shopifyJourney: JourneyDriver = {
       })
     }
 
-    // 2. botão dentro dele, também esperando em vez de fotografar
+    // 2. botão dentro dele, em três estratégias, da mais específica para a mais
+    //    geral. Esperando em vez de fotografar o DOM.
     let button = null
-    let buttonSpec = null
+    let buttonHow: string | null = null
+
     for (const spec of ADD_TO_CART_BUTTONS) {
       const candidate = form.locator(spec.selector).first()
       try {
         await candidate.waitFor({ state: 'visible', timeout: 5000 })
         button = candidate
-        buttonSpec = spec
+        buttonHow = describeSelector(spec)
         break
       } catch {
         continue
       }
     }
-    if (!button || !buttonSpec) {
+
+    // Nenhum submit no formulário. Observado na Circulei (loja de aluguel em
+    // Shopify): o botão diz "QUERO ALUGAR" e não é submit. O rótulo varia com o
+    // MODELO DE NEGÓCIO — aluguel, assinatura, marketplace — e nenhum seletor
+    // estrutural cobre isso.
+    if (!button) {
+      const achado = await findByBuyIntent(form)
+      if (achado) {
+        button = achado.locator
+        buttonHow = `texto de intenção de compra: "${achado.label}"`
+      }
+    }
+
+    // Último recurso: fora do formulário. Tema pode pôr o botão ao lado dele.
+    if (!button) {
+      const achado = await findByBuyIntent(ctx.page.locator('body'))
+      if (achado) {
+        button = achado.locator
+        buttonHow = `texto de intenção de compra fora do formulário: "${achado.label}"`
+      }
+    }
+
+    if (!button || !buttonHow) {
       const html = await saveHtml(
         ctx.outDir,
         new URL(ctx.baseUrl).hostname,
         'produto-sem-botao',
         await ctx.page.content(),
       )
-      throw new AuditError('NETWORK_ERROR', 'botão de comprar não encontrado dentro do formulário', {
+      throw new AuditError('NETWORK_ERROR', 'botão de comprar não encontrado na página', {
         formMatched: describeSelector(formSpec),
-        tried: ADD_TO_CART_BUTTONS.map(describeSelector),
+        triedSelectors: ADD_TO_CART_BUTTONS.map(describeSelector),
+        triedText: 'léxico de intenção de compra (comprar, alugar, assinar, reservar…)',
+        candidatesSeen: await listClickableLabels(ctx.page),
         productUrl: product.url,
         htmlSavedTo: html,
       })
@@ -576,4 +603,51 @@ async function detectCartUiPattern(
   }
 
   return 'inline'
+}
+
+/**
+ * Procura, dentro de um escopo, o primeiro clicável cujo RÓTULO indica intenção
+ * de comprar. Vale para botão que não é submit, para link estilizado de botão e
+ * para div com role=button — todos existem em tema real.
+ */
+async function findByBuyIntent(
+  scope: import('playwright').Locator,
+): Promise<{ locator: import('playwright').Locator; label: string } | null> {
+  const clicaveis = scope.locator('button, a, [role="button"], input[type="button"]')
+  const total = Math.min(await clicaveis.count(), 80)
+
+  for (let i = 0; i < total; i++) {
+    const candidato = clicaveis.nth(i)
+    if (!(await candidato.isVisible().catch(() => false))) continue
+
+    // `value` cobre <input type="button">, que não tem textContent.
+    const texto =
+      (await candidato.textContent().catch(() => null)) ??
+      (await candidato.getAttribute('value').catch(() => null)) ??
+      (await candidato.getAttribute('aria-label').catch(() => null))
+
+    const achado = matchBuyIntent(texto)
+    if (achado) return { locator: candidato, label: achado.label }
+  }
+  return null
+}
+
+/**
+ * Rótulos dos clicáveis visíveis, para o erro dizer o que HAVIA na página.
+ * Sem isso, "botão não encontrado" não permite corrigir sem abrir o HTML.
+ */
+async function listClickableLabels(page: import('playwright').Page): Promise<string[]> {
+  try {
+    return await page.evaluate(() => {
+      const rotulos: string[] = []
+      for (const el of document.querySelectorAll('button, a, [role="button"]')) {
+        const texto = (el as HTMLElement).innerText?.replace(/\s+/g, ' ').trim() ?? ''
+        if (texto && texto.length <= 60 && !rotulos.includes(texto)) rotulos.push(texto)
+        if (rotulos.length >= 25) break
+      }
+      return rotulos
+    })
+  } catch {
+    return []
+  }
 }

@@ -147,6 +147,29 @@ Esse último resolve o problema mais chato da jornada: escolher variação sem
 depender do DOM do tema. O Shopify aceita a variação na query string, então a
 jornada não precisa adivinhar como o tema desenhou o seletor de tamanho.
 
+### O rótulo do botão vem do modelo de negócio, não do tema
+
+Na Circulei (circulei.co), loja de aluguel de roupas em Shopify, o botão diz
+**"QUERO ALUGAR"** — não é submit, e "adicionar ao carrinho" não aparece em
+lugar nenhum. Aluguel diz alugar, assinatura diz assinar, marketplace diz
+reservar. Nenhum seletor estrutural cobre isso, e criar um seletor por loja não
+escala.
+
+A busca acontece em três estratégias, da mais específica para a mais geral:
+
+1. `button[name="add"]` e outros submits dentro do formulário de `/cart/add`
+2. **léxico de intenção de compra** entre os clicáveis do formulário
+3. o mesmo léxico na página inteira, para tema que põe o botão fora do form
+
+O léxico tem uma **lista de exclusão avaliada primeiro**, e ela é o que faz a
+técnica funcionar. Na mesma página da Circulei existe *"FICOU COM DÚVIDA?
+CLIQUE AQUI E FALE COM A NINA"* — clicar ali levaria a jornada para uma conversa
+de WhatsApp, com o carrinho vazio e nenhum erro aparente. O verbo também precisa
+**começar** o rótulo: "quero alugar" é botão, "quero saber mais" não é.
+
+Quando nada casa, o erro lista os rótulos dos clicáveis que existiam na página —
+sem isso, "botão não encontrado" não permite corrigir sem abrir o HTML.
+
 **O único ponto que depende de DOM é o botão de comprar**, e ele mora em
 `src/platforms/shopify.selectors.ts` com a origem de cada seletor declarada:
 

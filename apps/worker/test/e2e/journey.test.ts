@@ -300,3 +300,33 @@ describe('§8 — nota e achados sobre a jornada real da loja falsa', { concurre
     assert.equal(validation.valid, true, validation.issues.join(' | '))
   })
 })
+
+describe('botão de comprar que não é submit e não diz "adicionar"', { concurrency: false }, () => {
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    // Reproduz a Circulei (circulei.co): loja de aluguel em Shopify onde o
+    // botão diz "QUERO ALUGAR", não é submit, e a página tem um
+    // "FICOU COM DÚVIDA? CLIQUE AQUI E FALE COM A NINA" que começa parecido.
+    const run = await auditFake({ buyButton: 'aluguel' })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('encontra o botão pelo texto quando a estrutura não basta', () => {
+    assert.equal(result.cart?.ok, true, result.errorReason ?? '')
+    assert.equal(result.cart?.itemCount, 1)
+  })
+
+  test('e não clica no botão do WhatsApp que começa com "FICOU COM DÚVIDA"', () => {
+    // Clicar ali levaria a jornada para uma conversa, e o carrinho ficaria
+    // vazio. A prova é dupla: o carrinho confirmou, e nenhuma etapa saiu do
+    // domínio da loja.
+    assert.equal(result.cart?.itemCount, 1, 'carrinho vazio: clicou no lugar errado')
+    for (const passo of result.steps) {
+      assert.ok(!passo.url.includes('wa.me'), `a jornada foi parar no WhatsApp: ${passo.url}`)
+    }
+  })
+})

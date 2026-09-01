@@ -26,6 +26,14 @@ export interface FakeStoreOptions {
   botChallenge?: boolean
   /** Catálogo inclui produto de teste a R$ 0. */
   includeZeroPriceProduct?: boolean
+  /**
+   * Como o botão de comprar é construído.
+   *
+   * 'aluguel' reproduz a Circulei (circulei.co): loja de aluguel em Shopify
+   * onde o botão diz "QUERO ALUGAR", NÃO é submit, e a página ainda tem um
+   * "FALE COM A NINA" que começa parecido e não pode ser clicado.
+   */
+  buyButton?: 'submit' | 'aluguel'
 }
 
 const PRODUCTS = [
@@ -72,7 +80,25 @@ function productPage(handle: string, options: FakeStoreOptions): string {
   const product = PRODUCTS.find((p) => p.handle === handle)
   if (!product) return '<html><body><h1>404</h1></body></html>'
 
-  const form = `
+  // O caso da Circulei: formulário existe, mas o botão não é submit e o rótulo
+  // vem do modelo de negócio ("QUERO ALUGAR", não "adicionar ao carrinho").
+  const form =
+    options.buyButton === 'aluguel'
+      ? `
+    <form action="/cart/add" method="post" id="product-form">
+      <input type="hidden" name="id" value="${product.id}">
+      <button type="button" id="alugar" class="btn-rent">QUERO ALUGAR</button>
+    </form>
+    <a href="https://wa.me/5511999999999" class="btn-help">
+      FICOU COM DÚVIDA? CLIQUE AQUI E FALE COM A NINA
+    </a>
+    <script>
+      document.getElementById('alugar').addEventListener('click', async function () {
+        await fetch('/cart/add', { method: 'POST' })
+        location.href = '/cart'
+      })
+    </script>`
+      : `
     <form action="/cart/add" method="post" id="product-form">
       <input type="hidden" name="id" value="${product.id}">
       <button type="submit" name="add" class="product-form__submit">Adicionar ao carrinho</button>
