@@ -12,6 +12,7 @@ import type {
   AddToCartResult,
   CheckoutContext,
   JourneyStep,
+  PageObservation,
   PaymentSnapshot,
   ProductRef,
 } from '../types.ts'
@@ -53,6 +54,12 @@ export interface CheckInput {
   steps: ReadonlyArray<JourneyStep>
   /** Texto da página de produto, para checagens que comparam produto vs checkout. */
   productText: string | null
+  /**
+   * Páginas observadas na jornada. Olhar só a tela de pagamento jogava fora a
+   * maior parte do que dava para medir: /checkout quase sempre é proibido pelo
+   * robots, e produto e carrinho quase nunca são.
+   */
+  observations: ReadonlyArray<PageObservation>
   homeLoadMs: number | null
   /** §6.7 — ausente na Fase 1, e é isso que torna MOBILE_PARITY não aplicável. */
   mobile: { steps: number; methods: number } | null
@@ -93,4 +100,50 @@ export function notApplicable(reason: string): ReturnType<CheckRule['evaluate']>
     recommendation: '',
     screenshot: null,
   }
+}
+
+/**
+ * A melhor fonte disponível para uma checagem, na ordem informada.
+ *
+ * Cada checagem declara de onde faz sentido medi-la: cupom no carrinho ou no
+ * checkout, parcelamento na página de produto (que é onde o comprador decide),
+ * salvar cartão só no checkout. Medir no lugar errado distorce o que a §8 quer
+ * dizer.
+ */
+export function melhorFonte(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): PageObservation | null {
+  for (const fonte of ordem) {
+    const achada = input.observations.find((o) => o.source === fonte)
+    if (achada) return achada
+  }
+  return null
+}
+
+/**
+ * A tela de pagamento vista como observação.
+ *
+ * `payment` e `observations` descrevem a mesma coisa por dois caminhos, e dois
+ * caminhos que podem divergir acabam divergindo. Derivar sempre daqui garante
+ * que uma checagem nunca veja um checkout que o relatório não mostra.
+ */
+export function observacaoDoCheckout(
+  payment: PaymentSnapshot | null,
+  checkout: CheckoutContext | null,
+): PageObservation | null {
+  if (!payment || !checkout) return null
+  return {
+    source: 'checkout',
+    url: checkout.url,
+    loadMs: checkout.loadMs.checkout,
+    snapshot: payment,
+  }
+}
+
+/** Rótulo legível da fonte, para a evidência dizer onde foi medido. */
+export const NOME_DA_FONTE: Record<PageObservation['source'], string> = {
+  product: 'página do produto',
+  cart: 'página do carrinho',
+  checkout: 'tela de pagamento',
 }

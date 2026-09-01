@@ -16,6 +16,7 @@ import { AuditError } from '../lib/errors.ts'
 import { saveHtml } from '../lib/artifacts.ts'
 import { detectBotChallenge } from '../lib/challenge.ts'
 import { matchBuyIntent } from '../journey/buyIntent.ts'
+import { observePage } from '../journey/observe.ts'
 import { makeStep } from '../lib/recorder.ts'
 import {
   ADD_TO_CART_BUTTONS,
@@ -289,9 +290,12 @@ export const shopifyJourney: JourneyDriver = {
       )
     }
 
-    // Guardado para a §6.6 poder dizer se o desconto do Pix já aparecia AQUI
-    // ou só no checkout — a diferença é o achado PIX_DISCOUNT_LATE.
-    ctx.scratch.set('productText', await ctx.page.textContent('body').catch(() => null))
+    // A página de produto é fonte de §6.6 por si só: meios exibidos,
+    // parcelamento, desconto no Pix e selo aparecem aqui, e esta página quase
+    // nunca é proibida pelo robots — ao contrário de /checkout.
+    const produtoObservado = await observePage(ctx, 'product')
+    ctx.scratch.set('observation:product', produtoObservado)
+    ctx.scratch.set('productText', produtoObservado.snapshot.rawTextSample)
 
     const before = await readCart(ctx)
 
@@ -479,6 +483,20 @@ export const shopifyJourney: JourneyDriver = {
 
     // 5. confirmação por API (§6.4)
     const after = await readCart(ctx)
+
+    // 6. A página do carrinho é a segunda fonte mais rica da §6.6, e também
+    //    costuma ser permitida pelo robots. Muita loja põe cupom, selo e
+    //    bandeiras aceitas aqui, antes do checkout.
+    const cartUrl = new URL('/cart', ctx.baseUrl).href
+    if (ctx.gate.check(cartUrl).allowed) {
+      try {
+        const nav = await ctx.navigate(cartUrl, ctx.deadline.clamp(20_000))
+        ctx.scratch.set('observation:cart', await observePage(ctx, 'cart', nav.loadMs))
+        await ctx.recorder.capture(ctx.page, 'pagina-carrinho')
+      } catch {
+        // Carrinho inacessível não invalida a jornada: o item já foi somado.
+      }
+    }
     const confirmed =
       before.count !== null && after.count !== null ? after.count > before.count : null
 

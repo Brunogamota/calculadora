@@ -14,6 +14,7 @@ import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
+import { observacaoDoCheckout } from './checks/types.ts'
 import { NullPublisher, type Publisher } from './stream/publisher.ts'
 import { Reporter } from './stream/reporter.ts'
 import { startScreencast, type Screencast } from './stream/screencast.ts'
@@ -26,6 +27,7 @@ import type {
   JourneyContext,
   JourneyStep,
   NavigationResult,
+  PageObservation,
   PaymentSnapshot,
   ProductRef,
 } from './types.ts'
@@ -76,6 +78,8 @@ export interface AuditResult {
   identity: Record<string, unknown> | null
   /** §8 — checagens, achados e nota. null quando a auditoria nem começou. */
   checks: ChecksReport | null
+  /** Páginas observadas (§6.6 vista de produto, carrinho e checkout). */
+  observations: PageObservation[]
   steps: JourneyStep[]
   screenshotsDir: string | null
   robots: {
@@ -129,6 +133,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     payment: null,
     identity: null,
     checks: null,
+    observations: [],
     steps: [],
     screenshotsDir: null,
     robots: { ownerVerified: options.ownerVerified === true, blockedPaths: [], overridesUsed: [] },
@@ -320,6 +325,7 @@ async function runAudit(
     return finish(result, recorder.steps, incompleteBecause, startedAt, {
       productText: null,
       blockedBySite: false,
+      observations: [],
     })
   }
 
@@ -463,6 +469,7 @@ async function runAudit(
   const final = finish(result, recorder.steps, incompleteBecause, startedAt, {
     productText: (ctx.scratch.get('productText') as string | null) ?? null,
     blockedBySite: false,
+    observations: colherObservacoes(ctx, result),
   })
 
   // Achados que só existem depois das checagens (§7.3: durante, não só no fim).
@@ -528,9 +535,9 @@ function finish(
   steps: ReadonlyArray<JourneyStep>,
   incompleteBecause: string[],
   startedAt: number,
-  extra: { productText: string | null; blockedBySite: boolean },
+  extra: { productText: string | null; blockedBySite: boolean; observations: PageObservation[] },
 ): AuditResult {
-  const withSteps = { ...result, steps: [...steps] }
+  const withSteps = { ...result, steps: [...steps], observations: extra.observations }
   return {
     ...withSteps,
     ok: true,
@@ -543,6 +550,7 @@ function finish(
       payment: withSteps.payment,
       steps: withSteps.steps,
       productText: extra.productText,
+      observations: extra.observations,
       homeLoadMs: withSteps.timings.homeLoadMs,
       mobile: null,
       auditedFromBrazil: withSteps.vantage.auditedFromBrazil,
@@ -609,6 +617,7 @@ function failStep(
       payment: result.payment,
       steps: trail,
       productText: null,
+      observations: result.observations,
       homeLoadMs: result.timings.homeLoadMs,
       mobile: null,
       auditedFromBrazil: result.vantage.auditedFromBrazil,
@@ -692,4 +701,21 @@ export function summarize(result: AuditResult): Record<string, unknown> {
     screenshotsDir: result.screenshotsDir,
     timings: result.timings,
   }
+}
+
+/**
+ * Junta o que a jornada observou. A tela de pagamento entra como observação
+ * também, para todas as checagens usarem o mesmo mecanismo de escolha de fonte.
+ */
+function colherObservacoes(ctx: JourneyContext, result: AuditResult): PageObservation[] {
+  const observacoes: PageObservation[] = []
+
+  for (const chave of ['observation:product', 'observation:cart'] as const) {
+    const observada = ctx.scratch.get(chave) as PageObservation | undefined
+    if (observada) observacoes.push(observada)
+  }
+
+  const checkout = observacaoDoCheckout(result.payment, result.checkout)
+  if (checkout) observacoes.push(checkout)
+  return observacoes
 }

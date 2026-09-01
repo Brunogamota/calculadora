@@ -33,6 +33,7 @@ function entrada(over: Partial<CheckInput> = {}): CheckInput {
     payment: null,
     steps: [],
     productText: null,
+    observations: [],
     homeLoadMs: null,
     mobile: null,
     auditedFromBrazil: null,
@@ -152,6 +153,113 @@ describe('cobertura — nota 100 medindo pouco não pode ler igual a nota 100 me
     const r = runChecks(entrada())
     assert.equal(r.score, null)
     assert.equal(r.scoreCaveat, null)
+  })
+})
+
+describe('produto e carrinho medem o que o checkout mediria', () => {
+  const observacao = (source: 'product' | 'cart', over: Partial<PaymentSnapshot> = {}) => ({
+    source,
+    url: `https://loja.com.br/${source}`,
+    loadMs: 800,
+    snapshot: { ...PAGAMENTO_BOM, ...over },
+  })
+
+  test('INSTALLMENT_UNCLEAR é medida na página do produto, sem checkout', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        robotsBlockedPaths: ['/checkout'],
+        observations: [
+          observacao('product', {
+            installments: {
+              present: true,
+              maxCount: 12,
+              perInstallmentValueShown: false,
+              interestExplicit: false,
+              rawText: 'em até 12x',
+            },
+          }),
+        ],
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'INSTALLMENT_UNCLEAR')
+    assert.equal(c?.status, 'fail')
+    assert.match(c?.evidence.join(' ') ?? '', /página do produto/)
+  })
+
+  test('cupom achado no carrinho já é aprovação, sem precisar do checkout', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        robotsBlockedPaths: ['/checkout'],
+        observations: [observacao('cart', { couponField: true })],
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.status, 'pass')
+    assert.match(c?.evidence.join(' ') ?? '', /página do carrinho/)
+  })
+
+  test('cupom ausente no carrinho NÃO acusa a loja: na Shopify ele mora no checkout', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        robotsBlockedPaths: ['/checkout'],
+        observations: [observacao('cart', { couponField: false })],
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.status, 'not_applicable')
+    assert.match(c?.notApplicableReason ?? '', /robots/)
+  })
+
+  test('selo de segurança ausente no carrinho também não acusa a loja', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        observations: [observacao('cart', { trustSignals: { present: false, evidence: [] } })],
+      }),
+    )
+    assert.equal(r.results.find((x) => x.id === 'NO_TRUST_SIGNAL')?.status, 'not_applicable')
+  })
+
+  test('observar produto e carrinho aumenta a cobertura sem chegar ao checkout', () => {
+    const semObservar = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
+    const observando = runChecks(
+      entrada({
+        steps: [passo()],
+        robotsBlockedPaths: ['/checkout'],
+        observations: [observacao('product'), observacao('cart')],
+      }),
+    )
+    assert.ok(
+      observando.coverage.ratio > semObservar.coverage.ratio,
+      `cobertura ${semObservar.coverage.ratio} → ${observando.coverage.ratio}`,
+    )
+  })
+
+  test('o checkout continua tendo prioridade sobre o carrinho', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        checkout: checkout(),
+        payment: { ...PAGAMENTO_BOM, couponField: false },
+        observations: [observacao('cart', { couponField: true })],
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.status, 'fail', 'o carrinho não pode encobrir um checkout medido')
+    assert.match(c?.evidence.join(' ') ?? '', /tela de pagamento/)
+  })
+
+  test('NO_SAVED_CARD não se apoia em carrinho: salvar cartão não existe antes do checkout', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        observations: [observacao('cart'), observacao('product')],
+      }),
+    )
+    assert.equal(r.results.find((x) => x.id === 'NO_SAVED_CARD')?.status, 'not_applicable')
   })
 })
 

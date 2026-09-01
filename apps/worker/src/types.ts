@@ -230,6 +230,23 @@ export interface PaymentSnapshot {
   rawTextSample: string
 }
 
+/**
+ * Uma página observada durante a jornada.
+ *
+ * A §6.6 fala da tela de pagamento, mas quase tudo que ela pede aparece antes:
+ * meios exibidos, parcelamento, desconto no Pix e selo de segurança estão na
+ * página de produto e na do carrinho — e essas duas quase nunca são proibidas
+ * pelo robots, enquanto /checkout quase sempre é.
+ *
+ * Olhar só o checkout jogava fora a maior parte do que dava para medir.
+ */
+export interface PageObservation {
+  source: 'product' | 'cart' | 'checkout'
+  url: string
+  loadMs: number | null
+  snapshot: PaymentSnapshot
+}
+
 export interface JourneyDriver {
   findProduct(ctx: JourneyContext): Promise<ProductRef>
   addToCart(ctx: JourneyContext, product: ProductRef): Promise<AddToCartResult>

@@ -621,6 +621,44 @@ ressalva explícita:
 Na Fase 3, essa ressalva precisa aparecer **ao lado do número grande** no
 relatório, não num rodapé.
 
+### Cada checagem mede onde a decisão acontece, não só no checkout
+
+As cinco checagens de pagamento liam apenas a tela de pagamento. Como `/checkout`
+é proibido pelo robots na maioria das lojas Shopify brasileiras que testamos,
+elas saíam não aplicáveis quase sempre — a auditoria dizia pouco justamente
+sobre o que o comprador mais olha.
+
+Agora a jornada guarda uma **observação** de cada página que passou (produto,
+carrinho, checkout), e cada regra declara em que ordem as fontes servem para
+ela:
+
+| checagem | fontes, em ordem |
+| --- | --- |
+| `INSTALLMENT_UNCLEAR` | produto → checkout → carrinho |
+| `PIX_DISCOUNT_LATE` | produto, comparado com checkout ou carrinho |
+| `NO_COUPON_FIELD`, `NO_TRUST_SIGNAL` | checkout; carrinho e produto só confirmam |
+| `NO_SAVED_CARD` | checkout, e só ele |
+
+O parcelamento encabeça a lista pelo produto de propósito: é ali que o comprador
+decide se cabe no bolso, e é ali que a ambiguidade custa a venda. A evidência
+sempre diz onde foi medido — "na página do produto: parcelamento sem valor por
+parcela" — para ninguém ler carrinho como se fosse checkout.
+
+**Presença antecipa, ausência não.** Achar campo de cupom no carrinho prova que
+a loja oferece cupom. Não achar não prova nada: na Shopify padrão o cupom mora
+no checkout. Deixar o `fail` cair para o carrinho acusaria de "não tem cupom"
+toda loja cujo checkout o robots proíbe — resultado inventado, o que a §2 mais
+proíbe. Então `NO_COUPON_FIELD` e `NO_TRUST_SIGNAL` aceitam o carrinho para
+**passar**, nunca para falhar. `NO_SAVED_CARD` não aceita nem isso: salvar
+cartão não existe antes do checkout.
+
+Medido contra a loja falsa com `/checkout` proibido: a cobertura foi de **27%
+para 45%**, e `INSTALLMENT_UNCLEAR` passou a ser julgada de verdade. Menos do
+que os ~70% que eu estimei antes de medir: o que sobra não aplicável —
+`NO_SAVED_CARD`, `NO_COUPON_FIELD`, `NO_TRUST_SIGNAL`, `FORCED_LOGIN`,
+`STEP_COUNT`, `CHECKOUT_SPEED` — precisa mesmo do checkout, e nenhuma página
+anterior substitui.
+
 ### O que muda conforme o ponto de observação
 
 `CHECKOUT_SPEED` só julga quando `--from-br` foi declarado: medir de fora infla

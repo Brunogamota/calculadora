@@ -7,7 +7,13 @@
  * o checkout, ou porque auditamos do país errado.
  */
 
-import { SEVERITY_WEIGHT, type CheckInput, type CheckResult, type CheckRule } from './types.ts'
+import {
+  observacaoDoCheckout,
+  SEVERITY_WEIGHT,
+  type CheckInput,
+  type CheckResult,
+  type CheckRule,
+} from './types.ts'
 import { httpsIssue } from './rules/transport.ts'
 import { buyButtonObscured, checkoutSpeed, forcedLogin, stepCount } from './rules/journey.ts'
 import {
@@ -73,11 +79,12 @@ export interface ChecksReport extends Scoreboard {
 const SEVERITY_ORDER: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3 }
 
 export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): ChecksReport {
+  const entrada = comCheckoutObservado(input)
   const results: CheckResult[] = rules.map((rule) => ({
     id: rule.id,
     title: rule.title,
     severity: rule.severity,
-    ...rule.evaluate(input),
+    ...rule.evaluate(entrada),
   }))
 
   const applicable = results.filter((r) => r.status !== 'not_applicable')
@@ -117,4 +124,18 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
       (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9),
     ),
   }
+}
+
+/**
+ * Garante que a tela de pagamento medida apareça entre as fontes observadas.
+ *
+ * Quem chama pode ter preenchido só `payment` — é o formato antigo, de antes de
+ * produto e carrinho virarem fontes. Sem isto, um checkout medido ficaria
+ * invisível para as checagens que agora escolhem a fonte.
+ */
+function comCheckoutObservado(input: CheckInput): CheckInput {
+  if (input.observations.some((o) => o.source === 'checkout')) return input
+  const observada = observacaoDoCheckout(input.payment, input.checkout)
+  if (!observada) return input
+  return { ...input, observations: [...input.observations, observada] }
 }

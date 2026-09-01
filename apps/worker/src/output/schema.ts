@@ -139,6 +139,14 @@ export const auditResultSchema = z.object({
     })
     .nullable(),
   payment: paymentSnapshot.nullable(),
+  observations: z.array(
+    z.object({
+      source: z.enum(['product', 'cart', 'checkout']),
+      url: z.string(),
+      loadMs: z.number().nullable(),
+      snapshot: paymentSnapshot,
+    }),
+  ),
   identity: z.record(z.string(), z.unknown()).nullable(),
   checks: checksReport.nullable(),
   steps: z.array(journeyStep),

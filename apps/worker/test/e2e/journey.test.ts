@@ -151,6 +151,34 @@ describe('robots proibindo /checkout', { concurrency: false }, () => {
   test('o carrinho ainda foi auditado', () => {
     assert.equal(result.cart?.ok, true)
   })
+
+  test('produto e carrinho foram observados mesmo sem checkout', () => {
+    const fontes = result.observations.map((o) => o.source)
+    assert.deepEqual([...fontes].sort(), ['cart', 'product'])
+    assert.equal(
+      result.observations.some((o) => o.source === 'checkout'),
+      false,
+      'checkout proibido não pode virar observação',
+    )
+  })
+
+  test('o parcelamento é julgado pela página do produto, sem chegar ao checkout', () => {
+    // A loja falsa anuncia "em até 10x de R$ 8,99 sem juros" na página do
+    // produto: valor por parcela e juros explícitos. Antes de observar o
+    // produto, esta checagem saía não aplicável em toda loja com robots
+    // fechado — o caso da maioria das lojas Shopify brasileiras.
+    const c = result.checks?.results.find((x) => x.id === 'INSTALLMENT_UNCLEAR')
+    assert.equal(c?.status, 'pass', c?.notApplicableReason ?? '')
+    assert.match(c?.evidence.join(' ') ?? '', /página do produto/)
+  })
+
+  test('cupom e selo não viram falha só porque o checkout não foi visto', () => {
+    for (const id of ['NO_COUPON_FIELD', 'NO_TRUST_SIGNAL']) {
+      const c = result.checks?.results.find((x) => x.id === id)
+      assert.equal(c?.status, 'not_applicable', `${id} acusou a loja sem ver o checkout`)
+      assert.match(c?.notApplicableReason ?? '', /robots/)
+    }
+  })
 })
 
 describe('overlay cobrindo o botão de comprar', { concurrency: false }, () => {
