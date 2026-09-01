@@ -111,7 +111,14 @@ export async function startScreencast(
       } else {
         bytesTotal += event.data.length
         lastPublishedAt = now
-        publisher.publish(auditId, { type: 'frame', data: event.data, seq: framesPublished + 1 })
+        /* `page.url()` é síncrono e lê o que já está em memória: não custa
+           ida ao navegador, e é a única fonte honesta do endereço. */
+        publisher.publish(auditId, {
+          type: 'frame',
+          data: event.data,
+          seq: framesPublished + 1,
+          url: page.url(),
+        })
         framesPublished++
       }
     } catch {

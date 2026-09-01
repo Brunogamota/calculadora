@@ -42,7 +42,12 @@ export type AuditEvent =
    */
   | { type: 'step:skip'; id: StepId; reason: string; at: string }
   /** `seq` permite ao front saber QUE perdeu frame, não só perdê-lo. */
-  | { type: 'frame'; data: string; seq: number }
+  /* `url` é a página que ESTE frame mostra.
+     Sem ela a tela montava o endereço somando o domínio real da loja com um
+     caminho do desenho, e exibia "carnan.com.br/serum-vitamina-c" — um
+     produto que não existe naquela loja. Endereço inventado por cima de
+     imagem verdadeira é a pior combinação possível: parece evidência. */
+  | { type: 'frame'; data: string; seq: number; url?: string }
   | { type: 'finding'; code: string; severity: Severity; title: string; at: string }
   | {
       type: 'complete'

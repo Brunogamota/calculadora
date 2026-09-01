@@ -22,7 +22,7 @@ type AuditEvent =
   | { type: "step:done"; id: StepId; detail?: string; at: string }
   | { type: "step:fail"; id: StepId; reason: string; at: string }
   | { type: "step:skip"; id: StepId; reason: string; at: string }
-  | { type: "frame"; data: string; seq: number }
+  | { type: "frame"; data: string; seq: number; url?: string }
   | { type: "finding"; code: string; severity: Severidade; title: string; at: string }
   | { type: "complete"; auditId: string; score: number | null; caveat: string | null }
   | { type: "aborted"; auditId: string; code: string; reason: string }
@@ -45,6 +45,11 @@ export type EstadoAoVivo = {
   stage: number;
   /** Último frame recebido, já como data URI. null enquanto nenhum chegou. */
   frame: string | null;
+  /** O endereço que o robô está vendo NESTE frame. A tela montava o endereço
+   *  somando o domínio da loja com um caminho do desenho, e mostrava
+   *  "carnan.com.br/serum-vitamina-c" — um produto que não existe naquela
+   *  loja. Endereço inventado sobre imagem verdadeira parece evidência. */
+  urlAtual: string | null;
   /** Os frames guardados para a gravação, com o segundo em que cada um chegou.
    *  Vivem só nesta aba: nada vai para disco, por decisão do Bruno. Quem abre
    *  o link sem ter assistido não tem gravação, e a tela diz isso. */
@@ -74,7 +79,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, urlAtual: null, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -167,6 +172,7 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
             return {
               ...e,
               frame: uri,
+              urlAtual: ev.url ?? e.urlAtual,
               perdidos: e.perdidos + pulados,
               gravacao: guardar(e.gravacao, { data: uri, t: (Date.now() - inicio) / 1000 }),
             };

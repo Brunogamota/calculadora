@@ -741,7 +741,11 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
             )}
 
             <Navegador
-              url={`${host}${passo.path}`}
+              /* Ao vivo, o endereço que o robô está vendo. Na demonstração, o
+                 caminho do desenho — que só é honesto porque ali a loja também
+                 é fictícia. Somar o domínio real da loja com o caminho do
+                 desenho, como estava, produzia endereço inventado. */
+              url={temServidor() ? (vivo.urlAtual ?? host) : `${host}${passo.path}`}
               frozen={travado}
               rodape={
                 <>
