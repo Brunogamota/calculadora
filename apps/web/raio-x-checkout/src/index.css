@@ -1717,6 +1717,13 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .severity.critico { background: var(--accent); }
 .severity.atencao { background: var(--ink); }
 
+/* Apelidos para as telas que ainda estao no desenho antigo. Ao renomear as
+   classes para o desenho v3 eu deixei execucao e resultado com texto branco
+   sobre fundo transparente — os selos sumiram. Saem quando essas telas forem
+   refeitas. */
+.severity.critical { background: var(--accent); }
+.severity.attention { background: var(--ink); }
+
 /* ---- quem é a Reborn ---- */
 
 .about-section { padding: clamp(40px, 6vw, 80px) clamp(16px, 4vw, 48px); will-change: transform, opacity; }
