@@ -4,6 +4,11 @@ import {
   ArrowRight,
   ArrowUpRight,
   MoveRight,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Upload,
+  Plus,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -25,23 +30,77 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection";
 
+const DEMO_STORE = "casaverde.com.br";
+
 type Step = {
   label: string;
-  detail: string;
+  /** Quanto a etapa leva. Vira o tempo ao lado do rótulo quando ela conclui. */
+  seconds: number;
+  /** Caminho que aparece na barra do navegador durante a etapa. */
+  path: string;
 };
 
 const steps: Step[] = [
-  { label: "Identificando a loja", detail: "Plataforma e estrutura encontradas" },
-  { label: "Abrindo um produto", detail: "Produto disponível localizado" },
-  { label: "Adicionando ao carrinho", detail: "Carrinho criado com sucesso" },
-  { label: "Indo para o checkout", detail: "Fluxo de compra iniciado" },
-  { label: "Lendo os meios de pagamento", detail: "Pix, cartão e parcelamento" },
-  { label: "Repetindo no celular", detail: "Teste em uma tela de 390 px" },
-  { label: "Montando o relatório", detail: "Priorizando o que afeta vendas" },
+  { label: "identificando a loja", seconds: 5.2, path: "" },
+  { label: "abrindo um produto", seconds: 3.8, path: "/serum-vitamina-c" },
+  { label: "adicionando ao carrinho", seconds: 4.1, path: "/carrinho" },
+  { label: "indo pro checkout", seconds: 6.4, path: "/checkout" },
+  { label: "lendo os meios de pagamento", seconds: 8.7, path: "/checkout/pagamento" },
+  { label: "repetindo no celular", seconds: 11.2, path: "/checkout/pagamento" },
+  { label: "montando o relatório", seconds: 2.9, path: "/checkout/pagamento" },
+];
+
+type Finding = {
+  severity: Severidade;
+  category: string;
+  /** Etapa em que o achado aparece, para ele entrar ao vivo e não todo no fim. */
+  at: number;
+  title: string;
+  short: string;
+  body: string;
+  fix: string;
+};
+
+const findings: Finding[] = [
+  {
+    severity: "crítico", category: "Pagamento", at: 2,
+    title: "Quem chega no carrinho ainda não sabe se você aceita Pix",
+    short: "As formas de pagamento só aparecem na quarta tela.",
+    body: "As formas de pagamento só aparecem na quarta tela, depois de nome, CPF, endereço e frete. Até ali ninguém sabe se dá para pagar no Pix ou em quantas vezes.",
+    fix: "Colocar os selos de Pix, boleto e bandeiras dentro do carrinho, ao lado do botão de finalizar.",
+  },
+  {
+    severity: "atenção", category: "Parcelamento", at: 4,
+    title: "O parcelamento aparece sem dizer o valor da parcela",
+    short: "A loja mostra \u201Cem até 12x\u201D e não diz quanto é cada uma.",
+    body: "A loja mostra \u201Cem até 12x sem juros\u201D e não diz quanto é cada parcela. Quem compra parcelado faz essa conta de cabeça antes de decidir, e num produto de R$ 149 a diferença entre 12x e 6x muda a decisão.",
+    fix: "Mostrar \u201C12x de R$ 12,42\u201D no produto e no carrinho, não só na tela de pagamento.",
+  },
+  {
+    severity: "crítico", category: "Pix", at: 4,
+    title: "O desconto do Pix só aparece na última tela",
+    short: "O cliente escolhe cartão antes de saber que pagaria menos no Pix.",
+    body: "A loja dá 12% no Pix, mas isso só aparece depois que o cliente já escolheu cartão. Quem digitou o número do cartão raramente volta para trocar, e você paga a taxa de cartão numa venda que teria saído no Pix.",
+    fix: "Mostrar o preço no Pix junto do preço parcelado, desde a página do produto.",
+  },
+  {
+    severity: "crítico", category: "Celular", at: 5,
+    title: "Quem compra pelo celular passa por três telas a mais",
+    short: "Quatro passos no computador, sete no celular.",
+    body: "No computador são quatro passos até pagar. No celular são sete, porque endereço e frete viram telas separadas e o teclado cobre o botão de continuar em duas delas. Metade das suas visitas vem do celular.",
+    fix: "Juntar endereço e frete numa tela só e fixar o botão de continuar acima do teclado.",
+  },
+  {
+    severity: "atenção", category: "Fatura", at: 6,
+    title: "A fatura do seu cliente não vai dizer o nome da sua loja",
+    short: "Vai aparecer um código do gateway, não a sua marca.",
+    body: "Na fatura aparece o descritor do gateway, não o nome da loja. Trinta dias depois o cliente não reconhece a compra e contesta. Esse é o motivo mais comum de contestação em compra legítima, e cada uma custa a venda mais a taxa.",
+    fix: "Trocar o descritor no painel do gateway para o nome da loja. Leva dez minutos e vale para todas as vendas.",
+  },
 ];
 
 type Severidade = "crítico" | "atenção";
@@ -418,102 +477,255 @@ function ShareButton() {
   return <button className="share-button" onClick={share}>{copied ? <Check size={16} /> : <Link2 size={16} />}{copied ? "Link copiado" : "Compartilhar"}</button>;
 }
 
-function StoreBrowser({ progress, paused = false }: { progress: number; paused?: boolean }) {
-  const stage = progress < 2 ? "collection" : progress < 4 ? "product" : "checkout";
+/* A execução em números, do desenho: o relógio corre acelerado (escala .62) e
+   os três estados de imagem caem em janelas fixas de segundos reais. */
+const ESCALA = 0.62;
+const CURSORES: [number, number][] = [[46, 30], [30, 62], [72, 74], [64, 86], [38, 52], [82, 40], [50, 50]];
+
+function useCronometro(rodando: boolean) {
+  const [seg, setSeg] = useState(0);
+  useEffect(() => {
+    if (!rodando) return;
+    const inicio = Date.now();
+    const t = window.setInterval(() => setSeg((Date.now() - inicio) / 1000), 100);
+    return () => window.clearInterval(t);
+  }, [rodando]);
+  return seg;
+}
+
+function relogio(segundosReais: number): string {
+  const t = segundosReais / ESCALA;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+}
+
+/* A moldura do navegador. A pílula do endereço encolhe com flex e trunca a URL
+   com reticências em vez de empurrar os ícones para fora. */
+function Navegador({ url, frozen, children, rodape }: { url: string; frozen: boolean; children: ReactNode; rodape: ReactNode }) {
   return (
-    <div className={`store-browser ${paused ? "paused" : ""}`}>
-      <div className="browser-chrome">
-        <div className="traffic-lights"><i /><i /><i /></div>
-        <div className="browser-address"><LockKeyhole size={12} /> lojademonstracao.com.br/{stage === "product" ? "produtos/tenis" : stage === "checkout" ? "checkout" : "colecao"}</div>
-        <RefreshCw size={14} />
+    <div className="navegador">
+      <div className="navegador-barra">
+        {frozen && <span className="navegador-fio" aria-hidden="true" />}
+        <div className="navegador-esq">
+          <div className="navegador-bolas"><i /><i /><i /></div>
+          <span className="navegador-setas">
+            <ChevronLeft size={13} aria-hidden="true" />
+            <ChevronRight size={13} aria-hidden="true" />
+          </span>
+        </div>
+        <div className="navegador-url mono">
+          <Lock size={11} aria-hidden="true" />
+          <span>{url}</span>
+        </div>
+        <div className="navegador-dir">
+          <Upload size={13} aria-hidden="true" />
+          <Plus size={13} aria-hidden="true" />
+        </div>
       </div>
-      <div className="store-page">
-        <div className="demo-store-nav"><b>ATELIÊ</b><span>Novidades&nbsp;&nbsp;&nbsp; Feminino&nbsp;&nbsp;&nbsp; Masculino</span><div><Search size={16} /><span className="bag-icon">0</span></div></div>
-        {stage === "collection" && (
-          <div className="collection-view">
-            <div className="collection-title"><small>NOVA COLEÇÃO</small><h3>Essenciais para<br />todos os dias</h3><button>Ver coleção</button></div>
-            <div className="product-visual coral"><span>Tênis Orla</span></div>
-            <div className="product-visual cream"><span>Bolsa Norte</span></div>
-          </div>
-        )}
-        {stage === "product" && (
-          <div className="product-view">
-            <div className="shoe-visual"><div className="shoe">N</div></div>
-            <div className="product-info"><small>NOVIDADE</small><h3>Tênis Orla</h3><p className="price">R$ 489,90</p><p>Escolha o tamanho</p><div className="sizes"><span>36</span><span>37</span><span>38</span><span>39</span></div><button>Adicionar à sacola</button></div>
-          </div>
-        )}
-        {stage === "checkout" && (
-          <div className="checkout-view">
-            <div className="checkout-main"><p className="step-caption">ENTREGA &gt; PAGAMENTO</p><h3>Como você quer pagar?</h3><div className="payment-option"><Circle size={14} /> Cartão de crédito <span>›</span></div><div className="payment-option muted-payment"><Circle size={14} /> Pix <small>desconto no próximo passo</small><span>›</span></div></div>
-            <div className="order-summary"><h4>Resumo</h4><div><span>Tênis Orla</span><b>R$ 489,90</b></div><div><span>Entrega</span><b>R$ 18,00</b></div><hr /><div><span>Total</span><b>R$ 507,90</b></div><button>Continuar</button></div>
-          </div>
-        )}
-        {!paused && <div className={`robot-cursor cursor-stage-${Math.min(progress, 6)}`}><MousePointer2 fill="currentColor" size={26} /><span>robô</span></div>}
-        {paused && <div className="paused-overlay"><WifiOff size={22} /><span>Imagem pausada em 00:31</span></div>}
-      </div>
-      <div className="browser-footer"><span><span className={`live-dot ${paused ? "gray" : ""}`} /> {paused ? "transmissão pausada" : "transmissão ao vivo"}</span><span className="mono">1280 × 720</span></div>
+      <div className="navegador-tela">{children}</div>
+      <div className="navegador-rodape">{rodape}</div>
     </div>
   );
 }
 
-function FindingsFeed({ progress }: { progress: number }) {
+/* O esqueleto do primeiro frame. A grade tem geometria de vitrine porque é o
+   que o robô está carregando naquele momento — e o aviso embaixo diz que
+   aquilo não é a loja da pessoa. Um esqueleto realista demais viraria mentira. */
+function EsperandoPrimeiroFrame() {
   return (
-    <div className="findings-feed">
-      <div className="panel-title"><span>Achados até agora</span><span>{progress >= 5 ? "2" : progress >= 3 ? "1" : "0"}</span></div>
-      {progress < 3 && <div className="empty-finding"><Search size={18} /><p>Os achados aparecem aqui enquanto o robô avança.</p></div>}
-      {progress >= 3 && (
-        <article className="live-finding"><span className="severity critical">Importante</span><h4>O desconto do Pix só aparece no fim</h4><p>Quem está comparando formas de pagamento não vê a vantagem antes de entrar no checkout.</p></article>
-      )}
-      {progress >= 5 && (
-        <article className="live-finding new-finding"><span className="severity attention">Atenção</span><h4>No celular, são nove toques até pagar</h4><p>No computador, o mesmo caminho leva seis.</p></article>
+    <div className="espera">
+      <div className="espera-grade" aria-hidden="true">
+        {[0, 1, 2, 3, 4, 5].map((k) => (
+          <div className="espera-card" key={k}>
+            <div className="espera-img" />
+            <div className="espera-linha larga" />
+            <div className="espera-linha curta" />
+          </div>
+        ))}
+      </div>
+      <div className="espera-lupa" aria-hidden="true">
+        <div className="espera-halo"><Search size={19} /></div>
+      </div>
+      <div className="espera-aviso">
+        <span className="ponto-vivo" />
+        <span>O robô já está na sua loja. A primeira imagem chega em alguns segundos.</span>
+      </div>
+    </div>
+  );
+}
+
+function PainelEtapas({ stage }: { stage: number }) {
+  return (
+    <div className="painel">
+      <div className="painel-topo">
+        <span>Etapas da análise</span>
+        <span className="mono painel-conta">{Math.min(stage + 1, steps.length)} de {steps.length}</span>
+      </div>
+      <div className="painel-barra">
+        <div className="barra-trilho">
+          <div className="barra-indicador" style={{ transform: `translateX(-${100 - (100 * Math.min(stage + 1, steps.length)) / steps.length}%)` }} />
+        </div>
+      </div>
+      <div className="painel-etapas">
+        {steps.map((s, i) => {
+          const feito = i < stage;
+          const agora = i === stage;
+          return (
+            <div className="etapa" key={s.label}>
+              <div className="etapa-marca">
+                <div className={`etapa-ponto ${feito ? "feito" : agora ? "agora" : "fila"}`}>
+                  {feito ? <Check size={13} strokeWidth={3} /> : agora ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
+                </div>
+                {i < steps.length - 1 && <div className={`etapa-traco ${feito ? "feito" : ""}`} />}
+              </div>
+              <div className={`etapa-texto ${feito || agora ? "" : "fila"}`}>
+                <h3>{s.label}</h3>
+                <span className="mono">{feito ? `${s.seconds.toFixed(1)}s` : ""}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PainelAchados({ stage }: { stage: number }) {
+  const visiveis = findings.filter((f) => f.at <= stage);
+  return (
+    <div className="painel">
+      <div className="painel-topo">
+        <span>Já encontramos</span>
+        <span className="mono painel-conta">{visiveis.length}</span>
+      </div>
+      {visiveis.length === 0 ? (
+        <p className="painel-vazio">Nada ainda. Os primeiros achados costumam aparecer quando o robô chega no carrinho.</p>
+      ) : (
+        visiveis.map((f) => (
+          <article className="achado-vivo" key={f.title}>
+            <Severidade sev={f.severity} />
+            <h4>{f.title}</h4>
+            <p>{f.short}</p>
+          </article>
+        ))
       )}
     </div>
   );
 }
 
 function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
-  const [progress, setProgress] = useState(0);
+  const e = useCronometro(true);
+  const host = url || DEMO_STORE;
+
+  /* Três estados de imagem em janelas fixas: o primeiro frame ainda não chegou,
+     a imagem travou mas a leitura seguiu, e a faixa de reconexão contando
+     quantos segundos ficaram sem imagem. */
+  const esperando = e < 3.4;
+  const travado = e > 13.5 && e < 19.5;
+  const reconectado = e > 22 && e < 29;
+
+  let stage = 0;
+  let acc = 0;
+  for (let i = 0; i < steps.length; i++) {
+    acc += (steps[i] as (typeof steps)[number]).seconds * ESCALA;
+    if (e > acc) stage = i + 1;
+  }
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setProgress((current) => {
-        if (current >= steps.length - 1) {
-          window.clearInterval(timer);
-          window.setTimeout(onComplete, 1400);
-          return current;
-        }
-        return current + 1;
-      });
-    }, 2700);
-    return () => window.clearInterval(timer);
-  }, [onComplete]);
+    if (stage >= steps.length) onComplete();
+  }, [stage, onComplete]);
+
+  const passo = steps[Math.min(stage, steps.length - 1)]!;
+  const cursor = CURSORES[Math.min(stage, CURSORES.length - 1)]!;
 
   return (
-    <main className="workspace-page">
-      <div className="workspace-topbar">
-        <div><span className="running-pill"><Spinner /> Análise em andamento</span><div><h1>Analisando seu checkout</h1><p>{url || "lojademonstracao.com.br"}</p></div></div>
-        <ShareButton />
-      </div>
-      <div className="mobile-current-step"><Spinner /><span><small>Agora</small>{steps[progress].label}</span><b>{progress + 1}/{steps.length}</b></div>
-      <div className="audit-workspace">
-        <section className="browser-column">
-          <StoreBrowser progress={progress} />
-          <div className="browser-caption"><span>O robô está navegando como um cliente comum.</span><span className="mono">00:{String(Math.min(59, progress * 9 + 4)).padStart(2, "0")}</span></div>
-        </section>
-        <aside className="audit-sidebar">
-          <div className="steps-panel">
-            <div className="panel-title"><span>Etapas da análise</span><span>{progress + 1} de {steps.length}</span></div>
-            <div className="step-list">
-              {steps.map((step, index) => {
-                const status = index < progress ? "done" : index === progress ? "active" : "waiting";
-                return <div className={`step-row ${status}`} key={step.label}><span className="step-status">{status === "done" ? <Check size={14} /> : status === "active" ? <Spinner /> : <Circle size={11} />}</span><div><h3>{step.label}</h3><p>{status === "done" ? step.detail : status === "active" ? "Robô trabalhando agora" : "Aguardando"}</p></div></div>;
-              })}
+    <main className="exec-page">
+      <div className="exec-shell">
+        <div className="exec-topo">
+          <div className="exec-titulo">
+            <span className="pill-andamento">
+              <LoaderCircle className="gira" size={15} aria-hidden="true" />
+              Análise em andamento
+            </span>
+            <div>
+              <h1 className="texto-brilho">Analisando seu checkout</h1>
+              <p className="mono exec-host">{host}</p>
             </div>
           </div>
-          <FindingsFeed progress={progress} />
-        </aside>
+          <div className="exec-acoes">
+            <span className="mono exec-relogio">{relogio(e)}</span>
+            <ShareButton />
+          </div>
+        </div>
+
+        <div className="exec-grid">
+          <section className="exec-live">
+            {reconectado && (
+              <div className="reconexao">
+                <div className="reconexao-copy">
+                  <span className="reconexao-titulo">Voltamos. Você ficou 16 segundos sem imagem.</span>
+                  <span>Enquanto estávamos fora o robô continuou e encontrou mais um problema. Recuperamos os passos e o achado. As imagens desse intervalo não voltam.</span>
+                </div>
+                <div className="reconexao-faixa">
+                  <span className="mono">00:22</span>
+                  <span className="reconexao-hachura" aria-hidden="true" />
+                  <span className="mono">00:38</span>
+                </div>
+              </div>
+            )}
+
+            <Navegador
+              url={`${host}${passo.path}`}
+              frozen={travado}
+              rodape={
+                <>
+                  <span className="rodape-estado">
+                    <span className="rodape-ponto" style={{ background: travado ? "#99979c" : "var(--accent)" }} />
+                    {esperando ? "conectado · aguardando primeira imagem" : travado ? "imagem parada · execução seguindo" : "transmissão ao vivo"}
+                  </span>
+                  <span className="mono">1280 × 720</span>
+                </>
+              }
+            >
+              {esperando ? (
+                <EsperandoPrimeiroFrame />
+              ) : (
+                <>
+                  <div className="slot-screencast">
+                    <div className="slot-moldura" />
+                    <span className="mono">frame do screencast · 1280 × 720</span>
+                  </div>
+                  <div className="cursor-robo" style={{ left: `${cursor[0]}%`, top: `${cursor[1]}%` }} aria-hidden="true">
+                    <span className="cursor-anel" />
+                    <svg width="17" height="21" viewBox="0 0 15 19" fill="none">
+                      <path d="M1 1L1 15.5L5 12L7.5 17.5L10 16.3L7.6 11.2L12.5 10.8L1 1Z" fill="#E8386A" stroke="#fff" strokeWidth="1.1" />
+                    </svg>
+                  </div>
+                </>
+              )}
+
+              {travado && (
+                <>
+                  <div className="travado-chip">
+                    <span className="travado-ponto" />
+                    <span>Imagem parada há {Math.round(e - 13.5)}s</span>
+                  </div>
+                  <div className="travado-aviso">
+                    <span className="ponto-vivo" />
+                    <span>A imagem parou, a leitura não. O robô está {passo.label} agora.</span>
+                  </div>
+                </>
+              )}
+            </Navegador>
+
+            <p className="exec-nota">O robô está navegando como um cliente comum. Frame perdido é frame perdido.</p>
+          </section>
+
+          <aside className="exec-side">
+            <PainelEtapas stage={stage} />
+            <PainelAchados stage={stage} />
+          </aside>
+        </div>
       </div>
-      <button className="skip-button" onClick={onComplete}>Ir para o resultado desta demonstração</button>
     </main>
   );
 }
@@ -615,7 +827,16 @@ function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connectio
     <main className="workspace-page exception-page">
       <div className="workspace-topbar"><div><span className="info-pill">Análise interrompida</span><div><h1>{isWaf ? "A loja não deixou o robô entrar" : "Perdemos a conexão com a loja"}</h1><p>lojademonstracao.com.br</p></div></div><ShareButton /></div>
       <div className="exception-layout">
-        <StoreBrowser progress={isWaf ? 0 : 4} paused />
+        <Navegador
+          url={`${DEMO_STORE}${isWaf ? "/serum-vitamina-c" : "/checkout"}`}
+          frozen
+          rodape={<><span className="rodape-estado"><span className="rodape-ponto" style={{ background: "#99979c" }} />sessão encerrada</span><span className="mono">1280 × 720</span></>}
+        >
+          <div className="slot-screencast">
+            <div className="slot-moldura" />
+            <span className="mono">frame do screencast · 1280 × 720</span>
+          </div>
+        </Navegador>
         <section className="exception-content">
           <div className="exception-icon">{isWaf ? <ShieldCheck size={29} /> : <WifiOff size={29} />}</div>
           <p className="section-kicker">Isso também diz algo sobre a loja</p>

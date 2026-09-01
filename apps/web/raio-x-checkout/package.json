@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build --outDir dist",
     "lint": "bunx tsc --noEmit && bunx biome lint --write",
     "format": "bunx biome format --write",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "telas": "vite build && vite preview --port 4173 & sleep 6 && node scripts/telas.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.38.0",

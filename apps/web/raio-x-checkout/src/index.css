@@ -302,11 +302,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   margin: 0;
   flex-shrink: 0;
 }
-.running-pill {
-  border-color: #f0c9d5;
-  background: var(--accent-10);
-  color: #b62952;
-}
 .complete-pill {
   border-color: #cde3d7;
   background: var(--surface);
@@ -325,12 +320,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 11px;
   font-weight: 700;
 }
-.audit-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(320px, .72fr);
-  gap: 12px;
-  align-items: start;
-}
 .store-browser, .steps-panel, .findings-feed {
   overflow: hidden;
   border: 1px solid #deddda;
@@ -338,128 +327,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   background: white;
   box-shadow: 0 4px 16px rgba(22,21,26,.03);
 }
-.browser-chrome {
-  display: flex;
-  height: 45px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #e5e4e1;
-  background: #f2f1ef;
-  color: #79767c;
-}
 .traffic-lights { display: flex; gap: 5px; }
 .traffic-lights i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #cccac7;
-}
-.browser-address {
-  width: min(440px, 70%);
-  padding: 7px;
-  border: 1px solid #deddd9;
-  border-radius: 7px;
-  background: white;
-  text-align: center;
-  font: 9px 'Geist Mono', monospace;
-}
-.store-page {
-  position: relative;
-  height: clamp(410px, 50vw, 590px);
-  overflow: hidden;
-  background: #fbfaf7;
-}
-.browser-footer {
-  display: flex;
-  height: 35px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 15px;
-  border-top: 1px solid #e5e4e1;
-  color: #89878c;
-  background: white;
-  font-size: 8px;
-}
-.browser-caption {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 3px 0;
-  color: #838187;
-  font-size: 9px;
-}
-.audit-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.panel-title {
-  display: flex;
-  min-height: 47px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #ecebe8;
-  font-size: 10px;
-  font-weight: 700;
-}
-.panel-title span:last-child {
-  color: #969499;
-  font: 9px 'Geist Mono', monospace;
-}
-.step-row {
-  display: grid;
-  grid-template-columns: 27px 1fr;
-  min-height: 53px;
-  align-items: center;
-  padding: 4px 15px;
-  opacity: .47;
-}
-.step-row.done, .step-row.active { opacity: 1; }
-.step-row.active { background: #faf9f7; }
-.step-status {
-  display: grid;
-  width: 21px;
-  height: 21px;
-  place-items: center;
-  border: 1px solid #dddcd9;
-  border-radius: 50%;
-  color: #aaa7ad;
-}
-.step-row.done .step-status {
-  border-color: #cadfd3;
-  background: var(--surface);
-  color: var(--ink);
-}
-.step-row.active .step-status {
-  border-color: #f0cad6;
-  background: var(--accent-10);
-  color: var(--accent);
-}
-.step-row h3 { margin: 0 0 3px; font-size: 10px; }
-.step-row p, .empty-finding p {
-  margin: 0;
-  color: #969399;
-  font-size: 8px;
-}
-.empty-finding {
-  display: flex;
-  min-height: 115px;
-  align-items: center;
-  gap: 11px;
-  padding: 18px;
-  color: #aaa7ac;
-}
-.live-finding {
-  padding: 16px;
-  border-bottom: 1px solid #ecebe8;
-}
-.live-finding h4 { margin: 9px 0 6px; font-size: 11px; }
-.live-finding p {
-  margin: 0;
-  color: #77757a;
-  font-size: 8.5px;
-  line-height: 1.55;
 }
 
 /* Simulated storefront */
@@ -473,47 +346,9 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: #302b27;
   font-family: Georgia, serif;
 }
-.demo-store-nav b { letter-spacing: .18em; }
-.demo-store-nav > span {
-  color: #716b66;
-  font: 9px 'Instrument Sans', sans-serif;
-}
-.demo-store-nav > div {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-.bag-icon {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border: 1px solid #c9c4bc;
-  border-radius: 50%;
-  font: 8px 'Instrument Sans', sans-serif;
-}
-.collection-view {
-  display: grid;
-  grid-template-columns: 1.05fr .8fr .8fr;
-  gap: 12px;
-  height: calc(100% - 62px);
-  padding: 3%;
-}
-.collection-title {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  padding-left: 7%;
-  background: #e6dfd4;
-}
 .collection-title small, .product-info small {
   font-size: 7px;
   letter-spacing: .14em;
-}
-.collection-title h3 {
-  margin: 15px 0 20px;
-  font: 400 clamp(20px,3vw,40px)/1.1 Georgia, serif;
 }
 .collection-title button, .product-info button, .order-summary button {
   padding: 10px 16px;
@@ -546,11 +381,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   position: relative;
   z-index: 1;
   font: 13px Georgia, serif;
-}
-.product-view {
-  display: grid;
-  grid-template-columns: 1.2fr .8fr;
-  height: calc(100% - 62px);
 }
 .shoe-visual {
   display: grid;
@@ -597,32 +427,10 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .product-info button { width: 100%; }
 .product-info button, .collection-title button, .order-summary button { cursor: pointer; }
-
-.product-view {
-  display: grid;
-  grid-template-columns: 1.2fr .8fr;
-  height: calc(100% - 62px);
-}
-.checkout-view {
-  display: grid;
-  grid-template-columns: 1.3fr .7fr;
-  width: 88%;
-  height: calc(100% - 62px);
-  margin: 0 auto;
-  padding: 5% 0;
-}
-.checkout-main {
-  padding: 5% 8%;
-  background: white;
-}
 .step-caption {
   color: #99928b;
   font-size: 7px;
   letter-spacing: .1em;
-}
-.checkout-main h3 {
-  margin: 20px 0 30px;
-  font: 400 clamp(19px,2.4vw,31px) Georgia, serif;
 }
 .payment-option {
   display: flex;
@@ -663,33 +471,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   width: 100%;
   margin-top: 15px;
 }
-
-.robot-cursor {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  align-items: flex-start;
-  color: var(--accent);
-  filter: drop-shadow(0 3px 5px rgba(22,21,26,.16));
-  transition:
-    top 1.3s cubic-bezier(.2,.8,.2,1),
-    left 1.3s cubic-bezier(.2,.8,.2,1);
-}
-.robot-cursor span {
-  margin: 20px 0 0 -3px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  background: var(--accent);
-  color: white;
-  font-size: 7px;
-}
-.cursor-stage-0 { left: 22%; top: 38%; }
-.cursor-stage-1 { left: 62%; top: 59%; }
-.cursor-stage-2 { left: 71%; top: 69%; }
-.cursor-stage-3 { left: 48%; top: 24%; }
-.cursor-stage-4 { left: 32%; top: 53%; }
-.cursor-stage-5 { left: 37%; top: 66%; }
-.cursor-stage-6 { left: 79%; top: 72%; }
 .paused-overlay {
   position: absolute;
   inset: 0;
@@ -703,17 +484,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   backdrop-filter: grayscale(1) blur(1px);
   color: #656268;
   font-size: 10px;
-}
-.mobile-current-step { display: none; }
-.skip-button {
-  display: block;
-  margin: 25px auto 0;
-  padding: 8px;
-  border: 0;
-  background: transparent;
-  color: #918f94;
-  font-size: 9px;
-  text-decoration: underline;
 }
 
 .score-card {
@@ -1799,3 +1569,336 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 
 .nav-forte { color: var(--ink); }
+
+/* ==========================================================================
+   EXECUÇÃO — desenho v3
+   ========================================================================== */
+
+@keyframes rbPulse { 0% { transform: scale(.4); opacity: .55; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes rbSkel { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
+@keyframes rbHair { 0% { left: -22%; } 100% { left: 100%; } }
+@keyframes rbGlow {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(232, 56, 106, .18); }
+  50% { transform: scale(1.1); box-shadow: 0 0 34px rgba(232, 56, 106, .34); }
+}
+@keyframes rbSeek {
+  0% { left: 8%; top: 16%; } 22% { left: 42%; top: 58%; } 44% { left: 74%; top: 16%; }
+  66% { left: 26%; top: 58%; } 88%, 100% { left: 8%; top: 16%; }
+}
+
+.exec-page { flex: 1; padding: clamp(16px, 3vw, 32px) clamp(12px, 3vw, 32px) 48px; }
+.exec-shell { max-width: 1320px; margin: 0 auto; }
+.exec-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.exec-titulo { display: flex; flex-direction: column; gap: 12px; }
+.exec-titulo h1 {
+  margin: 0 0 5px;
+  font-size: clamp(20px, 3vw, 25px);
+  font-weight: 700;
+  letter-spacing: -.03em;
+}
+.exec-host { margin: 0; font-size: 10px; color: var(--muted); }
+.exec-acoes { display: flex; align-items: center; gap: 12px; }
+.exec-relogio { font-size: 15px; }
+
+/* O badge de estado carrega o ícone do próprio estado — é o que distingue
+   estado de severidade: badge de estado se move, etiqueta de severidade não. */
+.pill-andamento {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  padding: 8px 13px;
+  border: 1px solid #f0c9d5;
+  border-radius: 999px;
+  background: var(--accent-10);
+  color: #b62952;
+  font-size: 11px;
+  font-weight: 700;
+}
+.gira { animation: rbSpin 1s linear infinite; }
+
+.texto-brilho {
+  background: linear-gradient(110deg, #5c5a63, 35%, var(--ink), 50%, #5c5a63, 75%, #5c5a63);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rbShine 2.6s linear infinite;
+}
+
+.exec-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.exec-live { flex: 1 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.exec-side { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.exec-nota { display: flex; justify-content: space-between; gap: 16px; margin: 0; padding: 0 3px; color: var(--muted); font-size: 9px; }
+
+/* ---- moldura do navegador ---- */
+
+.navegador { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.navegador-barra {
+  position: relative;
+  display: flex;
+  height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* O fio que corre na barra enquanto a imagem está parada: diz que a sessão
+   continua viva mesmo sem frame novo. */
+.navegador-fio {
+  position: absolute;
+  top: 0;
+  left: -22%;
+  width: 22%;
+  height: 2px;
+  background: var(--accent);
+  animation: rbHair 1.8s linear infinite;
+}
+.navegador-esq, .navegador-dir { display: flex; align-items: center; gap: 14px; flex-shrink: 0; color: #a3a3a3; }
+.navegador-bolas { display: flex; gap: 8px; }
+.navegador-bolas i { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+.navegador-setas { display: flex; align-items: center; gap: 12px; }
+
+/* A pílula encolhe com flex e trunca a URL em vez de empurrar os ícones. */
+.navegador-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 440px;
+  margin: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 7px;
+  background: var(--line);
+  font-size: 10px;
+  color: #565656;
+}
+.navegador-url span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.navegador-tela { position: relative; height: clamp(300px, 46vw, 520px); overflow: hidden; background: #eceae7; }
+.navegador-rodape {
+  display: flex;
+  height: 35px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 15px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 8px;
+}
+.rodape-estado { display: flex; align-items: center; gap: 6px; }
+.rodape-ponto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+
+/* ---- estado 1: primeiro frame ainda não chegou ---- */
+
+.espera { position: absolute; inset: 0; padding: 20px; background: linear-gradient(135deg, #fafafa, #f3f3f2); }
+.espera-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.espera-card { padding: 11px; border-radius: 10px; background: var(--surface); }
+.espera-img { height: 86px; border-radius: 7px; background: #eceaea; animation: rbSkel 1.6s ease-in-out infinite; }
+.espera-linha { height: 7px; border-radius: 4px; animation: rbSkel 1.6s ease-in-out infinite; }
+.espera-linha.larga { width: 72%; margin-top: 10px; background: #eeecec; }
+.espera-linha.curta { width: 44%; margin-top: 7px; background: #f2f0f0; }
+.espera-lupa { position: absolute; z-index: 3; pointer-events: none; animation: rbSeek 9s cubic-bezier(.4, 0, .2, 1) infinite; }
+.espera-halo {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(232, 56, 106, .14);
+  color: var(--accent);
+  animation: rbGlow 1.2s ease-in-out infinite;
+}
+
+/* Um aviso explícito de que aquilo não é a loja da pessoa. Um esqueleto
+   realista demais viraria mentira. */
+.espera-aviso {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .94);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.ponto-vivo {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-10);
+}
+
+/* ---- estado 2: transmissão ---- */
+
+.slot-screencast {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  color: #9a979c;
+}
+.slot-moldura { width: 52px; height: 38px; border: 1px solid #cfccc8; border-radius: 3px; }
+.cursor-robo {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  transition: left .85s cubic-bezier(.5, 0, .2, 1), top .85s cubic-bezier(.5, 0, .2, 1);
+}
+.cursor-anel {
+  position: absolute;
+  inset: -10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  animation: rbPulse 1.7s ease-out infinite;
+}
+
+/* ---- estado 3: imagem parada ---- */
+
+.travado-chip {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #dddcd9;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .95);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.travado-ponto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #99979c; }
+.travado-aviso {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 6px 20px rgba(22, 21, 26, .06);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* ---- faixa de reconexão ---- */
+
+.reconexao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.reconexao-copy { flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px; font-size: 11px; line-height: 1.55; color: var(--muted); }
+.reconexao-titulo { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.reconexao-faixa { display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 10px; color: var(--muted); }
+
+/* A hachura marca o intervalo sem imagem: não é barra de progresso, é buraco. */
+.reconexao-hachura {
+  width: 72px;
+  height: 4px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(115deg, var(--accent) 0 4px, transparent 4px 8px);
+}
+
+/* ---- painéis ---- */
+
+.painel { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.painel-topo {
+  display: flex;
+  min-height: 47px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #ecebe8;
+  font-size: 10px;
+  font-weight: 700;
+}
+.painel-conta { color: #969499; font-size: 9px; font-weight: 400; }
+.painel-barra { padding: 14px 16px 4px; }
+
+/* O indicador desliza com translateX em vez de esticar a largura: é a
+   mecânica do componente original e é o que faz o movimento parecer avanço. */
+.barra-trilho { position: relative; height: 8px; overflow: hidden; border-radius: 999px; background: var(--accent-20); }
+.barra-indicador { width: 100%; height: 100%; border-radius: 999px; background: var(--accent); transition: transform .6s cubic-bezier(.4, 0, .2, 1); }
+
+.painel-etapas { padding: 16px 0 6px; }
+.etapa { display: flex; gap: 13px; padding: 0 16px; }
+.etapa-marca { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+
+/* Concluído usa o escuro da marca, não verde: verde seria uma quarta cor. */
+.etapa-ponto { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--surface); }
+.etapa-ponto.feito { background: var(--ink); }
+.etapa-ponto.agora { background: var(--accent); }
+.etapa-ponto.fila { background: #f0efec; color: #969499; font-size: 10px; }
+.etapa-anel {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, .4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rbSpin .8s linear infinite;
+}
+.etapa-traco { width: 2px; flex: 1; min-height: 12px; margin: 5px 0; border-radius: 1px; background: var(--line); }
+.etapa-traco.feito { background: var(--ink); }
+.etapa-texto {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.etapa-texto.fila { opacity: .62; }
+.etapa-texto h3 { margin: 0; font-size: 11px; font-weight: 700; }
+.etapa-texto span { flex-shrink: 0; font-size: 11px; color: #a1a0a6; }
+
+.painel-vazio { margin: 0; padding: 22px 16px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+.achado-vivo { padding: 16px; border-bottom: 1px solid #ecebe8; }
+.achado-vivo h4 { margin: 9px 0 6px; font-size: 12px; font-weight: 700; line-height: 1.35; }
+.achado-vivo p { margin: 0; color: var(--muted); font-size: 9.5px; line-height: 1.55; }
+
+/* Oito elementos na horizontal em 390px viram ruído: a barra volta ao
+   formato compacto no celular. */
+@media (max-width: 560px) {
+  .navegador-esq .navegador-setas, .navegador-dir { display: none; }
+  .navegador-url { margin: 0 10px; }
+  .exec-topo { gap: 12px; }
+}
