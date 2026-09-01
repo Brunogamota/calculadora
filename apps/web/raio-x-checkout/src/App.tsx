@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -174,10 +173,35 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
   );
 }
 
+/* Placeholders e frases rotativas vem do desenho, com os tempos dele:
+   3s para o endereco de exemplo, 2.2s para a linha do titulo. */
+const PLACEHOLDERS = ["casaverde.com.br", "minhaloja.com.br", "lojinhadabia.com", "suamarca.com.br/loja"];
+
+const ROTATIVAS = [
+  "o Pix escondido no fim",
+  "o parcelamento sem valor",
+  "os toques a mais no celular",
+  "a fatura sem o seu nome",
+  "o frete que só aparece depois",
+];
+
+function useRotacao(total: number, ms: number): number {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setI((n) => (n + 1) % total), ms);
+    return () => window.clearInterval(t);
+  }, [total, ms]);
+  return i;
+}
+
+/* O campo e uma pilula ESCURA de 560x66 com o botao circular de 62px ao lado, e
+   o filtro goo faz os dois se fundirem quando encostam. A seta so fica rosa
+   quando ha texto: e o unico sinal de que o campo esta pronto para enviar. */
 function UrlForm({ onStart, compact = false }: { onStart: (url: string) => void; compact?: boolean }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const ph = useRotacao(PLACEHOLDERS.length, 3000);
 
   const validate = (value: string) => {
     const cleaned = value.trim();
@@ -195,39 +219,76 @@ function UrlForm({ onStart, compact = false }: { onStart: (url: string) => void;
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     const message = validate(url);
-    if (message) {
-      setError(message);
-      return;
-    }
+    if (message) { setError(message); return; }
     setError("");
     setLoading(true);
     window.setTimeout(() => onStart(url), 900);
   };
 
+  const digitando = url.trim().length > 0;
+
   return (
     <form className={`url-form ${compact ? "compact" : ""} ${error ? "has-error" : ""}`} onSubmit={handleSubmit} noValidate>
-      <div className="url-input-wrap">
-        <input
-          type="text"
-          value={url}
-          onChange={(event) => { setUrl(event.target.value); if (error) setError(""); }}
-          onBlur={() => { if (url) setError(validate(url)); }}
-          placeholder="endereço da sua loja"
-          aria-label="Endereço da loja"
-          aria-describedby="url-message"
+      <svg aria-hidden="true" className="goo-defs">
+        <defs>
+          <filter id="rbGoo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -15" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+        </defs>
+      </svg>
+      <div className="url-row">
+        <div className="url-input-wrap">
+          <input
+            type="text"
+            value={url}
+            onChange={(event) => { setUrl(event.target.value); if (error) setError(""); }}
+            onBlur={() => { if (url) setError(validate(url)); }}
+            placeholder={PLACEHOLDERS[ph]}
+            aria-label="endereço da sua loja"
+            aria-describedby="url-message"
+            disabled={loading}
+          />
+        </div>
+        <button
+          className={`primary-button ${digitando ? "pronto" : ""}`}
+          type="submit"
           disabled={loading}
-        />
+          aria-label="Auditar meu checkout"
+        >
+          {loading ? <Spinner /> : <ArrowRight size={20} aria-hidden="true" />}
+        </button>
       </div>
-      <button className="primary-button" type="submit" disabled={loading} aria-label="Auditar meu checkout">
-        <span>{loading ? "Abrindo a loja" : "Auditar meu checkout"}</span>
-        <span className="button-icon">
-          {loading ? <Spinner /> : <ArrowUpRight size={15} aria-hidden="true" />}
-        </span>
-      </button>
       <p id="url-message" className="form-message">
-        {error || "Leva de 40 a 90 segundos. Sem cadastro."}
+        {error || "Leva de 40 a 90 segundos. Sem cadastro, sem instalar nada."}
       </p>
     </form>
+  );
+}
+
+/* O titulo tem uma linha fixa com brilho e uma segunda que troca a cada 2.2s.
+   Sao as cinco coisas que o robo acha — a rotacao e o que diz "ha mais de um
+   problema possivel" sem precisar listar. */
+function HeroTitle() {
+  const cur = useRotacao(ROTATIVAS.length, 2200);
+  return (
+    <h1 className="hero-title">
+      <span className="hero-title-fixa">O robô compra na sua loja e acha</span>
+      <span className="hero-title-rot">
+        {ROTATIVAS.map((texto, i) => (
+          <span
+            key={texto}
+            style={{
+              opacity: i === cur ? 1 : 0,
+              transform: `translateY(${i === cur ? 0 : cur > i ? -140 : 140}%)`,
+            }}
+          >
+            {texto}
+          </span>
+        ))}
+      </span>
+    </h1>
   );
 }
 
@@ -286,7 +347,7 @@ function Landing({ onStart }: { onStart: (url: string) => void }) {
             Auditoria gratuita, de 40 a 90 segundos
             <ArrowRight size={14} aria-hidden="true" />
           </div>
-          <h1 className="hero-title">O robô compra na sua loja e acha o que faz o cliente desistir.</h1>
+          <HeroTitle />
           <p className="hero-copy">Ele abre a sua loja, escolhe um produto, coloca no carrinho e vai até a tela de pagamento. Você assiste. No fim, a gente diz onde a venda está se perdendo.</p>
           <UrlForm onStart={onStart} />
         </div>
