@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -26,19 +28,41 @@ import type { FormEvent } from "react";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection";
 
+type Severity = "alta" | "média";
+
 type Step = {
   label: string;
-  detail: string;
+  /** Quanto a etapa leva. Vira o tempo ao lado do rotulo quando ela conclui. */
+  seconds: number;
+  page: string;
+  url: string;
 };
 
+type Finding = {
+  severity: Severity;
+  category: string;
+  /** Indice da etapa em que o achado aparece, para ele entrar ao vivo. */
+  at: number;
+  title: string;
+  meta: string;
+  body: string;
+  fix: string;
+};
+
+const DEMO_STORE = "casaverdecosmeticos.com.br";
+
+/* As sete etapas com a duracao que cada uma leva de verdade. O tempo por etapa
+   e o que faz a barra parecer medida em vez de decorativa: 8.7s lendo meios de
+   pagamento e 11.2s repetindo no celular sao as duas mais caras, e e util que
+   isso apareca. */
 const steps: Step[] = [
-  { label: "Identificando a loja", detail: "Plataforma e estrutura encontradas" },
-  { label: "Abrindo um produto", detail: "Produto disponível localizado" },
-  { label: "Adicionando ao carrinho", detail: "Carrinho criado com sucesso" },
-  { label: "Indo para o checkout", detail: "Fluxo de compra iniciado" },
-  { label: "Lendo os meios de pagamento", detail: "Pix, cartão e parcelamento" },
-  { label: "Repetindo no celular", detail: "Teste em uma tela de 390 px" },
-  { label: "Montando o relatório", detail: "Priorizando o que afeta vendas" },
+  { label: "identificando a loja", seconds: 5.2, page: "home", url: DEMO_STORE },
+  { label: "abrindo um produto", seconds: 3.8, page: "produto", url: `${DEMO_STORE}/serum-vitamina-c` },
+  { label: "adicionando ao carrinho", seconds: 4.1, page: "carrinho", url: `${DEMO_STORE}/carrinho` },
+  { label: "indo pro checkout", seconds: 6.4, page: "checkout", url: `${DEMO_STORE}/checkout` },
+  { label: "lendo os meios de pagamento", seconds: 8.7, page: "pagamento", url: `${DEMO_STORE}/checkout/pagamento` },
+  { label: "repetindo no celular", seconds: 11.2, page: "pagamento", url: `${DEMO_STORE}/checkout/pagamento` },
+  { label: "montando o relatório", seconds: 2.9, page: "relatorio", url: `${DEMO_STORE}/checkout/pagamento` },
 ];
 
 const auditStats = [
@@ -53,6 +77,46 @@ const checks = [
   { number: "03", title: "Experiência no celular", text: "O robô repete a compra como metade dos seus clientes faria." },
   { number: "04", title: "Sinais que geram desconfiança", text: "Nome na fatura, mensagens confusas e surpresas na última tela." },
 ];
+
+/* Os cinco achados da auditoria de demonstracao, com corpo e correcao. O
+   primeiro abre livre; os quatro seguintes ficam sob tarja ate o e-mail. */
+const findings: Finding[] = [
+  {
+    severity: "alta", category: "Pagamento", at: 2, meta: "carrinho",
+    title: "Quem chega no carrinho ainda não sabe se você aceita Pix",
+    body: "As formas de pagamento só aparecem na quarta tela, depois que o cliente preencheu nome, CPF, endereço e escolheu o frete. Até ali ninguém sabe se dá para pagar no Pix ou em quantas vezes.",
+    fix: "Colocar os selos de Pix, boleto e bandeiras dentro do carrinho, ao lado do botão de finalizar.",
+  },
+  {
+    severity: "média", category: "Parcelamento", at: 4, meta: "pagamento",
+    title: "O parcelamento aparece sem dizer o valor da parcela",
+    body: "A loja mostra \u201Cem até 12x sem juros\u201D e não diz quanto é cada parcela. Quem compra parcelado faz essa conta de cabeça antes de decidir, e num produto de R$ 149 a diferença entre 12x e 6x muda a decisão.",
+    fix: "Mostrar \u201C12x de R$ 12,42\u201D no produto e no carrinho, não só na tela de pagamento.",
+  },
+  {
+    severity: "alta", category: "Pix", at: 4, meta: "pagamento",
+    title: "O desconto do Pix só aparece na última tela",
+    body: "A Casa Verde dá 12% no Pix, mas isso só aparece depois que o cliente já escolheu cartão. Quem já digitou o número do cartão raramente volta para trocar, e você paga a taxa de cartão numa venda que teria saído no Pix.",
+    fix: "Mostrar o preço no Pix junto do preço parcelado, desde a página do produto.",
+  },
+  {
+    severity: "alta", category: "Celular", at: 5, meta: "celular",
+    title: "Quem compra pelo celular passa por três telas a mais",
+    body: "No computador são quatro passos até pagar. No celular são sete, porque o endereço e o frete viram telas separadas e o teclado cobre o botão de continuar em duas delas. Metade das suas visitas vem do celular.",
+    fix: "Juntar endereço e frete numa tela só e fixar o botão de continuar acima do teclado.",
+  },
+  {
+    severity: "média", category: "Fatura", at: 6, meta: "fatura",
+    title: "A fatura do seu cliente não vai dizer Casa Verde",
+    body: "Na fatura aparece PAGSEG*CV3388. Trinta dias depois, o cliente não reconhece a compra e contesta. Esse é o motivo mais comum de contestação em compra legítima, e cada uma custa a venda mais a taxa.",
+    fix: "Trocar o descritor no painel do gateway para CASAVERDE. Leva dez minutos e vale para todas as vendas.",
+  },
+];
+
+/* A tarja e uma barra por palavra, com a largura da palavra escondida. */
+function palavrasEmTarja(titulo: string): number[] {
+  return titulo.split(" ").map((palavra) => Math.max(16, Math.round(palavra.length * 8.2)));
+}
 
 function Logo() {
   return (
@@ -77,9 +141,9 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
         <nav className="desktop-nav" aria-label="Navegação principal">
           {screen === "landing" ? (
             <>
-              <a href="#o-que-verificamos">O que verificamos</a>
-              <a href="#como-funciona">Como funciona</a>
-              <a href="#sobre">Sobre a Reborn</a>
+              <a href="#o-que-verificamos">Infraestrutura</a>
+              <a href="#sobre">Quem somos</a>
+              <a href="#como-funciona" className="nav-strong">Entrar</a>
             </>
           ) : (
             <button className="back-link" onClick={() => onNavigate("landing")}><ArrowLeft size={15} /> Nova análise</button>
@@ -121,10 +185,10 @@ function UrlForm({ onStart, compact = false }: { onStart: (url: string) => void;
     const candidate = cleaned.startsWith("http") ? cleaned : `https://${cleaned}`;
     try {
       const parsed = new URL(candidate);
-      if (!parsed.hostname.includes(".")) return "Digite um endereço válido, como sualoja.com.br.";
+      if (!parsed.hostname.includes(".")) return "Não consegui ler esse endereço. Tenta assim: minhaloja.com.br";
       return "";
     } catch {
-      return "Digite um endereço válido, como sualoja.com.br.";
+      return "Não consegui ler esse endereço. Tenta assim: minhaloja.com.br";
     }
   };
 
@@ -143,25 +207,73 @@ function UrlForm({ onStart, compact = false }: { onStart: (url: string) => void;
   return (
     <form className={`url-form ${compact ? "compact" : ""} ${error ? "has-error" : ""}`} onSubmit={handleSubmit} noValidate>
       <div className="url-input-wrap">
-        <Globe2 size={19} aria-hidden="true" />
         <input
           type="text"
           value={url}
           onChange={(event) => { setUrl(event.target.value); if (error) setError(""); }}
           onBlur={() => { if (url) setError(validate(url)); }}
-          placeholder="sualoja.com.br"
+          placeholder="endereço da sua loja"
           aria-label="Endereço da loja"
           aria-describedby="url-message"
           disabled={loading}
         />
       </div>
-      <button className="primary-button" type="submit" disabled={loading}>
-        {loading ? <><Spinner /> Abrindo a loja</> : "Analisar meu checkout"}
+      <button className="primary-button" type="submit" disabled={loading} aria-label="Auditar meu checkout">
+        <span>{loading ? "Abrindo a loja" : "Auditar meu checkout"}</span>
+        <span className="button-icon">
+          {loading ? <Spinner /> : <ArrowUpRight size={15} aria-hidden="true" />}
+        </span>
       </button>
       <p id="url-message" className="form-message">
-        {error || "Análise gratuita. Você não precisa instalar nada."}
+        {error || "Leva de 40 a 90 segundos. Sem cadastro."}
       </p>
     </form>
+  );
+}
+
+/* A previa ao vivo, cortada pela borda inferior do heroi.
+   O campo sozinho e bonito e nao responde a desconfianca de quem ja viu
+   formulario disfarcado de diagnostico. A previa prova que existe robo sem
+   disputar o primeiro olhar — e o corte e o que faz rolar a pagina. */
+function LivePreview() {
+  return (
+    <div className="live-preview" aria-hidden="true">
+      <div className="live-preview-label">
+        <span className="live-dot" />
+        <span className="mono">acontecendo agora · auditoria de uma loja de decoração em Curitiba</span>
+      </div>
+      <div className="live-preview-window">
+        <div className="live-preview-chrome">
+          <div className="chrome-dots"><span /><span /><span /></div>
+          <div className="chrome-url mono">objetodecasa.com.br/carrinho</div>
+          <div className="chrome-clock mono">00:41</div>
+        </div>
+        <div className="live-preview-body">
+          <div className="skeleton-thumb" />
+          <div className="skeleton-column">
+            <i style={{ width: 260 }} /><i style={{ width: 160 }} className="light" /><i style={{ width: 90, height: 20 }} />
+          </div>
+          <div className="skeleton-column narrow">
+            <i className="light" /><i className="light" style={{ width: "70%" }} /><div className="skeleton-button" />
+          </div>
+          <RobotCursor className="preview-cursor" />
+        </div>
+      </div>
+      <div className="live-preview-fade" />
+    </div>
+  );
+}
+
+/* O cursor do robo. A argola pulsando e o que faz o ponteiro ler como
+   "alguem esta clicando agora" em vez de icone parado. */
+function RobotCursor({ className }: { className?: string }) {
+  return (
+    <div className={`robot-cursor ${className ?? ""}`}>
+      <span className="cursor-ring" />
+      <svg width="17" height="21" viewBox="0 0 15 19" fill="none" aria-hidden="true">
+        <path d="M1 1L1 15.5L5 12L7.5 17.5L10 16.3L7.6 11.2L12.5 10.8L1 1Z" fill="#E8386A" stroke="#fff" strokeWidth="1.1" />
+      </svg>
+    </div>
   );
 }
 
@@ -169,19 +281,16 @@ function Landing({ onStart }: { onStart: (url: string) => void }) {
   return (
     <main>
       <section className="hero">
-        <div className="hero-grid" aria-hidden="true" />
         <div className="hero-content">
-          <div className="eyebrow"><span className="live-dot" /> Raio-X do Checkout</div>
-          <h1>Descubra onde seu checkout está <span>perdendo vendas.</span></h1>
-          <p className="hero-copy">Cole o endereço da sua loja. Nosso robô faz uma compra de verdade e mostra o que pode estar fazendo o cliente desistir.</p>
-          <UrlForm onStart={onStart} />
-          <div className="trust-line">
-            <span><Check size={14} /> Sem cadastro</span>
-            <span><Check size={14} /> Resultado em até 90 segundos</span>
-            <span><Check size={14} /> Nenhuma compra é concluída</span>
+          <div className="hero-badge">
+            Auditoria gratuita, de 40 a 90 segundos
+            <ArrowRight size={14} aria-hidden="true" />
           </div>
+          <h1 className="hero-title">O robô compra na sua loja e acha o que faz o cliente desistir.</h1>
+          <p className="hero-copy">Ele abre a sua loja, escolhe um produto, coloca no carrinho e vai até a tela de pagamento. Você assiste. No fim, a gente diz onde a venda está se perdendo.</p>
+          <UrlForm onStart={onStart} />
         </div>
-        <div className="scroll-cue" aria-hidden="true"><span /> Veja o que o robô encontra</div>
+        <LivePreview />
       </section>
 
       <section className="proof-section section-shell">
@@ -286,7 +395,7 @@ function StoreBrowser({ progress, paused = false }: { progress: number; paused?:
     <div className={`store-browser ${paused ? "paused" : ""}`}>
       <div className="browser-chrome">
         <div className="traffic-lights"><i /><i /><i /></div>
-        <div className="browser-address"><LockKeyhole size={12} /> lojademonstracao.com.br/{stage === "product" ? "produtos/tenis" : stage === "checkout" ? "checkout" : "colecao"}</div>
+        <div className="browser-address"><LockKeyhole size={12} /> casaverdecosmeticos.com.br/{stage === "product" ? "produtos/tenis" : stage === "checkout" ? "checkout" : "colecao"}</div>
         <RefreshCw size={14} />
       </div>
       <div className="store-page">
@@ -318,16 +427,31 @@ function StoreBrowser({ progress, paused = false }: { progress: number; paused?:
   );
 }
 
+/* Os achados entram na etapa em que o robo os encontra, nao todos no fim. E o
+   que faz a coluna parecer medida ao vivo em vez de lista pre-carregada. */
 function FindingsFeed({ progress }: { progress: number }) {
+  const visiveis = findings.filter((f) => f.at <= progress);
+
   return (
-    <div className="findings-feed">
-      <div className="panel-title"><span>Achados até agora</span><span>{progress >= 5 ? "2" : progress >= 3 ? "1" : "0"}</span></div>
-      {progress < 3 && <div className="empty-finding"><Search size={18} /><p>Os achados aparecem aqui enquanto o robô avança.</p></div>}
-      {progress >= 3 && (
-        <article className="live-finding"><span className="severity critical">Importante</span><h4>O desconto do Pix só aparece no fim</h4><p>Quem está comparando formas de pagamento não vê a vantagem antes de entrar no checkout.</p></article>
-      )}
-      {progress >= 5 && (
-        <article className="live-finding new-finding"><span className="severity attention">Atenção</span><h4>No celular, são nove toques até pagar</h4><p>No computador, o mesmo caminho leva seis.</p></article>
+    <div className="findings-panel">
+      <div className="panel-title">
+        <span>Já encontramos</span>
+        <span className="mono">{visiveis.length}</span>
+      </div>
+      {visiveis.length === 0 ? (
+        <p className="empty-finding">Nada ainda. Os primeiros achados costumam aparecer quando o robô chega no carrinho.</p>
+      ) : (
+        <div className="live-findings">
+          {visiveis.map((f) => (
+            <article className="live-finding" key={f.title}>
+              <div className="finding-meta">
+                <span className={`severity ${f.severity === "alta" ? "alta" : ""}`}>{f.severity}</span>
+                <span>{f.category}</span>
+              </div>
+              <h3>{f.title}</h3>
+            </article>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -353,7 +477,7 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
   return (
     <main className="workspace-page">
       <div className="workspace-topbar">
-        <div><span className="running-pill"><Spinner /> Análise em andamento</span><div><h1>Analisando seu checkout</h1><p>{url || "lojademonstracao.com.br"}</p></div></div>
+        <div><span className="running-pill"><Spinner /> Análise em andamento</span><div><h1>Analisando seu checkout</h1><p>{url || "casaverdecosmeticos.com.br"}</p></div></div>
         <ShareButton />
       </div>
       <div className="mobile-current-step"><Spinner /><span><small>Agora</small>{steps[progress].label}</span><b>{progress + 1}/{steps.length}</b></div>
@@ -364,11 +488,17 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
         </section>
         <aside className="audit-sidebar">
           <div className="steps-panel">
-            <div className="panel-title"><span>Etapas da análise</span><span>{progress + 1} de {steps.length}</span></div>
+            <div className="panel-title"><span>O que o robô está fazendo</span><span className="mono">{progress + 1} de {steps.length}</span></div>
             <div className="step-list">
               {steps.map((step, index) => {
                 const status = index < progress ? "done" : index === progress ? "active" : "waiting";
-                return <div className={`step-row ${status}`} key={step.label}><span className="step-status">{status === "done" ? <Check size={14} /> : status === "active" ? <Spinner /> : <Circle size={11} />}</span><div><h3>{step.label}</h3><p>{status === "done" ? step.detail : status === "active" ? "Robô trabalhando agora" : "Aguardando"}</p></div></div>;
+                return (
+                  <div className={`step-row ${status}`} key={step.label}>
+                    <span className="step-status">{status === "done" ? "✓" : status === "active" ? <span className="step-dot" /> : "·"}</span>
+                    <span className="step-label">{step.label}</span>
+                    {status !== "waiting" && <span className="step-time mono">{step.seconds.toFixed(1)}s</span>}
+                  </div>
+                );
               })}
             </div>
           </div>
@@ -380,29 +510,46 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
   );
 }
 
+/* A evidencia e a captura do carrinho, com o preco real e a marcacao do que
+   NAO estava la. Apontar a ausencia e mais dificil que apontar a presenca, e a
+   moldura tracejada e o que torna a ausencia visivel. */
 function EvidenceVisual() {
   return (
     <div className="evidence-visual">
-      <div className="evidence-toolbar"><span /><span /><span /><p>lojademonstracao.com.br/checkout</p></div>
-      <div className="evidence-content">
-        <div className="evidence-checkout"><small>Pagamento</small><h4>Escolha uma forma de pagamento</h4><div>Cartão de crédito <span>›</span></div><div className="evidence-highlight">Pix <b>5% de desconto</b><span>›</span></div></div>
-        <div className="evidence-note"><span>01</span><p>O desconto aparece pela primeira vez nesta tela, depois de 7 ações.</p></div>
+      <p className="evidence-label mono">o que o robô viu · carrinho</p>
+      <div className="evidence-frame">
+        <div className="evidence-toolbar"><span className="mono">casaverdecosmeticos.com.br/carrinho</span></div>
+        <div className="evidence-content">
+          <div className="evidence-item">
+            <div className="evidence-thumb" />
+            <div><p>Sérum de vitamina C 30ml</p><p className="muted">R$ 149,00</p></div>
+          </div>
+          <div className="evidence-total"><span>Total</span><span>R$ 149,00</span></div>
+          <div className="evidence-cta">Finalizar compra</div>
+          <div className="evidence-absence">nenhuma forma de pagamento nesta tela</div>
+        </div>
       </div>
+      <p className="evidence-caption">Captura feita às 22h06 de 31 de agosto, no navegador desktop.</p>
     </div>
   );
 }
 
-const lockedFindings = [
-  { severity: "Importante", title: "Quem compra pelo celular precisa de nove toques até pagar", tag: "celular" },
-  { severity: "Atenção", title: "O parcelamento não mostra o valor de cada parcela", tag: "clareza" },
-  { severity: "Atenção", title: "O nome que aparece na fatura não lembra o nome da loja", tag: "confiança" },
-];
-
-function FindingDetail({ item, index }: { item: typeof lockedFindings[number]; index: number }) {
+function FindingDetail({ item, index }: { item: Finding; index: number }) {
   return (
     <article className="unlocked-finding">
-      <div className="finding-index">0{index + 2}</div>
-      <div><div className="finding-meta"><span className={`severity ${index === 0 ? "critical" : "attention"}`}>{item.severity}</span><span>{item.tag}</span></div><h3>{item.title}</h3><p>{index === 0 ? "O menu móvel, o cálculo de frete e duas confirmações extras deixam o caminho 50% mais longo que no computador." : index === 1 ? "O cliente vê apenas o total da compra. O valor mensal só é revelado depois que ele escolhe o cartão." : "A cobrança usa “PG*SERVICOSBR”. Sem reconhecer a compra, o cliente pode contestar o pagamento."}</p><div className="recommendation"><CheckCircle2 size={17} /><span><b>O que fazer</b>{index === 0 ? "Reduza as confirmações antes da etapa de pagamento." : index === 1 ? "Mostre 10× de R$ 50,79 já na página do produto." : "Avise o nome da fatura ao lado do botão de compra."}</span></div></div>
+      <div className="finding-index mono">0{index + 2}</div>
+      <div>
+        <div className="finding-meta">
+          <span className={`severity ${item.severity === "alta" ? "alta" : ""}`}>{item.severity}</span>
+          <span>{item.category} · achado {index + 2} de {findings.length}</span>
+        </div>
+        <h3>{item.title}</h3>
+        <p>{item.body}</p>
+        <div className="recommendation">
+          <CheckCircle2 size={17} />
+          <span><b>O que dá para fazer nesta semana</b>{item.fix}</span>
+        </div>
+      </div>
     </article>
   );
 }
@@ -426,35 +573,65 @@ function Result({ onRestart }: { onRestart: () => void }) {
   return (
     <main className="result-page">
       <div className="result-heading">
-        <div><span className="complete-pill"><Check size={14} /> Análise concluída</span><p className="result-domain"><Globe2 size={14} /> lojademonstracao.com.br</p></div>
+        <div><span className="complete-pill"><Check size={14} /> Análise concluída</span><p className="result-domain mono">auditoria de 31 de agosto, 22h06</p></div>
         <ShareButton />
       </div>
 
       <section className="score-card">
-        <div className="score-gauge"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="53" /><circle className="score-progress" cx="60" cy="60" r="53" /></svg><div><strong>64</strong><span>de 100</span></div></div>
-        <div className="score-copy"><p>Nota do checkout</p><h1>Seu checkout funciona.<br />Mas pede esforço demais.</h1><span>Encontramos 4 pontos que podem fazer o cliente desistir antes de pagar.</span></div>
-        <div className="score-summary"><div><b>1</b><span>importante</span></div><div><b>3</b><span>atenção</span></div><div><b>7</b><span>etapas testadas</span></div></div>
+        <div className="score-block">
+          <div className="score-gauge">
+            <svg viewBox="0 0 184 184" role="img" aria-label="Nota 61 de 100">
+              <circle className="gauge-track" cx="92" cy="92" r="87" />
+              <circle className="gauge-value" cx="92" cy="92" r="87" />
+            </svg>
+            <div><strong className="mono">61</strong><span>Mediano</span></div>
+          </div>
+          <p className="score-caption">Nota do checkout, de 0 a 100</p>
+        </div>
+        <div className="score-divider" />
+        <div className="score-copy">
+          <h1>O checkout da Casa Verde perde gente em cinco pontos antes do pagamento. Três deles pesam.</h1>
+          <p>Comparado a 340 lojas de cosméticos que já auditamos, a Casa Verde está no meio da tabela. Nenhum dos cinco achados exige trocar de plataforma.</p>
+        </div>
       </section>
 
       <section className="report-section">
-        <div className="report-title"><div><p className="section-kicker">Primeiro achado</p><h2>O desconto do Pix chega tarde demais.</h2></div><span className="severity critical">Importante</span></div>
+        <div className="report-title">
+          <span className="severity alta grande">{findings[0].severity}</span>
+          <span className="report-eyebrow">{findings[0].category} · achado 1 de {findings.length}</span>
+        </div>
+        <h2 className="primary-finding-title">{findings[0].title}.</h2>
         <div className="primary-finding-grid">
-          <div className="finding-explanation"><p>O cliente só descobre os 5% de desconto depois de abrir o carrinho, informar o CEP e entrar na etapa de pagamento.</p><p>Até lá, quem compara preço com outra loja acredita que vai pagar <b>R$ 489,90</b>, não <b>R$ 465,41</b>.</p><div className="impact-box"><span>Por que isso pesa</span><p>O Pix perde o poder de ajudar a decisão justamente quando o cliente ainda está comparando.</p></div></div>
+          <div className="finding-explanation">
+            <p>{findings[0].body}</p>
+            <p className="muted">Quem paga no Pix normalmente decide isso antes de digitar o CPF. Sem essa informação no carrinho, uma parte dessas pessoas fecha a aba achando que a loja só aceita cartão.</p>
+            <div className="impact-box">
+              <span>O que dá para fazer nesta semana</span>
+              <p>{findings[0].fix} É mudança de vitrine, não de gateway.</p>
+            </div>
+          </div>
           <EvidenceVisual />
         </div>
       </section>
 
       <section className={`more-findings ${unlocked ? "is-unlocked" : "is-locked"}`}>
-        <div className="more-heading"><div><p className="section-kicker">Mais 3 achados</p><h2>O restante do diagnóstico</h2></div>{unlocked && <span className="opened-badge"><Check size={14} /> Relatório aberto</span>}</div>
+        <div className="more-heading"><div><h2>Faltam quatro achados</h2></div><span className="mono more-count">2 altas · 2 médias</span>{unlocked && <span className="opened-badge"><Check size={14} /> Relatório aberto</span>}</div>
         {unlocked ? (
-          <div className="unlocked-list">{lockedFindings.map((item, index) => <FindingDetail item={item} index={index} key={item.title} />)}</div>
+          <div className="unlocked-list">{findings.slice(1).map((item, index) => <FindingDetail item={item} index={index} key={item.title} />)}</div>
         ) : (
           <div className="sealed-list">
-            {lockedFindings.map((item, index) => (
+            {findings.slice(1).map((item) => (
               <article className="sealed-finding" key={item.title}>
-                <span className="sealed-number">0{index + 2}</span>
-                <div><span className={`severity ${index === 0 ? "critical" : "attention"}`}>{item.severity}</span><h3>{item.title}</h3><div className="redacted-lines"><i /><i /><i /></div></div>
-                <div className="seal"><LockKeyhole size={16} /><span>Explicação e correção</span></div>
+                <div className="sealed-tag">
+                  <span className={`severity ${item.severity === "alta" ? "alta" : ""}`}>{item.severity}</span>
+                  <span>{item.category}</span>
+                </div>
+                <div className={`redacted-lines ${item.severity === "média" ? "media" : ""}`}>
+                  {palavrasEmTarja(item.title).map((largura, i) => (
+                    <i key={`${item.title}-${i}`} style={{ width: largura }} />
+                  ))}
+                </div>
+                <div className="sealed-meta mono">{item.meta}</div>
               </article>
             ))}
             <form className="unlock-card" onSubmit={submitEmail} noValidate>
@@ -475,7 +652,7 @@ function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connectio
   const isWaf = type === "waf";
   return (
     <main className="workspace-page exception-page">
-      <div className="workspace-topbar"><div><span className="info-pill">Análise interrompida</span><div><h1>{isWaf ? "A loja não deixou o robô entrar" : "Perdemos a conexão com a loja"}</h1><p>lojademonstracao.com.br</p></div></div><ShareButton /></div>
+      <div className="workspace-topbar"><div><span className="info-pill">Análise interrompida</span><div><h1>{isWaf ? "A loja não deixou o robô entrar" : "Perdemos a conexão com a loja"}</h1><p>casaverdecosmeticos.com.br</p></div></div><ShareButton /></div>
       <div className="exception-layout">
         <StoreBrowser progress={isWaf ? 0 : 4} paused />
         <section className="exception-content">

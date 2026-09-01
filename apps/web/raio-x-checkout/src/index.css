@@ -1,23 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Geist+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: 'Manrope', sans-serif;
-  color: #16151a;
-  background: #f6f6f4;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  color: var(--ink);
+  background: #F4F3F1;
   font-synthesis: none;
-  --ink: #16151a;
-  --muted: #6d6b72;
-  --surface: #fff;
-  --ground: #f6f6f4;
-  --line: #e7e6e3;
-  --accent: #e8386a;
-  --soft-accent: #fff1f5;
-  --success: #26704e;
-  --warning: #876c2b;
+  --ink: #16151A;
+  --muted: #6E6B75;
+  --surface: #FFFFFF;
+  --ground: #F4F3F1;
+  --line: #E6E4E0;
+  --accent: #E8386A;
+
+  /* Do desenho, sem equivalente antes. A borda de tela e a divisória eram a
+     mesma --line, e no desenho elas sao dois pesos diferentes: a tela recorta
+     contra o fundo, a divisoria separa dentro do card. */
+  --line-strong: #C9C5BE;
+  --divider: #EFEDEA;
+  --chip: #EDEBE7;
+  --skeleton: #E4E1DC;
+  --row-now: #F7F6F4;
+
+  /* Severidade por borda, nao por preenchimento (ver .severity). */
+  --sev-high-line: #F3C3D2;
+  --sev-mid-line: #E0DDD8;
+
+  --dim: #A7A3AB;
+  --wait: #C0BCC4;
+  --grey: #5C5A63;
+  --field-line: #D8D4CE;
+
+  /* Verde da loja simulada. Nao e cor da marca: e o botao da vitrine falsa. */
+  --demo-green: #5A6B57;
+
+  --shadow: 0 1px 2px rgba(22, 21, 26, .05);
+  --shine: linear-gradient(110deg, #5C5A63, 35%, var(--ink), 50%, #5C5A63, 75%, #5C5A63);
 }
 
 * { box-sizing: border-box; }
@@ -33,7 +54,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .app { min-height: 100vh; overflow: hidden; }
 .section-shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
-.mono { font-family: 'JetBrains Mono', monospace; }
+.mono { font-family: 'Geist Mono', monospace; letter-spacing: .02em; }
 
 .site-header {
   position: absolute;
@@ -128,7 +149,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border: 1px solid var(--line);
   border-radius: 13px;
   background: white;
-  box-shadow: 0 16px 48px rgba(22,21,26,.12);
+  box-shadow: var(--shadow);
 }
 .state-popover button {
   display: flex;
@@ -137,7 +158,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   width: 100%;
   padding: 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   text-align: left;
   font-size: 12px;
@@ -145,31 +166,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .state-popover button:hover { background: var(--ground); }
 .mobile-menu-button, .mobile-menu { display: none; }
 
-.hero {
-  position: relative;
-  display: grid;
-  min-height: min(840px, 100vh);
-  place-items: center;
-  padding: 130px 24px 90px;
-  border-bottom: 1px solid var(--line);
-  background: #f8f8f6;
-}
-.hero-grid {
-  position: absolute;
-  inset: 80px 0 0;
-  opacity: .45;
-  background-image:
-    linear-gradient(to right, rgba(22,21,26,.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(22,21,26,.035) 1px, transparent 1px);
-  background-size: 88px 88px;
-  mask-image: radial-gradient(circle at center, #000 5%, transparent 66%);
-}
-.hero-content {
-  position: relative;
-  z-index: 1;
-  width: min(890px, 100%);
-  text-align: center;
-}
 .eyebrow, .running-pill, .complete-pill, .info-pill {
   display: flex;
   align-items: center;
@@ -183,96 +179,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 11px;
   font-weight: 700;
 }
-.live-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(232,56,106,.1);
-}
-.live-dot.gray {
-  background: #99979c;
-  box-shadow: none;
-}
-.hero h1 {
-  max-width: 870px;
-  margin: 0 auto;
-  font-size: clamp(48px, 6.2vw, 82px);
-  line-height: .99;
-  letter-spacing: -.066em;
-  font-weight: 600;
-}
-.hero h1 span { color: #79777c; }
-.hero-copy {
-  max-width: 690px;
-  margin: 27px auto 34px;
-  color: #65636a;
-  font-size: 17px;
-  line-height: 1.6;
-}
-.url-form {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  max-width: 730px;
-  margin: auto;
-  padding: 7px;
-  border: 1px solid #d9d8d5;
-  border-radius: 15px;
-  background: var(--surface);
-  box-shadow: 0 8px 30px rgba(30,28,34,.06);
-  text-align: left;
-}
-.url-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-inline: 13px 10px;
-  color: #7a787e;
-}
-.url-input-wrap input {
-  width: 100%;
-  height: 54px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-}
-.url-input-wrap input::placeholder { color: #aaa8ad; }
-.primary-button {
-  display: inline-flex;
-  min-height: 54px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 22px;
-  border: 1px solid var(--ink);
-  border-radius: 10px;
-  background: var(--ink);
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  transition: .2s ease;
-}
-.primary-button:hover {
-  background: #2c2a30;
-  transform: translateY(-1px);
-}
-.primary-button:disabled {
-  cursor: wait;
-  opacity: .82;
-}
-.form-message {
-  grid-column: 1 / -1;
-  min-height: 16px;
-  margin: 5px 13px 1px;
-  color: #8c898f;
-  font-size: 10px;
-}
-.url-form.has-error { border-color: var(--accent); }
-.url-form.has-error .form-message { color: #c72856; }
 .spinner { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .trust-line {
@@ -381,17 +287,17 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border: 1px solid var(--line);
   background: white;
 }
-.check-card:nth-child(1) { border-radius: 24px 8px 8px 8px; }
+.check-card:nth-child(1) { border-radius: 6px 8px 8px 8px; }
 .check-card:nth-child(2) {
-  border-radius: 8px 24px 8px 8px;
+  border-radius: 6px 24px 8px 8px;
   background: #eeede9;
 }
 .check-card:nth-child(3) {
-  border-radius: 8px 8px 8px 24px;
+  border-radius: 6px 8px 8px 24px;
   background: #1d1c20;
   color: white;
 }
-.check-card:nth-child(4) { border-radius: 8px 8px 24px 8px; }
+.check-card:nth-child(4) { border-radius: 6px 8px 24px 8px; }
 .check-number {
   position: absolute;
   top: 22px;
@@ -439,7 +345,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   min-height: 48px;
   padding: 0 18px;
   border: 1px solid #3a393f;
-  border-radius: 9px;
+  border-radius: 6px;
   background: white;
   font-size: 12px;
   font-weight: 700;
@@ -477,7 +383,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   gap: 45px;
   padding: 65px;
   border: 1px solid var(--line);
-  border-radius: 25px 8px;
+  border-radius: 6px 8px;
   background: white;
 }
 .about-mark {
@@ -577,7 +483,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border: 1px solid #deddda;
   border-radius: 14px;
   background: white;
-  box-shadow: 0 4px 16px rgba(22,21,26,.03);
+  box-shadow: var(--shadow);
 }
 .browser-chrome {
   display: flex;
@@ -600,7 +506,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   width: min(440px, 70%);
   padding: 7px;
   border: 1px solid #deddd9;
-  border-radius: 7px;
+  border-radius: 6px;
   background: white;
   text-align: center;
   font: 9px 'JetBrains Mono', monospace;
@@ -702,20 +608,29 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 8.5px;
   line-height: 1.55;
 }
+/* Severidade por borda, nao por preenchimento.
+   O selo cheio pesava tanto quanto o titulo do achado e disputava a leitura.
+   Vazado, ele classifica sem gritar — e a cor fica reservada para o que e
+   de fato alto. */
 .severity {
   display: inline-flex;
-  padding: 5px 8px;
-  border-radius: 4px;
-  font-size: 8px;
-  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid var(--sev-mid-line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Geist Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: .05em;
 }
-.severity.critical {
-  color: #b6244e;
-  background: var(--soft-accent);
+.severity.alta {
+  border-color: var(--sev-high-line);
+  color: var(--accent);
 }
-.severity.attention {
-  color: var(--warning);
-  background: #f6f0df;
+.severity.grande {
+  padding: 3px 7px;
+  font-size: 11px;
 }
 
 /* Simulated storefront */
@@ -795,7 +710,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border-radius: 65% 35% 46% 54%;
   background: #f0e5da;
   transform: rotate(-18deg);
-  box-shadow: 0 15px 20px rgba(51,42,35,.1);
+  box-shadow: var(--shadow);
 }
 .product-visual.cream { background: #d9d4c9; }
 .product-visual span {
@@ -823,7 +738,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: #aaa197;
   font: 800 45px 'Manrope';
   transform: rotate(-9deg);
-  box-shadow: 0 20px 35px rgba(43,39,34,.12);
+  box-shadow: var(--shadow);
 }
 .product-info {
   padding: 14% 12%;
@@ -972,82 +887,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   text-decoration: underline;
 }
 
-.score-card {
-  display: grid;
-  grid-template-columns: 200px 1fr 160px;
-  align-items: center;
-  gap: 47px;
-  min-height: 310px;
-  padding: 45px 55px;
-  border: 1px solid var(--line);
-  border-radius: 22px 7px;
-  background: white;
-}
-.score-gauge {
-  position: relative;
-  display: grid;
-  width: 175px;
-  height: 175px;
-  place-items: center;
-  border: 0;
-}
-.score-gauge svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  transform: rotate(-90deg);
-}
-.score-gauge svg circle {
-  fill: none;
-  stroke: #efeeeb;
-  stroke-width: 8;
-}
-.score-gauge svg .score-progress {
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-dasharray: 333;
-  stroke-dashoffset: 120;
-}
-.score-gauge > div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.score-gauge strong { font: 500 42px 'JetBrains Mono', monospace; }
-.score-gauge > div span {
-  color: #8c898f;
-  font: 8px 'JetBrains Mono';
-}
-.score-copy > p {
-  margin: 0 0 16px;
-  color: #8b888e;
-  font-size: 10px;
-}
-.score-copy h1 {
-  margin: 0 0 18px;
-  font-size: clamp(31px,4vw,49px);
-  line-height: 1.08;
-  letter-spacing: -.05em;
-  font-weight: 600;
-}
-.score-copy > span {
-  color: var(--muted);
-  font-size: 12px;
-}
-.score-summary { border-left: 1px solid var(--line); }
-.score-summary div {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 13px 0 13px 25px;
-  border-bottom: 1px solid var(--line);
-}
-.score-summary div:last-child { border-bottom: 0; }
-.score-summary b { font: 500 19px 'JetBrains Mono'; }
-.score-summary span {
-  color: #838086;
-  font-size: 9px;
-}
 .result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1081,8 +920,8 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border: 1px solid var(--line);
   background: white;
 }
-.report-section { border-radius: 7px 22px 7px 7px; }
-.more-findings { border-radius: 7px 7px 22px 7px; }
+.report-section { border-radius: 6px 22px 7px 7px; }
+.more-findings { border-radius: 6px 7px 22px 7px; }
 .report-title, .more-heading {
   display: flex;
   justify-content: space-between;
@@ -1159,7 +998,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   width: 70%;
   padding: 27px;
   background: white;
-  box-shadow: 0 4px 20px rgba(34,31,28,.06);
+  box-shadow: var(--shadow);
 }
 .evidence-checkout small {
   color: #9a9690;
@@ -1235,18 +1074,25 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   margin: 10px 0 16px;
   font-size: 15px;
 }
+/* Tarja, nao desfoque.
+   Uma barra por palavra, com a largura da palavra que ela esconde. O desfoque
+   diz "escondi algo"; a tarja diz "o texto esta aqui, medido, e voce nao leu".
+   Severidade e categoria ficam legiveis de proposito: da para contar os
+   achados e ver quantos sao altos antes de decidir se vale o e-mail. */
 .redacted-lines {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 7px 9px;
+  align-items: center;
 }
 .redacted-lines i {
-  width: 68%;
-  height: 6px;
-  background: #e3e1dd;
+  display: inline-block;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--skeleton);
 }
-.redacted-lines i:nth-child(2) { width: 53%; }
-.redacted-lines i:nth-child(3) { width: 35%; }
+.redacted-lines.media i { background: #EAE8E4; }
 .seal {
   display: flex;
   min-height: 60px;
@@ -1289,7 +1135,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   display: flex;
   padding: 5px;
   border: 1px solid #d9d7d3;
-  border-radius: 9px;
+  border-radius: 6px;
   background: white;
 }
 .email-field.error { border-color: var(--accent); }
@@ -1361,7 +1207,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   align-items: center;
   gap: 6px;
   padding: 7px 10px;
-  border-radius: 5px;
+  border-radius: 4px;
   background: #eef7f2;
   color: var(--success);
   font-size: 9px;
@@ -1412,7 +1258,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .exception-content {
   padding: 47px;
   border: 1px solid var(--line);
-  border-radius: 7px 20px;
+  border-radius: 6px 20px;
   background: white;
 }
 .exception-icon {
@@ -1461,7 +1307,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   min-height: 45px;
   padding: 0 17px;
   border: 1px solid #d7d5d2;
-  border-radius: 9px;
+  border-radius: 6px;
   background: white;
   font-size: 10px;
   font-weight: 700;
@@ -1542,7 +1388,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
     margin: 0 0 12px;
     padding: 12px 14px;
     border: 1px solid #ead6dc;
-    border-radius: 10px;
+    border-radius: 6px;
     background: #fffafb;
     color: var(--accent);
   }
@@ -1647,4 +1493,366 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   }
   .exception-actions { flex-direction: column; }
   .secondary-button { width: 100%; }
+}
+
+/* ==========================================================================
+   Desenho aplicado — herói, prévia ao vivo, etapas, tarja e nota.
+   O que vem abaixo substitui o que existia com o mesmo nome de classe: o
+   arquivo original continua acima para o diff mostrar o que mudou.
+   ========================================================================== */
+
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 120px 56px 0;
+  overflow: hidden;
+  background: var(--ground);
+}
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* O brilho passa uma vez a cada 2.6s. E o unico movimento do titulo: sem ele o
+   heroi fica parado, com mais que isso vira animacao de banner. */
+.hero-title {
+  max-width: 900px;
+  margin: 0;
+  font-size: 50px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -.034em;
+  background: var(--shine);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rbShine 2.6s linear infinite;
+}
+@keyframes rbShine {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-title { animation: none; background: none; color: var(--ink); }
+}
+.hero-copy {
+  max-width: 620px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.url-form {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.url-input-wrap {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 24px;
+  border: 1px solid var(--field-line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.url-input-wrap input {
+  width: 300px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+  color: var(--ink);
+}
+.url-input-wrap input::placeholder { color: var(--dim); }
+
+/* O icone dorme colado na direita e desliza para a esquerda no hover, com o
+   texto abrindo espaco. E o unico gesto do botao. */
+.primary-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 64px 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 15px;
+  font-weight: 600;
+  transition: padding .5s cubic-bezier(.4, 0, .2, 1);
+}
+.primary-button:hover:not(:disabled) { padding: 0 26px 0 62px; }
+.primary-button .button-icon {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  transition: right .5s cubic-bezier(.4, 0, .2, 1), transform .5s cubic-bezier(.4, 0, .2, 1);
+}
+.primary-button:hover:not(:disabled) .button-icon {
+  right: calc(100% - 52px);
+  transform: rotate(45deg);
+}
+.primary-button:disabled { opacity: .65; }
+.form-message { width: 100%; margin: 0; font-size: 14px; color: var(--muted); }
+.url-form.has-error .form-message { color: var(--accent); }
+
+.live-preview {
+  position: relative;
+  width: min(1060px, 100%);
+  height: 232px;
+  margin-top: 48px;
+  overflow: hidden;
+}
+.live-preview-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: rbBreathe 1.8s ease-in-out infinite;
+}
+@keyframes rbBreathe { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.live-preview-window {
+  height: 190px;
+  padding: 12px 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+  background: var(--surface);
+}
+.live-preview-chrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--divider);
+}
+.chrome-dots { display: flex; gap: 5px; }
+.chrome-dots span { width: 8px; height: 8px; border-radius: 50%; background: #E0DDD8; }
+.chrome-url {
+  flex: 1;
+  padding: 4px 9px;
+  border-radius: 3px;
+  background: var(--ground);
+  font-size: 11px;
+  color: var(--muted);
+}
+.chrome-clock { font-size: 11px; color: var(--muted); }
+.live-preview-body { position: relative; display: flex; gap: 22px; padding: 16px 4px; }
+.skeleton-thumb { width: 130px; height: 110px; border-radius: 3px; background: var(--chip); }
+.skeleton-column { flex: 1; display: flex; flex-direction: column; gap: 9px; padding-top: 6px; }
+.skeleton-column.narrow { flex: none; width: 210px; padding-top: 0; }
+.skeleton-column i { display: block; height: 11px; border-radius: 2px; background: var(--skeleton); }
+.skeleton-column i.light { background: var(--chip); }
+.skeleton-button { height: 34px; margin-top: 8px; border-radius: 3px; background: var(--ink); }
+
+/* A borda inferior corta a previa. O corte e o que faz rolar: metade visivel
+   diz que ha mais, sem precisar de seta nem de "role para baixo". */
+.live-preview-fade {
+  position: absolute;
+  inset: auto 0 0;
+  height: 56px;
+  background: linear-gradient(to bottom, rgba(244, 243, 241, 0), var(--ground));
+}
+
+.robot-cursor { position: absolute; }
+.robot-cursor .cursor-ring {
+  position: absolute;
+  inset: -10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  animation: rbPulse 1.7s ease-out infinite;
+}
+@keyframes rbPulse {
+  0% { transform: scale(.4); opacity: .55; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+.preview-cursor { left: 620px; top: 78px; }
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+.step-row .step-label { flex: 1; }
+.step-row.done .step-status { color: var(--ink); }
+.step-row.waiting { font-family: inherit; font-size: 13.5px; color: var(--wait); }
+.step-row.active {
+  margin: 5px -13px;
+  padding: 12px 13px;
+  border-radius: 4px;
+  background: var(--row-now);
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.step-row.active .step-time { font-size: 12.5px; color: var(--muted); }
+.step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: rbBreathe 1.3s ease-in-out infinite;
+}
+
+.live-finding {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.live-finding h3 { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--ink); }
+.finding-meta { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--muted); }
+.empty-finding { font-size: 14px; line-height: 1.5; color: var(--dim); }
+
+.sealed-finding {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.sealed-tag { display: flex; align-items: center; gap: 11px; width: 200px; flex-shrink: 0; font-size: 14.5px; color: var(--muted); }
+.sealed-meta { width: 96px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--dim); }
+.more-count { font-size: 13px; color: var(--muted); }
+
+.score-gauge { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 184px; height: 184px; }
+.score-gauge svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.gauge-track { fill: none; stroke: #E4E2DE; stroke-width: 12; stroke-dasharray: 7 11; stroke-linecap: round; }
+.gauge-value { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 546.64; stroke-dashoffset: 213.19; }
+.score-gauge > div { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+.score-gauge strong { font-size: 46px; line-height: 1; font-weight: 500; letter-spacing: -.04em; color: var(--accent); }
+.score-gauge span { margin-top: 4px; font-size: 17px; font-weight: 600; color: var(--muted); }
+.score-block { display: flex; flex-direction: column; align-items: center; gap: 12px; flex-shrink: 0; }
+.score-caption { margin: 0; font-size: 13px; color: var(--muted); }
+.score-divider { width: 1px; align-self: stretch; background: var(--divider); }
+.score-copy h1 { margin: 0; font-size: 27px; line-height: 1.25; font-weight: 600; letter-spacing: -.02em; text-wrap: pretty; }
+.score-copy p { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; color: var(--muted); }
+
+.primary-finding-title { margin: 0; font-size: 31px; line-height: 1.18; font-weight: 600; letter-spacing: -.022em; max-width: 720px; text-wrap: pretty; }
+.report-title { display: flex; align-items: center; gap: 11px; }
+.report-eyebrow { font-size: 14px; color: var(--muted); }
+.finding-explanation p { font-size: 16.5px; line-height: 1.6; color: var(--ink); text-wrap: pretty; }
+.finding-explanation p.muted { color: var(--muted); }
+.impact-box { border-top: 1px solid var(--divider); padding-top: 14px; margin-top: 4px; background: none; }
+.impact-box span { font-size: 15px; font-weight: 600; color: var(--ink); }
+.impact-box p { margin: 6px 0 0; font-size: 15.5px; line-height: 1.55; color: var(--muted); }
+
+.evidence-label { margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+.evidence-frame { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.evidence-toolbar { padding: 8px 10px; border-bottom: 1px solid var(--divider); background: #FAF9F8; font-size: 10px; color: var(--muted); }
+.evidence-content { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.evidence-item { display: flex; gap: 12px; }
+.evidence-item p { margin: 0; font-size: 12px; color: var(--ink); }
+.evidence-item p.muted { color: var(--muted); }
+.evidence-thumb { width: 62px; height: 62px; border-radius: 3px; background: var(--chip); }
+.evidence-total { display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid #F1EFEC; font-size: 12px; color: var(--ink); }
+.evidence-cta { display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 3px; background: var(--demo-green); font-size: 12px; color: #fff; }
+
+/* A ausencia marcada. Apontar o que NAO estava na tela e o achado inteiro. */
+.evidence-absence {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 1px dashed var(--accent);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.evidence-caption { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
+.nav-strong { color: var(--ink) !important; }
+
+@media (max-width: 900px) {
+  .hero { padding: 90px 22px 0; }
+  .hero-title { font-size: 33px; letter-spacing: -.028em; }
+  .hero-copy { font-size: 16px; }
+  .url-form { flex-direction: column; align-items: stretch; width: 100%; max-width: 420px; }
+  .url-input-wrap { height: 56px; border-radius: 4px; }
+  .url-input-wrap input { width: 100%; }
+  .primary-button { justify-content: flex-start; width: 100%; }
+  .live-preview { height: 250px; }
+  .preview-cursor { left: 200px; top: 62px; }
+  .sealed-finding { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .sealed-tag, .sealed-meta { width: auto; text-align: left; }
+  .score-divider { display: none; }
+}
+
+/* O card da nota: anel, divisoria e leitura. Tres colunas fixas viravam uma
+   coluna estreita para o texto — o desenho poe a leitura no espaco que sobra. */
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  min-height: 0;
+  padding: 40px 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.score-copy { flex: 1; }
+
+/* A previa e cortada pela borda inferior do heroi: metade visivel diz que ha
+   mais, sem precisar de seta nem de "role para baixo". Por isso ela e ancorada
+   no rodape do heroi e transborda, em vez de caber. */
+.hero { justify-content: flex-start; height: 100vh; padding-bottom: 0; }
+.live-preview {
+  position: absolute;
+  left: 56px;
+  right: 56px;
+  bottom: 0;
+  width: auto;
+  margin-top: 0;
+}
+@media (max-width: 900px) {
+  .live-preview { left: 22px; right: 22px; }
 }
