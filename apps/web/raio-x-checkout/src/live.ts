@@ -33,6 +33,10 @@ export type EstadoAoVivo = {
   stage: number;
   /** Último frame recebido, já como data URI. null enquanto nenhum chegou. */
   frame: string | null;
+  /** Os frames guardados para a gravação, com o segundo em que cada um chegou.
+   *  Vivem só nesta aba: nada vai para disco, por decisão do Bruno. Quem abre
+   *  o link sem ter assistido não tem gravação, e a tela diz isso. */
+  gravacao: { data: string; t: number }[];
   /** Quantos frames o servidor mandou e não chegaram. Frame perdido é perdido,
    *  mas dá para saber QUE se perdeu — é o que o campo `seq` existe para dizer. */
   perdidos: number;
@@ -46,7 +50,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, perdidos: 0, achados: [], fim: null, abortado: null, segundos: 0, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, segundos: 0, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -54,6 +58,20 @@ export const API = (import.meta.env["VITE_API"] as string | undefined)?.replace(
 
 export function temServidor(): boolean {
   return API.length > 0;
+}
+
+/* Teto de frames na memória da aba. A 8 fps, 90s dão umas 720 imagens de ~9 KB,
+   perto de 6 MB — muito para segurar sem limite. Ao estourar, eu ralo pela
+   metade os mais antigos em vez de cortar o fim: a gravação perde suavidade no
+   começo, mas continua cobrindo a auditoria inteira. Cortar o fim perderia
+   justamente os achados, que aparecem tarde. */
+const TETO_DE_FRAMES = 900;
+
+function guardar(atual: { data: string; t: number }[], novo: { data: string; t: number }) {
+  if (atual.length < TETO_DE_FRAMES) return [...atual, novo];
+  const metade = Math.floor(atual.length / 2);
+  const ralado = atual.filter((_, i) => i >= metade || i % 2 === 0);
+  return [...ralado, novo];
 }
 
 export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
@@ -81,7 +99,13 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
           case "frame": {
             const pulados = ev.seq > ultimaSeq + 1 ? ev.seq - ultimaSeq - 1 : 0;
             ultimaSeq = ev.seq;
-            return { ...e, frame: `data:image/jpeg;base64,${ev.data}`, perdidos: e.perdidos + pulados };
+            const uri = `data:image/jpeg;base64,${ev.data}`;
+            return {
+              ...e,
+              frame: uri,
+              perdidos: e.perdidos + pulados,
+              gravacao: guardar(e.gravacao, { data: uri, t: (Date.now() - inicio) / 1000 }),
+            };
           }
           case "finding":
             if (e.achados.some((a) => a.code === ev.code)) return e;

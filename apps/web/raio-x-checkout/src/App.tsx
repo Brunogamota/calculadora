@@ -9,6 +9,8 @@ import {
   Lock,
   Upload,
   Plus,
+  Play,
+  Pause,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -622,7 +624,7 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | null, ressalva: string | null) => void; url: string; onAbortado: (code: string) => void }) {
+function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string) => void }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
   const simulado = useCronometro(!temServidor());
   const e = temServidor() ? vivo.segundos : simulado;
@@ -648,8 +650,8 @@ function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | 
   }
 
   useEffect(() => {
-    if (stage >= steps.length) onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null);
-  }, [stage, onComplete, vivo.fim]);
+    if (stage >= steps.length) onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.gravacao);
+  }, [stage, onComplete, vivo.fim, vivo.gravacao]);
 
   useEffect(() => {
     if (vivo.abortado) onAbortado(vivo.abortado.code);
@@ -1025,6 +1027,107 @@ function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () 
    sistema. Sao informacao sobre a loja e sao tratadas como conteudo — por isso
    o rotulo "achado, nao erro" e por isso o achado que ja existe continua
    valendo mesmo quando a auditoria parou. */
+/* A gravação: quem recebe o link pelo WhatsApp não assistiu ao vivo, e para
+   essa pessoa a auditoria precisa ser um vídeo que ela dá play.
+   
+   Os frames vivem só na aba de quem assistiu — nada vai para disco. Quem abre
+   o link sem ter visto a execução não tem gravação, e a tela diz isso em vez
+   de mostrar um player que não toca. */
+function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: string; t: number }[]; onVoltar: () => void }) {
+  const [tocando, setTocando] = useState(false);
+  const [i, setI] = useState(0);
+  const tem = frames.length > 0;
+  const duracao = tem ? (frames[frames.length - 1]?.t ?? 0) : 0;
+
+  useEffect(() => {
+    if (!tocando || !tem) return;
+    const t = window.setInterval(() => {
+      setI((n) => {
+        if (n + 1 >= frames.length) { setTocando(false); return n; }
+        return n + 1;
+      });
+    }, 125);
+    return () => window.clearInterval(t);
+  }, [tocando, tem, frames.length]);
+
+  const agora = frames[i]?.t ?? 0;
+  const cronometro = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+  /* Os sete passos viram marcas e os cinco achados viram alfinetes. É o que faz
+     o vídeo virar índice em vez de reprodução: cada alfinete leva ao segundo em
+     que o robô encontrou aquele problema. */
+  const marcas = [8, 20, 33, 48, 66, 88];
+  const alfinetes = [33, 52, 61, 74, 91];
+
+  const irPara = (pct: number) => {
+    if (!tem) return;
+    const alvo = (pct / 100) * duracao;
+    const idx = frames.findIndex((f) => f.t >= alvo);
+    setI(idx < 0 ? frames.length - 1 : idx);
+  };
+
+  return (
+    <main className="gravacao">
+      <div className="gravacao-shell">
+        <div className="gravacao-topo">
+          <span className="mono">{host} · gravação da auditoria</span>
+          <button type="button" className="botao-fino" onClick={onVoltar}>Voltar ao resultado</button>
+        </div>
+
+        <div className="player">
+          <div className="player-tela">
+            {tem ? (
+              <img src={frames[i]?.data} alt={`Gravação da auditoria, segundo ${Math.floor(agora)}`} />
+            ) : (
+              <div className="player-vazio">
+                <div className="player-moldura" />
+                <span className="mono">gravação do screencast · 1280 × 720</span>
+                <span className="player-aviso">A gravação fica só no navegador de quem assistiu. Rode a auditoria de novo para ver esta tela com imagem.</span>
+              </div>
+            )}
+            {tem && !tocando && (
+              <button type="button" className="player-play-grande" onClick={() => setTocando(true)} aria-label="Reproduzir">
+                <Play size={30} fill="currentColor" aria-hidden="true" />
+              </button>
+            )}
+            <div className="player-host"><span className="player-host-ponto" />{host}</div>
+            <div className="player-estado">{tocando ? "Reproduzindo" : "Pausado"}</div>
+          </div>
+
+          <div className="player-controles">
+            <div className="linha-do-tempo">
+              <div className="linha-trilho" />
+              {marcas.map((m) => <div className="linha-marca" style={{ left: `${m}%` }} key={m} />)}
+              {alfinetes.map((a, n) => (
+                <button
+                  type="button"
+                  className="linha-alfinete"
+                  style={{ left: `${a}%` }}
+                  key={a}
+                  onClick={() => irPara(a)}
+                  aria-label={`Pular para o achado ${n + 1}: ${findings[n]?.title ?? ""}`}
+                />
+              ))}
+            </div>
+            <div className="player-barra">
+              <div className="player-esq">
+                <button type="button" className="player-play" onClick={() => setTocando((t) => !t)} aria-label={tocando ? "Pausar" : "Reproduzir"}>
+                  {tocando ? <Pause size={16} fill="currentColor" aria-hidden="true" /> : <Play size={16} fill="currentColor" aria-hidden="true" />}
+                </button>
+                <span className="mono">{cronometro(agora)} / {cronometro(duracao)}</span>
+                <span className="player-divisor" />
+                <span>5 achados marcados em rosa</span>
+              </div>
+              <ShareButton />
+            </div>
+          </div>
+        </div>
+        <p className="gravacao-nota">Clicar num alfinete rosa pula para o segundo em que o robô encontrou aquele problema.</p>
+      </div>
+    </main>
+  );
+}
+
 function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connection"; onRetry: () => void; onRestart: () => void }) {
   const bloqueio = type === "waf";
   const feitas = bloqueio ? 3 : 5;
@@ -1114,8 +1217,10 @@ function App() {
 
   const start = (url: string) => { setStoreUrl(url); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
-  const concluir = (nota: number | null, ressalva: string | null) => {
+  const [gravacao, setGravacao] = useState<{ data: string; t: number }[]>([]);
+  const concluir = (nota: number | null, ressalva: string | null, frames: { data: string; t: number }[]) => {
     if (nota !== null) setResultado({ nota, ressalva });
+    setGravacao(frames);
     navigate("result");
   };
 
@@ -1127,10 +1232,7 @@ function App() {
       {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
-      {/* A gravação é a última tela e depende de onde os frames vão morar.
-          Até ela existir, cair aqui volta para o resultado em vez de mostrar
-          tela branca. */}
-      {screen === "gravacao" && <Result onRestart={() => navigate("landing")} onGravacao={() => undefined} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
+      {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}
     </div>
   );
 }

@@ -1807,3 +1807,115 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
    slot para a troca não mexer no layout. */
 .frame-vivo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #eceae7; }
 .nota-ressalva { max-width: 220px; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+
+/* ==========================================================================
+   GRAVAÇÃO — desenho v3
+   ========================================================================== */
+
+.gravacao { flex: 1; padding: clamp(24px, 4vw, 48px) clamp(16px, 4vw, 48px) 64px; }
+.gravacao-shell { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.gravacao-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.gravacao-topo .botao-fino { height: 38px; padding: 0 15px; font-size: 11px; }
+.gravacao-nota { margin: 0; padding: 0 4px; font-size: 12.5px; color: var(--muted); }
+
+.player { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.player-tela { position: relative; height: clamp(240px, 46vw, 540px); background: var(--ink); }
+.player-tela img { width: 100%; height: 100%; object-fit: contain; }
+.player-vazio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 32px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+.player-moldura { width: 56px; height: 40px; border: 1px solid #3a383f; border-radius: 4px; }
+.player-aviso { max-width: 420px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; line-height: 1.6; color: #a19ea8; }
+
+.player-play-grande {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .16);
+  color: var(--surface);
+}
+.player-host {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .42);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--surface);
+}
+.player-host-ponto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.player-estado {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .35);
+  font-size: 12px;
+  color: #cfccd4;
+}
+
+.player-controles { padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Os sete passos viram marcas e os cinco achados viram alfinetes. É o que
+   transforma o vídeo em índice: cinco pontos, cinco problemas, cada um a um
+   clique do segundo em que apareceu. */
+.linha-do-tempo { position: relative; height: 26px; }
+.linha-trilho { position: absolute; left: 0; right: 0; top: 10px; height: 6px; border-radius: 999px; background: var(--line); }
+.linha-marca { position: absolute; top: 8px; width: 2px; height: 10px; background: #d6d4d0; }
+.linha-alfinete {
+  position: absolute;
+  top: 5px;
+  margin-left: -6px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+}
+.linha-alfinete:focus-visible { outline: 3px solid var(--accent-25); outline-offset: 2px; }
+
+.player-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; font-size: 13px; color: var(--muted); }
+.player-esq { display: flex; align-items: center; gap: 16px; }
+.player-play {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface);
+}
+.player-divisor { width: 1px; height: 18px; background: var(--line); }

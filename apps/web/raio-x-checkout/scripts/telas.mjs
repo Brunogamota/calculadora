@@ -20,6 +20,7 @@ const TELAS = [
   { id: "3-resultado", nome: "Resultado", inteira: true },
   { id: "4-bloqueio", nome: "Loja bloqueou o robô" },
   { id: "5-conexao", nome: "Conexão interrompida" },
+  { id: "6-gravacao", nome: "Resultado", gravacao: true },
 ];
 
 const TAMANHOS = [
@@ -45,6 +46,12 @@ async function abrir(page, tela) {
   await page.click(`.state-popover button:has-text("${tela.nome}")`);
   await page.evaluate(() => { const d = document.querySelector(".state-menu"); if (d) d.open = false; });
   await page.waitForTimeout(tela.espera ?? 900);
+  /* A gravacao so se alcanca pelo rodape do resultado, que e onde ela mora
+     de verdade — nao ha atalho no menu de estados, e nao vou inventar um. */
+  if (tela.gravacao) {
+    await page.click('button:has-text("Ver a gravação")');
+    await page.waitForTimeout(700);
+  }
 }
 
 const b = await chromium.launch();
