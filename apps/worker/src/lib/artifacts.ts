@@ -17,6 +17,18 @@ function slug(hostname: string): string {
 }
 
 /**
+ * Uma pasta por loja: `out/www.loja.com.br/`.
+ *
+ * Era `out/www.loja.com.br-home.html` para HTML e JSON, e `out/www.loja.com.br/`
+ * para os screenshots — duas convenções no mesmo diretório, e nenhuma das duas
+ * inteira. Procurar a evidência de uma auditoria virava adivinhar qual das duas
+ * o arquivo tinha seguido. Agora tudo da mesma loja mora no mesmo lugar.
+ */
+export function pastaDaLoja(outDir: string, hostname: string): string {
+  return path.join(outDir, slug(hostname))
+}
+
+/**
  * Guarda um pedaço de evidência em JSON, ao lado do HTML e dos screenshots.
  *
  * Existe porque a pergunta "o que a API respondeu, e o que o carrinho mostrou
@@ -30,15 +42,17 @@ export async function saveJson(
   label: string,
   dados: unknown,
 ): Promise<string> {
-  await mkdir(outDir, { recursive: true })
-  const file = path.join(outDir, `${slug(hostname)}-${label}.json`)
+  const dir = pastaDaLoja(outDir, hostname)
+  await mkdir(dir, { recursive: true })
+  const file = path.join(dir, `${label}.json`)
   await writeFile(file, `${JSON.stringify(dados, null, 2)}\n`, 'utf8')
   return file
 }
 
 export async function saveHtml(outDir: string, hostname: string, label: string, html: string): Promise<string> {
-  await mkdir(outDir, { recursive: true })
-  const file = path.join(outDir, `${slug(hostname)}-${label}.html`)
+  const dir = pastaDaLoja(outDir, hostname)
+  await mkdir(dir, { recursive: true })
+  const file = path.join(dir, `${label}.html`)
   await writeFile(file, html, 'utf8')
   return file
 }

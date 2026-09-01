@@ -32,6 +32,12 @@ export interface FakeStoreOptions {
    * procurar uma confirmação que naquela loja jamais apareceria.
    */
   semCarrinho?: boolean
+  /**
+   * Nenhum dos quatro caminhos funciona: API recusa, não há formulário, não há
+   * botão, não há rótulo de compra. É o desfecho de falha de verdade — o que
+   * mais precisa deixar evidência em disco.
+   */
+  semCompra?: boolean
   /** Catálogo inclui produto de teste a R$ 0. */
   includeZeroPriceProduct?: boolean
   /**
@@ -97,7 +103,9 @@ function productPage(handle: string, options: FakeStoreOptions): string {
   /* Sem etapa de carrinho: o botão manda direto para o checkout. Nenhum
      form de /cart/add, nenhum carrinho para confirmar. */
   const form =
-    options.semCarrinho === true
+    options.semCompra === true
+      ? `<div class="product-buy"><p>Consulte disponibilidade pelo telefone.</p></div>`
+      : options.semCarrinho === true
       ? `
     <div class="product-buy">
       <button type="button" id="comprar" class="btn-buy">Comprar</button>
@@ -256,7 +264,7 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
         return send(200, 'application/json', JSON.stringify({ id: 111, quantity: 1 }))
       }
       // Variante inexistente responde 422, como o Shopify de verdade.
-      if (options.apiRecusaAdd === true) {
+      if (options.apiRecusaAdd === true || options.semCompra === true) {
         return send(422, 'application/json', JSON.stringify({ status: 422, message: 'Cart Error' }))
       }
       carts.set(session, (carts.get(session) ?? 0) + 1)

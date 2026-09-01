@@ -110,10 +110,15 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
   const startedAt = Date.now()
   const deps = createDeps()
   const outDir = options.outDir ?? DEFAULT_OUT_DIR
-  const slot: { browser: BrowserSession | null; cast: Screencast | null } = {
-    browser: null,
-    cast: null,
-  }
+  /* `evidencia` mora no slot, e não numa variável local do `runAudit`, porque
+     o `finally` que a grava vive AQUI. Uma auditoria que estoura o prazo ou
+     lança no meio da jornada é justamente a que mais precisa deixar rastro. */
+  const slot: {
+    browser: BrowserSession | null
+    cast: Screencast | null
+    evidencia: Record<string, unknown> | null
+    hostname: string | null
+  } = { browser: null, cast: null, evidencia: null, hostname: null }
   const reporter = new Reporter(
     options.publisher ?? new NullPublisher(),
     options.auditId ?? `audit_${Math.random().toString(36).slice(2, 10)}`,
@@ -162,6 +167,13 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // dela não é regra: foi assim que a Insider Store levou oito rodadas
     // seguidas até começar a desafiar.
     const domain = normalizeUrl(input).hostname
+    slot.hostname = domain
+    /* Já nasce preenchida. Cada etapa que avança sobrescreve; o que sobrar diz
+       até onde a auditoria chegou. Assim o arquivo existe também quando a
+       jornada morre antes do carrinho — antibot na home, prazo estourado,
+       navegador que não subiu — e "não tem arquivo" volta a significar só uma
+       coisa: a auditoria nem começou. */
+    slot.evidencia = { desfecho: 'a auditoria não chegou na etapa do carrinho' }
 
     // --force existe para loja PRÓPRIA. Sozinho ele vira atalho de conveniência,
     // e foi assim que uma segunda rodada minutos depois da primeira provocou
@@ -240,6 +252,29 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // sessão CDP já morta, e o erro esconderia o resultado da auditoria.
     await slot.cast?.stop().catch(() => undefined)
     await slot.browser?.close()
+
+    /* A evidência da compra vai para o disco AQUI, e não lá dentro: este
+       `finally` roda em todo desfecho — jornada concluída, etapa pulada pela
+       loja, API recusando, exceção, prazo estourado.
+       
+       E sem `.catch(() => undefined)`: a versão anterior engolia o erro de
+       escrita em silêncio, então "o arquivo não existe" e "não consegui
+       escrever o arquivo" eram indistinguíveis. Falha de escrita não pode
+       derrubar a auditoria, mas tem que aparecer. */
+    if (slot.evidencia && slot.hostname) {
+      try {
+        await saveJson(outDir, slot.hostname, 'carrinho', {
+          quando: new Date().toISOString(),
+          url: input,
+          ...slot.evidencia,
+        })
+      } catch (erro) {
+        console.error(
+          `[raio-x] não consegui gravar a evidência do carrinho em ${outDir}: ` +
+            `${erro instanceof Error ? erro.message : String(erro)}`,
+        )
+      }
+    }
     // Nenhuma auditoria acaba em silêncio. Cada caminho de saída já diz o seu
     // motivo; isto pega o caminho que alguém esquecer de cobrir amanhã, porque
     // o custo do esquecimento é uma tela girando para sempre.
@@ -251,7 +286,12 @@ async function runAudit(
   input: string,
   options: AuditOptions,
   deps: ReturnType<typeof createDeps>,
-  slot: { browser: BrowserSession | null; cast: Screencast | null },
+  slot: {
+    browser: BrowserSession | null
+    cast: Screencast | null
+    evidencia: Record<string, unknown> | null
+    hostname: string | null
+  },
   outDir: string,
   startedAt: number,
   base: AuditResult,
@@ -384,12 +424,12 @@ async function runAudit(
       reporter.finding('BUY_BUTTON_OBSCURED', 'alta', 'Botão de comprar coberto por sobreposição')
     }
     await reporter.pace()
-    /* A evidência da compra fica em disco, e não só no JSON que a tela
-       consome. Perguntaram-me "o que o POST /cart/add.js respondeu e o que o
-       /cart.js mostrou depois?" sobre uma auditoria já feita, e eu não tinha
-       como responder: nada disso era gravado. Agora é. */
-    await saveJson(outDir, new URL(result.url).hostname, 'carrinho', {
-      quando: new Date().toISOString(),
+    /* Só ANOTA. Quem grava é o `finally` lá em cima, porque esta linha estava
+       dentro do `try` do addToCart: quando a jornada lançava — que é o caso
+       que mais precisa de evidência — ela nunca chegava a rodar, e o
+       carrinho.json não existia justamente na auditoria que falhou. */
+    slot.evidencia = {
+      desfecho: 'jornada concluiu a etapa do carrinho',
       via: cart.via,
       viaDetalhe: cart.viaDetalhe,
       viasTentadas: cart.viasTentadas,
@@ -402,7 +442,7 @@ async function runAudit(
       uiPattern: cart.uiPattern,
       cliques: cart.clicks,
       overlay: cart.overlay,
-    }).catch(() => undefined)
+    }
 
     if (cart.lojaSemCarrinho) {
       /* Fato sobre a LOJA, não limitação nossa — por isso vai em observações e
@@ -431,6 +471,19 @@ async function runAudit(
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
     const err = toAuditError(e)
+    /* A jornada não conseguiu comprar, e é ESTA a auditoria cuja evidência mais
+       importa. O que o erro carrega — os quatro caminhos tentados, com o que
+       cada um respondeu — é o diagnóstico inteiro. */
+    slot.evidencia = {
+      desfecho: 'a jornada não conseguiu colocar o item na compra',
+      erro: err.code,
+      motivo: err.message,
+      viasTentadas: (err.detail['tentativas'] as string[] | undefined) ?? [],
+      // `tentativas` sai do espalhamento: já foi lido acima com o nome que o
+      // resto do arquivo usa, e repetir a mesma lista duas vezes no JSON só
+      // faz quem lê procurar a diferença entre elas.
+      ...Object.fromEntries(Object.entries(err.detail).filter(([k]) => k !== 'tentativas')),
+    }
     reporter.fail('add-to-cart', err.message)
     reporter.aborted(err.code, err.message)
     return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)

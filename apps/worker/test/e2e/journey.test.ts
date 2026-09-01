@@ -17,6 +17,9 @@ import { audit, type AuditResult } from '../../src/audit.ts'
 import { startFakeStore, type FakeStore } from '../fixtures/fake-shopify.ts'
 import { validateAuditResult } from '../../src/output/schema.ts'
 import type { FakeStoreOptions } from '../fixtures/fake-shopify.ts'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
@@ -508,4 +511,47 @@ describe('loja sem etapa de carrinho', { concurrency: false }, () => {
     assert.equal(result.errorCode, null, result.errorReason ?? '')
     assert.ok((result.checks?.score ?? 0) > 0)
   })
+})
+
+describe('a evidência do carrinho vai para o disco em todo desfecho', { concurrency: false }, () => {
+  /* Esta gravação já existiu e não gravava nada onde importava: a chamada
+     estava DENTRO do `try` do addToCart, então a auditoria que falhava — a
+     única que alguém realmente precisa investigar depois — era exatamente a
+     que não deixava arquivo. E o erro de escrita era engolido por um
+     `.catch(() => undefined)`, então "não tem arquivo" e "não consegui
+     escrever" eram indistinguíveis.
+
+     Agora a escrita mora no `finally` da auditoria inteira. Estes testes
+     existem para que ela não volte para dentro de nenhum `try`. */
+
+  const casos: Array<[string, FakeStoreOptions]> = [
+    ['sucesso', {}],
+    ['sem etapa de carrinho', { semCarrinho: true }],
+    ['API recusando', { apiRecusaAdd: true }],
+    ['falha em todos os caminhos', { semCompra: true }],
+  ]
+
+  for (const [nome, opcoes] of casos) {
+    test(`grava em: ${nome}`, async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'raiox-'))
+      const store = await startFakeStore(opcoes)
+      try {
+        const r = await audit(store.url, { headed: false, outDir: dir })
+        const host = new URL(store.url).hostname
+        const arquivo = path.join(dir, host, 'carrinho.json')
+        const bruto = await readFile(arquivo, 'utf8')
+        const dados = JSON.parse(bruto) as Record<string, unknown>
+
+        assert.ok(dados['desfecho'], 'o arquivo tem que dizer em que desfecho parou')
+        const vias = (dados['viasTentadas'] as string[] | undefined) ?? []
+        assert.ok(vias.length > 0, `sem os caminhos tentados o arquivo não diagnostica nada: ${bruto}`)
+        assert.match(vias[0] ?? '', /^api: /, 'o primeiro caminho tentado é a API, com a resposta dela')
+        // O que a auditoria devolveu e o que ficou no disco têm que combinar.
+        if (r.cart) assert.equal(dados['ondeEntrou'], r.cart.ondeEntrou)
+      } finally {
+        await store.close()
+        await rm(dir, { recursive: true, force: true })
+      }
+    })
+  }
 })

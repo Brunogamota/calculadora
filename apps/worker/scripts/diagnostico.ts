@@ -21,13 +21,24 @@ import { DEFAULT_OUT_DIR } from '../src/lib/artifacts.ts'
 import { ADD_TO_CART_BUTTONS, ADD_TO_CART_FORMS } from '../src/platforms/shopify.selectors.ts'
 import { matchBuyIntent } from '../src/journey/buyIntent.ts'
 
+/** Agora é uma pasta por loja: `out/www.loja.com.br/produto-sem-botao.html`. */
 async function alvos(): Promise<string[]> {
   const passados = process.argv.slice(2).filter((a) => !a.startsWith('-'))
   if (passados.length > 0) return passados
-  const nomes = await readdir(DEFAULT_OUT_DIR).catch(() => [] as string[])
-  return nomes
-    .filter((n) => n.endsWith('.html') && /produto-sem-(formulario|botao)|checkout/.test(n))
-    .map((n) => path.join(DEFAULT_OUT_DIR, n))
+
+  const achados: string[] = []
+  const entradas = await readdir(DEFAULT_OUT_DIR, { withFileTypes: true }).catch(() => [])
+  for (const e of entradas) {
+    if (!e.isDirectory()) continue
+    const pasta = path.join(DEFAULT_OUT_DIR, e.name)
+    const arquivos = await readdir(pasta).catch(() => [] as string[])
+    for (const f of arquivos) {
+      if (f.endsWith('.html') && /produto-sem-(formulario|botao)|checkout/.test(f)) {
+        achados.push(path.join(pasta, f))
+      }
+    }
+  }
+  return achados
 }
 
 /** Só as tags de abertura: o conteúdo não interessa, a forma sim. */
