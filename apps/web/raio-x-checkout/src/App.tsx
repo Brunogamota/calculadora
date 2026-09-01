@@ -663,7 +663,10 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
      que de fato aconteceu — e a faixa de reconexão, que traz números fixos no
      texto, simplesmente não aparece ao vivo. */
   const esperando = temServidor() ? vivo.frame === null : e < 3.4;
-  const travado = temServidor() ? vivo.frame !== null && vivo.semImagem > 4 : e > 13.5 && e < 19.5;
+  /* `!parou` porque uma auditoria que acabou nao tem "leitura seguindo": a
+     tela dizia no meio que a auditoria parou e embaixo que o robo estava
+     adicionando ao carrinho agora, ao mesmo tempo. */
+  const travado = temServidor() ? !parou && vivo.frame !== null && vivo.semImagem > 4 : e > 13.5 && e < 19.5;
   const reconectado = temServidor() ? false : e > 22 && e < 29;
 
   /* Com servidor, a etapa vem do evento; sem ele, do relógio da demonstração.
@@ -794,7 +797,9 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
                 <>
                   <div className="travado-chip">
                     <span className="travado-ponto" />
-                    <span>Imagem parada há {Math.round(e - 13.5)}s</span>
+                    {/* 13.5 é o começo da janela da demonstração; ao vivo,
+                        quem conta é o tempo real desde o último frame. */}
+                    <span>Imagem parada há {Math.round(temServidor() ? vivo.semImagem : e - 13.5)}s</span>
                   </div>
                   <div className="travado-aviso">
                     <span className="ponto-vivo" />
