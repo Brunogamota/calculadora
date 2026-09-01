@@ -179,16 +179,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .spinner { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .section-heading { margin-bottom: 56px; }
-.section-kicker::before {
-  content: '[';
-  margin-right: 8px;
-  color: #b2b0b4;
-}
-.section-kicker::after {
-  content: ']';
-  margin-left: 8px;
-  color: #b2b0b4;
-}
 .split-heading {
   display: grid;
   grid-template-columns: 1.4fr .6fr;
@@ -302,12 +292,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   margin: 0;
   flex-shrink: 0;
 }
-.complete-pill {
-  border-color: #cde3d7;
-  background: var(--surface);
-  color: var(--ink);
-}
-.info-pill { background: #f0efec; }
 .share-button {
   display: flex;
   min-height: 40px;
@@ -485,83 +469,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: #656268;
   font-size: 10px;
 }
-
-.score-card {
-  display: grid;
-  grid-template-columns: 200px 1fr 160px;
-  align-items: center;
-  gap: 47px;
-  min-height: 310px;
-  padding: 45px 55px;
-  border: 1px solid var(--line);
-  border-radius: 22px 7px;
-  background: white;
-}
-.score-gauge {
-  position: relative;
-  display: grid;
-  width: 175px;
-  height: 175px;
-  place-items: center;
-  border: 0;
-}
-.score-gauge svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  transform: rotate(-90deg);
-}
-.score-gauge svg circle {
-  fill: none;
-  stroke: #efeeeb;
-  stroke-width: 8;
-}
-.score-gauge svg .score-progress {
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-dasharray: 333;
-  stroke-dashoffset: 120;
-}
-.score-gauge > div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.score-gauge strong { font: 500 42px 'Geist Mono', monospace; }
-.score-gauge > div span {
-  color: #8c898f;
-  font: 8px 'Geist Mono';
-}
-.score-copy > p {
-  margin: 0 0 16px;
-  color: #8b888e;
-  font-size: 10px;
-}
-.score-copy h1 {
-  margin: 0 0 18px;
-  font-size: clamp(31px,4vw,49px);
-  line-height: 1.08;
-  letter-spacing: -.05em;
-  font-weight: 600;
-}
-.score-copy > span {
-  color: var(--muted);
-  font-size: 12px;
-}
-.score-summary { border-left: 1px solid var(--line); }
-.score-summary div {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 13px 0 13px 25px;
-  border-bottom: 1px solid var(--line);
-}
-.score-summary div:last-child { border-bottom: 0; }
-.score-summary b { font: 500 19px 'Geist Mono'; }
-.score-summary span {
-  color: #838086;
-  font-size: 9px;
-}
 .result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -577,308 +484,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .result-panel h3 {
   margin: 0 0 20px;
   font-size: 15px;
-}
-.result-heading > div {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.result-domain {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.report-section, .more-findings {
-  margin-top: 12px;
-  padding: 55px;
-  border: 1px solid var(--line);
-  background: white;
-}
-.report-section { border-radius: 7px 22px 7px 7px; }
-.more-findings { border-radius: 7px 7px 22px 7px; }
-.report-title, .more-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 25px;
-  margin-bottom: 42px;
-}
-.report-title h2, .more-heading h2 {
-  font-size: clamp(28px,3.4vw,43px);
-}
-.primary-finding-grid {
-  display: grid;
-  grid-template-columns: .7fr 1.3fr;
-  gap: 70px;
-}
-.finding-explanation > p {
-  margin: 0 0 18px;
-  color: #555258;
-  font-size: 13px;
-  line-height: 1.8;
-}
-.impact-box {
-  margin-top: 31px;
-  padding: 21px;
-  border-left: 3px solid var(--accent);
-  background: #faf9f7;
-}
-.impact-box span {
-  font-size: 9px;
-  font-weight: 700;
-}
-.impact-box p {
-  margin: 8px 0 0;
-  color: #6f6c72;
-  font-size: 11px;
-  line-height: 1.6;
-}
-.evidence-visual {
-  overflow: hidden;
-  border: 1px solid #dbdad7;
-  border-radius: 11px;
-  background: #f1efeb;
-}
-.evidence-toolbar {
-  display: flex;
-  height: 36px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 11px;
-  background: #e8e6e2;
-}
-.evidence-toolbar > span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #c7c4bf;
-}
-.evidence-toolbar p {
-  width: 62%;
-  margin: auto;
-  padding: 5px;
-  border-radius: 4px;
-  background: white;
-  color: #9b9893;
-  text-align: center;
-  font: 6px 'Geist Mono';
-}
-.evidence-content {
-  position: relative;
-  min-height: 320px;
-  padding: 35px 38px;
-}
-.evidence-checkout {
-  width: 70%;
-  padding: 27px;
-  background: white;
-  box-shadow: 0 4px 20px rgba(34,31,28,.06);
-}
-.evidence-checkout small {
-  color: #9a9690;
-  font-size: 7px;
-}
-.evidence-checkout h4 {
-  margin: 10px 0 20px;
-  font: 400 18px Georgia, serif;
-}
-.evidence-checkout > div {
-  display: flex;
-  align-items: center;
-  min-height: 41px;
-  padding: 0 12px;
-  border: 1px solid #ddd8d0;
-  font-size: 8px;
-}
-.evidence-checkout > div + div { border-top: 0; }
-.evidence-checkout div span { margin-left: auto; }
-.evidence-checkout div b {
-  margin-left: auto;
-  padding: 4px 6px;
-  background: #f3ebe0;
-  font-size: 6px;
-}
-.evidence-highlight {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.evidence-note {
-  position: absolute;
-  right: 18px;
-  bottom: 23px;
-  width: 45%;
-  display: flex;
-  gap: 10px;
-  padding: 13px;
-  background: var(--ink);
-  color: white;
-}
-.evidence-note span {
-  color: #f291ad;
-  font: 9px 'Geist Mono';
-}
-.evidence-note p {
-  margin: 0;
-  font-size: 8px;
-  line-height: 1.55;
-}
-.sealed-list, .unlocked-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sealed-finding {
-  position: relative;
-  display: grid;
-  grid-template-columns: 45px 1fr 180px;
-  gap: 20px;
-  align-items: start;
-  min-height: 145px;
-  padding: 27px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: #faf9f7;
-}
-.sealed-number, .finding-index {
-  color: #aaa7ac;
-  font: 10px 'Geist Mono';
-}
-.sealed-finding h3 {
-  max-width: 630px;
-  margin: 10px 0 16px;
-  font-size: 15px;
-}
-.redacted-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.redacted-lines i {
-  width: 68%;
-  height: 6px;
-  background: #e3e1dd;
-}
-.redacted-lines i:nth-child(2) { width: 53%; }
-.redacted-lines i:nth-child(3) { width: 35%; }
-.seal {
-  display: flex;
-  min-height: 60px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  align-self: center;
-  border: 1px dashed #d9d7d3;
-  background: #f1f0ed;
-  color: #77747a;
-  font-size: 9px;
-}
-.unlock-card {
-  display: grid;
-  grid-template-columns: 48px 1fr 1.1fr;
-  gap: 18px 25px;
-  align-items: center;
-  margin-top: 14px;
-  padding: 29px;
-  border: 1px solid #dac9ce;
-  background: #fffafb;
-}
-.unlock-icon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent-10);
-  color: var(--accent);
-}
-.unlock-copy h3 { margin: 0 0 7px; font-size: 16px; }
-.unlock-copy p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.55;
-}
-.email-field {
-  display: flex;
-  padding: 5px;
-  border: 1px solid #d9d7d3;
-  border-radius: 9px;
-  background: white;
-}
-.email-field.error { border-color: var(--accent); }
-.email-field input {
-  min-width: 0;
-  flex: 1;
-  padding: 0 10px;
-  border: 0;
-  outline: 0;
-  font-size: 10px;
-}
-.email-field button {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--ink);
-  color: white;
-  font-size: 9px;
-  font-weight: 700;
-}
-.email-message {
-  grid-column: 2 / -1;
-  margin: -10px 0 0;
-  color: #8d8a90;
-  font-size: 8px;
-}
-.unlocked-finding {
-  display: grid;
-  grid-template-columns: 45px 1fr;
-  gap: 20px;
-  padding: 34px;
-  border: 1px solid var(--line);
-  background: #fff;
-}
-.finding-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #99969b;
-  font-size: 8px;
-}
-.unlocked-finding h3 { margin: 13px 0 10px; font-size: 20px; }
-.unlocked-finding p {
-  max-width: 750px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.7;
-}
-.recommendation {
-  display: flex;
-  gap: 10px;
-  max-width: 730px;
-  margin-top: 19px;
-  padding: 15px;
-  background: var(--surface);
-  color: var(--ink);
-}
-.recommendation span {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: #5f5c62;
-  font-size: 10px;
-}
-.opened-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border-radius: 5px;
-  background: #eef7f2;
-  color: var(--ink);
-  font-size: 9px;
 }
 .result-footer {
   display: flex;
@@ -1492,7 +1097,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
    sobre fundo transparente — os selos sumiram. Saem quando essas telas forem
    refeitas. */
 .severity.critical { background: var(--accent); }
-.severity.attention { background: var(--ink); }
 
 /* ---- quem é a Reborn ---- */
 
@@ -1902,3 +1506,299 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   .navegador-url { margin: 0 10px; }
   .exec-topo { gap: 12px; }
 }
+
+/* ==========================================================================
+   RESULTADO — desenho v3
+   ========================================================================== */
+
+.resultado { flex: 1; padding: clamp(24px, 4vw, 56px) clamp(16px, 4vw, 48px) 64px; }
+.resultado-shell { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.resultado-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---- a nota ---- */
+
+.nota-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(24px, 4vw, 48px);
+  padding: clamp(26px, 4vw, 44px);
+  border: 1px solid var(--line);
+  border-radius: 22px 7px;
+  background: var(--surface);
+}
+.nota-bloco { display: flex; flex-direction: column; align-items: center; gap: 12px; flex-shrink: 0; }
+.nota-legenda { font-size: 13px; color: var(--muted); }
+.nota-copy { flex: 1 1 320px; display: flex; flex-direction: column; gap: 10px; }
+.nota-copy h1 { margin: 0; font-size: clamp(21px, 3.2vw, 28px); line-height: 1.25; letter-spacing: -.025em; font-weight: 600; text-wrap: pretty; }
+.nota-copy p { margin: 0; font-size: 15px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
+
+.anel { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 184px; height: 184px; }
+.anel svg { position: absolute; inset: 0; width: 184px; height: 184px; transform: rotate(-90deg); }
+
+/* O trilho é segmentado, não contínuo: marca a escala sem competir com o arco. */
+.anel-trilho { fill: none; stroke: #e4e2de; stroke-width: 12; stroke-dasharray: 7 11; stroke-linecap: round; }
+.anel-valor { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; }
+.anel-centro { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+.anel-nota { font-size: 46px; line-height: 1; letter-spacing: -.04em; font-weight: 500; color: var(--accent); }
+.anel-veredito { margin-top: 4px; font-size: 17px; font-weight: 600; color: var(--muted); }
+
+/* ---- achado aberto ---- */
+
+.achado-aberto {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: clamp(22px, 3vw, 40px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.achado-meta { display: flex; align-items: center; gap: 11px; font-size: 13.5px; color: var(--muted); }
+.achado-aberto h2 { margin: 0; max-width: 720px; font-size: clamp(22px, 3.4vw, 31px); line-height: 1.18; letter-spacing: -.028em; font-weight: 600; text-wrap: pretty; }
+.achado-aberto h3 { margin: 0; max-width: 760px; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.2; letter-spacing: -.02em; font-weight: 600; text-wrap: pretty; }
+.achado-aberto p { margin: 0; max-width: 800px; font-size: 16px; line-height: 1.65; text-wrap: pretty; }
+.achado-aberto p.fraco { color: var(--muted); }
+.achado-grid { display: flex; flex-wrap: wrap; gap: clamp(24px, 4vw, 40px); }
+.achado-texto { flex: 1 1 340px; display: flex; flex-direction: column; gap: 14px; }
+.achado-fazer { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.6; color: var(--muted); }
+.achado-fazer-titulo { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+.achado-fix { max-width: 800px; padding-top: 13px; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.6; }
+
+/* ---- evidência ---- */
+
+.evidencia { flex: 1 1 300px; display: flex; flex-direction: column; gap: 8px; }
+.evidencia-rotulo { font-size: 11px; color: var(--muted); }
+.evidencia-quadro { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.evidencia-url { padding: 8px 10px; border-bottom: 1px solid var(--line); background: #faf9f8; font-size: 10px; color: var(--muted); }
+.evidencia-corpo { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.evidencia-item { display: flex; gap: 12px; font-size: 12px; }
+.evidencia-item > div { display: flex; flex-direction: column; gap: 6px; }
+.evidencia-item .fraco { color: var(--muted); }
+.evidencia-foto { width: 62px; height: 62px; border-radius: 4px; background: var(--chip); }
+.evidencia-total { display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid #f1efec; font-size: 12px; }
+
+/* O verde é da loja auditada, não nosso: é o botão da vitrine dela. */
+.evidencia-botao {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: #5a6b57;
+  font-size: 12px;
+  color: #fff;
+}
+
+/* A ausência marcada. Apontar o que NÃO estava na tela é o achado inteiro. */
+.evidencia-ausencia {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.evidencia-legenda { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+
+/* ---- os quatro sob tarja ---- */
+
+.cobertos { display: flex; flex-direction: column; gap: 12px; }
+.cobertos-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.cobertos-topo .mono { font-size: 12.5px; font-weight: 400; color: var(--muted); }
+.tarja-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.tarja-tag { display: flex; align-items: center; gap: 11px; width: 190px; flex-shrink: 0; font-size: 14px; color: var(--muted); }
+.tarja-palavras { flex: 1 1 200px; display: flex; flex-wrap: wrap; gap: 7px 9px; align-items: center; }
+.tarja-palavras span { display: inline-block; height: 16px; border-radius: 2px; background: #e4e1dc; }
+.tarja-palavras span.clara { background: #eae8e4; }
+
+/* ---- captura em quatro passos ---- */
+
+.captura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(24px, 4vw, 44px);
+  padding: clamp(26px, 4vw, 40px);
+  border-radius: 8px;
+  background: var(--ink);
+}
+.captura-copy { flex: 1 1 300px; display: flex; flex-direction: column; gap: 10px; }
+.captura-titulo { font-size: clamp(20px, 3vw, 26px); line-height: 1.2; letter-spacing: -.022em; font-weight: 600; color: var(--surface); text-wrap: pretty; }
+.captura-sub { font-size: 15px; line-height: 1.6; color: #a19ea8; text-wrap: pretty; }
+.captura-campo { flex: 1 1 320px; display: flex; flex-direction: column; gap: 14px; }
+.captura-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 62px;
+  padding: 0 8px 0 20px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+.captura-pill input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); }
+
+/* A seta só existe quando o campo fica válido: ela é o sinal de que dá para
+   seguir, não um botão sempre presente esperando erro. */
+.captura-pill button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--surface);
+}
+.captura-faixas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.captura-faixas button {
+  height: 54px;
+  padding: 0 16px;
+  border: 1px solid #3a383f;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--surface);
+}
+.captura-faixas button:hover { border-color: var(--surface); }
+.captura-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.captura-voltar { display: flex; align-items: center; gap: 7px; padding: 0; border: 0; background: transparent; font-size: 13.5px; color: #a19ea8; }
+.captura-pontos { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.captura-pontos span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3a383f; }
+.captura-pontos span.aceso { background: var(--accent); }
+.captura-pontos .mono { width: auto; height: auto; margin-left: 4px; border-radius: 0; background: none; font-size: 12px; color: var(--muted); }
+
+/* ---- depois de aberto ---- */
+
+.abertos { display: flex; flex-direction: column; gap: 12px; }
+.abertos-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 15px;
+}
+.abertos-ponto { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+
+.resultado-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 26px 4px 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.botao-fino {
+  height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.botao-fino:hover { border-color: var(--ink); }
+
+@media (max-width: 560px) {
+  .tarja-tag { width: auto; }
+  .anel, .anel svg { width: 150px; height: 150px; }
+}
+
+/* ==========================================================================
+   LOJA BLOQUEOU / CONEXÃO CAIU — desenho v3
+
+   Não podem parecer erro de sistema. São informação sobre a loja, e por isso
+   têm o mesmo acabamento de cartão do resto: o achado que já existe continua
+   valendo mesmo quando a auditoria parou.
+   ========================================================================== */
+
+.erro-page { flex: 1; display: flex; align-items: center; padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px); }
+.erro-shell { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
+.erro-card {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: clamp(28px, 4vw, 48px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.erro-fio { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--ground); overflow: hidden; }
+.erro-fio span { display: block; width: 30%; height: 100%; background: var(--accent); animation: rbHair 1.6s ease-in-out infinite; }
+.erro-marca { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--accent); }
+.erro-card h1 { margin: 0; font-size: clamp(24px, 4vw, 38px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600; text-wrap: pretty; }
+.erro-card p { margin: 0; font-size: 15.5px; line-height: 1.7; text-wrap: pretty; }
+.erro-card p.fraco { color: var(--muted); }
+.erro-acoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.erro-acoes .pill-button { height: 48px; padding: 0 56px 0 22px; }
+.erro-acoes .pill-button:hover { padding: 0 22px 0 52px; }
+.erro-acoes .pill-button .button-icon { width: 40px; height: 40px; }
+.erro-acoes .pill-button:hover .button-icon { right: calc(100% - 44px); }
+.erro-acoes .botao-fino { height: 48px; padding: 0 22px; }
+
+.erro-lado {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.erro-lado-titulo { font-size: 11px; color: var(--muted); }
+.erro-etapas { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: var(--muted); }
+.erro-etapas .cortada { color: var(--accent); }
+.erro-etapas .parada { color: var(--ink); font-weight: 500; }
+.erro-etapas .fila { opacity: .55; }
+.erro-achado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.erro-achado-titulo { font-size: 13px; font-weight: 700; line-height: 1.35; }
+.erro-achado .fraco, .erro-nota { font-size: 12.5px; line-height: 1.6; color: var(--muted); }

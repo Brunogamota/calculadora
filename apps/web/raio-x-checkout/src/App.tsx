@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -730,122 +730,344 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
   );
 }
 
-function EvidenceVisual() {
+/* A evidência é a captura do carrinho com o preço real e a marcação do que
+   NÃO estava lá. Apontar ausência é mais difícil que apontar presença, e a
+   moldura tracejada é o que torna a ausência visível. */
+function Evidencia({ host }: { host: string }) {
   return (
-    <div className="evidence-visual">
-      <div className="evidence-toolbar"><span /><span /><span /><p>lojademonstracao.com.br/checkout</p></div>
-      <div className="evidence-content">
-        <div className="evidence-checkout"><small>Pagamento</small><h4>Escolha uma forma de pagamento</h4><div>Cartão de crédito <span>›</span></div><div className="evidence-highlight">Pix <b>5% de desconto</b><span>›</span></div></div>
-        <div className="evidence-note"><span>01</span><p>O desconto aparece pela primeira vez nesta tela, depois de 7 ações.</p></div>
+    <div className="evidencia">
+      <span className="mono evidencia-rotulo">o que o robô viu · carrinho</span>
+      <div className="evidencia-quadro">
+        <div className="mono evidencia-url">{host}/carrinho</div>
+        <div className="evidencia-corpo">
+          <div className="evidencia-item">
+            <div className="evidencia-foto" />
+            <div>
+              <span>Sérum de vitamina C 30ml</span>
+              <span className="fraco">R$ 149,00</span>
+            </div>
+          </div>
+          <div className="evidencia-total"><span>Total</span><span>R$ 149,00</span></div>
+          <div className="evidencia-botao">Finalizar compra</div>
+          <div className="evidencia-ausencia">nenhuma forma de pagamento nesta tela</div>
+        </div>
+      </div>
+      <span className="evidencia-legenda">Captura feita durante a auditoria, no navegador desktop.</span>
+    </div>
+  );
+}
+
+/* A cobertura é tarja, não desfoque: uma barra por palavra, com a largura da
+   palavra que ela esconde. O desfoque diria "escondi algo"; a tarja diz "o
+   texto está aqui, medido, e você não leu". Severidade e categoria ficam
+   legíveis de propósito, para dar para contar os achados e ver o peso deles
+   antes de decidir se vale entregar os dados. */
+function Tarja({ f }: { f: Finding }) {
+  return (
+    <div className="tarja-linha">
+      <div className="tarja-tag">
+        <Severidade sev={f.severity} />
+        <span>{f.category}</span>
+      </div>
+      <div className="tarja-palavras" aria-label={`Achado coberto: ${f.category}`}>
+        {f.title.split(" ").map((palavra, i) => (
+          <span
+            key={`${f.title}-${i}`}
+            className={f.severity === "crítico" ? "" : "clara"}
+            style={{ width: Math.max(16, Math.round(palavra.length * 8.2)) }}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-const lockedFindings = [
-  { severity: "Importante", title: "Quem compra pelo celular precisa de nove toques até pagar", tag: "celular" },
-  { severity: "Atenção", title: "O parcelamento não mostra o valor de cada parcela", tag: "clareza" },
-  { severity: "Atenção", title: "O nome que aparece na fatura não lembra o nome da loja", tag: "confiança" },
+/* Um campo por vez, com a seta aparecendo só quando o campo fica válido e o
+   caminho de volta sempre visível. Quatro passos em vez de um formulário
+   inteiro: cada um pede uma coisa e diz para que serve. */
+type CampoCaptura = {
+  chave: string;
+  titulo: string;
+  sub: string;
+  placeholder?: string;
+  escolha?: boolean;
+};
+
+const CAMPOS: CampoCaptura[] = [
+  { chave: "nome", titulo: "Antes de abrir, como a gente te chama?", sub: "O relatório vem com o seu nome e o endereço da loja no topo, para você mandar para quem cuida do site.", placeholder: "seu nome" },
+  { chave: "zap", titulo: "Qual o seu WhatsApp?", sub: "Só usamos se você pedir. O relatório completo vai por e-mail.", placeholder: "(11) 90000-0000" },
+  { chave: "email", titulo: "Para onde mandamos o relatório?", sub: "Um e-mail, uma vez, com os cinco achados por extenso, as capturas e o que fazer em cada caso. Sem sequência depois, sem ligação de vendedor.", placeholder: "seu e-mail" },
+  { chave: "faixa", titulo: "Quanto a loja fatura por mês?", sub: "Serve para comparar a sua nota com lojas do mesmo porte. Fica entre a gente.", escolha: true },
 ];
 
-function FindingDetail({ item, index }: { item: typeof lockedFindings[number]; index: number }) {
-  return (
-    <article className="unlocked-finding">
-      <div className="finding-index">0{index + 2}</div>
-      <div><div className="finding-meta"><span className={`severity ${index === 0 ? "critical" : "attention"}`}>{item.severity}</span><span>{item.tag}</span></div><h3>{item.title}</h3><p>{index === 0 ? "O menu móvel, o cálculo de frete e duas confirmações extras deixam o caminho 50% mais longo que no computador." : index === 1 ? "O cliente vê apenas o total da compra. O valor mensal só é revelado depois que ele escolhe o cartão." : "A cobrança usa “PG*SERVICOSBR”. Sem reconhecer a compra, o cliente pode contestar o pagamento."}</p><div className="recommendation"><CheckCircle2 size={17} /><span><b>O que fazer</b>{index === 0 ? "Reduza as confirmações antes da etapa de pagamento." : index === 1 ? "Mostre 10× de R$ 50,79 já na página do produto." : "Avise o nome da fatura ao lado do botão de compra."}</span></div></div>
-    </article>
-  );
+const FAIXAS = ["até R$ 100 mil", "R$ 100 mil a R$ 500 mil", "R$ 500 mil a R$ 2 mi", "acima de R$ 2 mi"];
+
+function valida(chave: string, v: string): boolean {
+  const t = (v || "").trim();
+  if (chave === "nome") return t.length >= 2;
+  if (chave === "zap") return t.replace(/\D/g, "").length >= 10;
+  if (chave === "email") return /.+@.+\..+/.test(t);
+  return false;
 }
 
-function Result({ onRestart }: { onRestart: () => void }) {
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
-  const [sending, setSending] = useState(false);
+function Captura({ onAbrir }: { onAbrir: (email: string) => void }) {
+  const [passo, setPasso] = useState(0);
+  const [valores, setValores] = useState<Record<string, string>>({});
+  const campo = CAMPOS[passo]!;
+  const valor = valores[campo.chave] ?? "";
+  const ok = valida(campo.chave, valor);
 
-  const submitEmail = (event: FormEvent) => {
-    event.preventDefault();
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setEmailError("Digite um e-mail válido para abrir o relatório.");
-      return;
-    }
-    setSending(true);
-    window.setTimeout(() => { setSending(false); setUnlocked(true); }, 900);
+  const avancar = () => {
+    if (!ok) return;
+    setPasso((p) => p + 1);
   };
 
   return (
-    <main className="result-page">
-      <div className="result-heading">
-        <div><span className="complete-pill"><Check size={14} /> Análise concluída</span><p className="result-domain"><Globe2 size={14} /> lojademonstracao.com.br</p></div>
-        <ShareButton />
+    <div className="captura">
+      <div className="captura-copy">
+        <span className="captura-titulo">{campo.titulo}</span>
+        <span className="captura-sub">{campo.sub}</span>
       </div>
-
-      <section className="score-card">
-        <div className="score-gauge"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="53" /><circle className="score-progress" cx="60" cy="60" r="53" /></svg><div><strong>64</strong><span>de 100</span></div></div>
-        <div className="score-copy"><p>Nota do checkout</p><h1>Seu checkout funciona.<br />Mas pede esforço demais.</h1><span>Encontramos 4 pontos que podem fazer o cliente desistir antes de pagar.</span></div>
-        <div className="score-summary"><div><b>1</b><span>importante</span></div><div><b>3</b><span>atenção</span></div><div><b>7</b><span>etapas testadas</span></div></div>
-      </section>
-
-      <section className="report-section">
-        <div className="report-title"><div><p className="section-kicker">Primeiro achado</p><h2>O desconto do Pix chega tarde demais.</h2></div><span className="severity critical">Importante</span></div>
-        <div className="primary-finding-grid">
-          <div className="finding-explanation"><p>O cliente só descobre os 5% de desconto depois de abrir o carrinho, informar o CEP e entrar na etapa de pagamento.</p><p>Até lá, quem compara preço com outra loja acredita que vai pagar <b>R$ 489,90</b>, não <b>R$ 465,41</b>.</p><div className="impact-box"><span>Por que isso pesa</span><p>O Pix perde o poder de ajudar a decisão justamente quando o cliente ainda está comparando.</p></div></div>
-          <EvidenceVisual />
-        </div>
-      </section>
-
-      <section className={`more-findings ${unlocked ? "is-unlocked" : "is-locked"}`}>
-        <div className="more-heading"><div><p className="section-kicker">Mais 3 achados</p><h2>O restante do diagnóstico</h2></div>{unlocked && <span className="opened-badge"><Check size={14} /> Relatório aberto</span>}</div>
-        {unlocked ? (
-          <div className="unlocked-list">{lockedFindings.map((item, index) => <FindingDetail item={item} index={index} key={item.title} />)}</div>
-        ) : (
-          <div className="sealed-list">
-            {lockedFindings.map((item, index) => (
-              <article className="sealed-finding" key={item.title}>
-                <span className="sealed-number">0{index + 2}</span>
-                <div><span className={`severity ${index === 0 ? "critical" : "attention"}`}>{item.severity}</span><h3>{item.title}</h3><div className="redacted-lines"><i /><i /><i /></div></div>
-                <div className="seal"><LockKeyhole size={16} /><span>Explicação e correção</span></div>
-              </article>
+      <div className="captura-campo">
+        {campo.escolha ? (
+          <div className="captura-faixas">
+            {FAIXAS.map((f) => (
+              <button type="button" key={f} onClick={() => onAbrir(valores["email"] ?? "seu e-mail")}>{f}</button>
             ))}
-            <form className="unlock-card" onSubmit={submitEmail} noValidate>
-              <div className="unlock-icon"><Mail size={21} /></div>
-              <div className="unlock-copy"><h3>Receba o diagnóstico completo</h3><p>Abra as evidências e veja o que mudar primeiro. Também enviamos uma cópia deste relatório para o seu e-mail.</p></div>
-              <div className={`email-field ${emailError ? "error" : ""}`}><input type="email" placeholder="seu@ecommerce.com.br" value={email} onChange={(event) => { setEmail(event.target.value); setEmailError(""); }} aria-label="Seu e-mail" /><button type="submit" disabled={sending}>{sending ? <Spinner /> : "Abrir diagnóstico"}</button></div>
-              <p className="email-message">{emailError || "Sem sequência de e-mails. Só o relatório e uma conversa, se você quiser."}</p>
-            </form>
+          </div>
+        ) : (
+          <div className="captura-pill">
+            <input
+              type="text"
+              aria-label={campo.placeholder}
+              placeholder={campo.placeholder}
+              value={valor}
+              onChange={(e) => setValores((v) => ({ ...v, [campo.chave]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") avancar(); }}
+            />
+            {ok && (
+              <button type="button" aria-label="Continuar" onClick={avancar}>
+                <MoveRight size={19} aria-hidden="true" />
+              </button>
+            )}
           </div>
         )}
-      </section>
-      <div className="result-footer"><span>Auditoria feita pelo Raio-X do Checkout, da Reborn.</span><button onClick={onRestart}><RefreshCw size={15} /> Analisar outra loja</button></div>
+        <div className="captura-rodape">
+          {passo > 0 && (
+            <button type="button" className="captura-voltar" onClick={() => setPasso((p) => Math.max(0, p - 1))}>
+              <ArrowLeft size={15} aria-hidden="true" /> Voltar
+            </button>
+          )}
+          <div className="captura-pontos">
+            {[0, 1, 2, 3].map((i) => <span key={i} className={i <= passo ? "aceso" : ""} />)}
+            <span className="mono">{passo + 1} de 4</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* O anel conta de zero até a nota quando entra na tela. O valor final fica na
+   marcação: se a animação não rodar, a nota certa continua lá em vez de
+   aparecer zero. */
+function Anel({ nota }: { nota: number }) {
+  const [mostrado, setMostrado] = useState(nota);
+  const ref = useRef<SVGCircleElement | null>(null);
+  const C = 2 * Math.PI * 86;
+
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const anel = ref.current;
+    if (!anel) return;
+    setMostrado(0);
+    const alvo = C - (C * nota) / 100;
+    anel.animate([{ strokeDashoffset: C }, { strokeDashoffset: alvo }], {
+      duration: 1600, easing: "cubic-bezier(.2,.8,.2,1)", fill: "both",
+    });
+    let inicio: number | null = null;
+    const passo = (t: number) => {
+      if (inicio === null) inicio = t;
+      const p = Math.min(1, (t - inicio) / 1600);
+      setMostrado(Math.round(nota * (1 - (1 - p) ** 3)));
+      if (p < 1) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  }, [nota, C]);
+
+  return (
+    <div className="anel">
+      <svg viewBox="0 0 184 184" role="img" aria-label={`Nota ${nota} de 100`}>
+        <circle className="anel-trilho" cx="92" cy="92" r="86" />
+        <circle ref={ref} className="anel-valor" cx="92" cy="92" r="86" strokeDasharray={C} strokeDashoffset={C - (C * nota) / 100} />
+      </svg>
+      <div className="anel-centro">
+        <span className="mono anel-nota">{mostrado}</span>
+        <span className="anel-veredito">Mediano</span>
+      </div>
+    </div>
+  );
+}
+
+function Result({ onRestart, onGravacao, url }: { onRestart: () => void; onGravacao: () => void; url: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [email, setEmail] = useState("seu e-mail");
+  const host = url || DEMO_STORE;
+  const primeiro = findings[0]!;
+
+  return (
+    <main className="resultado">
+      <div className="resultado-shell">
+        <div className="resultado-topo">
+          <span className="mono">{host} · auditoria de 1 de setembro</span>
+          <ShareButton />
+        </div>
+
+        <section className="nota-card">
+          <div className="nota-bloco">
+            <Anel nota={61} />
+            <span className="nota-legenda">Nota do checkout, de 0 a 100</span>
+          </div>
+          <div className="nota-copy">
+            <h1>Seu checkout perde gente em cinco pontos antes do pagamento. Três deles pesam.</h1>
+            <p>Comparado a 340 lojas do mesmo porte, você está no meio da tabela. Nenhum dos cinco achados exige trocar de plataforma.</p>
+          </div>
+        </section>
+
+        <section className="achado-aberto">
+          <div className="achado-meta">
+            <Severidade sev={primeiro.severity} />
+            <span>{primeiro.category} · achado 1 de {findings.length}</span>
+          </div>
+          <h2>{primeiro.title}.</h2>
+          <div className="achado-grid">
+            <div className="achado-texto">
+              <p>As formas de pagamento só aparecem na quarta tela, depois que o cliente já preencheu nome, CPF, endereço e escolheu o frete. Até ali, ninguém sabe se dá para pagar no Pix, em quantas vezes, ou se o cartão dele é aceito.</p>
+              <p className="fraco">Quem paga no Pix normalmente decide isso antes de digitar o CPF. Sem essa informação no carrinho, uma parte dessas pessoas fecha a aba achando que a loja só aceita cartão.</p>
+              <div className="achado-fazer">
+                <span className="achado-fazer-titulo">O que dá para fazer nesta semana</span>
+                <span>{primeiro.fix} É mudança de vitrine, não de gateway.</span>
+              </div>
+            </div>
+            <Evidencia host={host} />
+          </div>
+        </section>
+
+        {aberto ? (
+          <section className="abertos">
+            <div className="abertos-aviso">
+              <span className="abertos-ponto" />
+              <span>Mandamos o relatório completo para {email}. Chega em um minuto.</span>
+            </div>
+            {findings.slice(1).map((f) => (
+              <article className="achado-aberto" key={f.title}>
+                <div className="achado-meta">
+                  <Severidade sev={f.severity} />
+                  <span>{f.category}</span>
+                </div>
+                <h3>{f.title}</h3>
+                <p className="fraco">{f.body}</p>
+                <div className="achado-fix">{f.fix}</div>
+              </article>
+            ))}
+          </section>
+        ) : (
+          <section className="cobertos">
+            <div className="cobertos-topo">
+              <span>Faltam quatro achados</span>
+              <span className="mono">2 críticos · 2 de atenção</span>
+            </div>
+            {findings.slice(1).map((f) => <Tarja f={f} key={f.title} />)}
+            <Captura onAbrir={(e) => { setEmail(e); setAberto(true); }} />
+          </section>
+        )}
+
+        <div className="resultado-rodape">
+          <span>A auditoria não altera nada na sua loja. Só olha.</span>
+          <button type="button" className="botao-fino" onClick={onGravacao}>Ver a gravação</button>
+          <button type="button" className="botao-fino" onClick={onRestart}>Auditar outra loja</button>
+        </div>
+      </div>
     </main>
   );
 }
 
+/* As duas telas ruins. O LEIA-ME e explicito: elas nao podem parecer erro de
+   sistema. Sao informacao sobre a loja e sao tratadas como conteudo — por isso
+   o rotulo "achado, nao erro" e por isso o achado que ja existe continua
+   valendo mesmo quando a auditoria parou. */
 function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connection"; onRetry: () => void; onRestart: () => void }) {
-  const isWaf = type === "waf";
+  const bloqueio = type === "waf";
+  const feitas = bloqueio ? 3 : 5;
+
   return (
-    <main className="workspace-page exception-page">
-      <div className="workspace-topbar"><div><span className="info-pill">Análise interrompida</span><div><h1>{isWaf ? "A loja não deixou o robô entrar" : "Perdemos a conexão com a loja"}</h1><p>lojademonstracao.com.br</p></div></div><ShareButton /></div>
-      <div className="exception-layout">
-        <Navegador
-          url={`${DEMO_STORE}${isWaf ? "/serum-vitamina-c" : "/checkout"}`}
-          frozen
-          rodape={<><span className="rodape-estado"><span className="rodape-ponto" style={{ background: "#99979c" }} />sessão encerrada</span><span className="mono">1280 × 720</span></>}
-        >
-          <div className="slot-screencast">
-            <div className="slot-moldura" />
-            <span className="mono">frame do screencast · 1280 × 720</span>
+    <main className="erro-page">
+      <div className="erro-shell">
+        <section className="erro-card">
+          {!bloqueio && (
+            <div className="erro-fio" aria-hidden="true"><span /></div>
+          )}
+          <div className="erro-marca">
+            {bloqueio ? (
+              <>
+                <ShieldCheck size={15} aria-hidden="true" />
+                <span className="mono">achado, não erro</span>
+              </>
+            ) : (
+              <span className="mono">reconectando · tentativa 2 de 5</span>
+            )}
           </div>
-        </Navegador>
-        <section className="exception-content">
-          <div className="exception-icon">{isWaf ? <ShieldCheck size={29} /> : <WifiOff size={29} />}</div>
-          <p className="section-kicker">Isso também diz algo sobre a loja</p>
-          <h2>{isWaf ? "A proteção bloqueou uma visita que parecia automatizada." : "A página parou de responder durante o pagamento."}</h2>
-          <p>{isWaf ? "Algumas lojas usam uma barreira contra robôs. Ela protege contra abuso, mas também pode bloquear comparadores de preço, ferramentas de acessibilidade e outros acessos legítimos." : "O robô chegou até o checkout, mas a loja deixou de responder por mais de 20 segundos. Um cliente nessa situação provavelmente fecharia a página."}</p>
-          <div className="captured-data"><h3>O que conseguimos registrar</h3><div><span><Check size={14} /> Página inicial abriu normalmente</span><span>{isWaf ? <X size={14} /> : <Check size={14} />} {isWaf ? "Acesso ao produto foi negado" : "Produto e carrinho carregaram"}</span><span>{isWaf ? <Circle size={12} /> : <X size={14} />} {isWaf ? "Checkout não pôde ser testado" : "Checkout parou na etapa de pagamento"}</span></div></div>
-          <div className="exception-actions"><button className="primary-button" onClick={onRetry}><RefreshCw size={16} /> Tentar novamente</button><button className="secondary-button" onClick={onRestart}>Testar outro endereço</button></div>
-          <p className="support-note">Se a loja for sua, você pode liberar temporariamente o acesso do robô e repetir a análise.</p>
+          <h1>
+            {bloqueio
+              ? "Sua loja bloqueou nosso robô na terceira página."
+              : "Perdemos a conexão com a loja no meio do checkout."}
+          </h1>
+          <p className="fraco">
+            {bloqueio
+              ? "O sistema antifraude entendeu que a navegação era suspeita e cortou a sessão. Isso protege a loja, e também acontece com gente de verdade: cliente em rede corporativa, em VPN, ou que navega rápido demais."
+              : "Estamos voltando de onde paramos. Nada do que já foi encontrado se perde. Se a loja não responder em cinco tentativas, mandamos por e-mail o que deu para apurar."}
+          </p>
+          <p>
+            {bloqueio
+              ? "Vale olhar quantas sessões legítimas você está perdendo por dia nessa mesma regra."
+              : "Se isso acontece com a gente às oito da noite, também acontece com quem está pagando."}
+          </p>
+          <div className="erro-acoes">
+            <button type="button" className="pill-button" onClick={bloqueio ? onRestart : onRetry}>
+              <span>{bloqueio ? "Falar com alguém da Reborn" : "Ver o que já temos"}</span>
+              <span className="button-icon"><ArrowUpRight size={14} aria-hidden="true" /></span>
+            </button>
+            <button type="button" className="botao-fino" onClick={onRestart}>
+              {bloqueio ? "Tentar outro endereço" : "Cancelar"}
+            </button>
+          </div>
         </section>
+
+        <aside className="erro-lado">
+          <span className="mono erro-lado-titulo">
+            {bloqueio ? "o que deu tempo de ver" : `${feitas} de ${steps.length} concluídos`}
+          </span>
+          <div className="mono erro-etapas">
+            {steps.slice(0, bloqueio ? 4 : 7).map((s, i) => {
+              const ok = i < feitas;
+              const parada = !bloqueio && i === feitas;
+              return (
+                <span className={ok ? "" : parada ? "parada" : bloqueio ? "cortada" : "fila"} key={s.label}>
+                  {ok ? "✓" : parada ? "⏸" : bloqueio ? "✕" : "·"} {s.label} {ok ? `${s.seconds.toFixed(1)}s` : ""}
+                </span>
+              );
+            })}
+          </div>
+          {bloqueio ? (
+            <div className="erro-achado">
+              <Severidade sev={findings[0]!.severity} />
+              <span className="erro-achado-titulo">{findings[0]!.title}</span>
+              <span className="fraco">Esse achado é seu de qualquer forma. O link continua valendo.</span>
+            </div>
+          ) : (
+            <span className="fraco erro-nota">Três achados guardados. Você não perde nada esperando.</span>
+          )}
+        </aside>
       </div>
     </main>
   );
@@ -867,7 +1089,7 @@ function App() {
       <Header screen={screen} onNavigate={navigate} />
       {screen === "landing" && <><Landing onStart={start} /><Footer /></>}
       {screen === "running" && <Running url={storeUrl} onComplete={() => navigate("result")} />}
-      {screen === "result" && <Result onRestart={() => navigate("landing")} />}
+      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("landing")} url={storeUrl} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
     </div>
