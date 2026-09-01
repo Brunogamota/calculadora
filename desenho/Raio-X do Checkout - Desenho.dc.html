@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+    <rect width="400" height="300" fill="#16151A"></rect>
+    <circle cx="200" cy="150" r="52" fill="none" stroke="#3A383F" stroke-width="9"></circle>
+    <circle cx="200" cy="150" r="52" fill="none" stroke="#E8386A" stroke-width="9" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="127.4" transform="rotate(-90 200 150)"></circle>
+    <text x="200" y="163" text-anchor="middle" font-family="monospace" font-size="34" fill="#FFFFFF">61</text>
+  </svg>
+</template>
+<style>
+  body { margin: 0; background: #F4F3F1; font-family: 'Instrument Sans', system-ui, sans-serif; color: #16151A; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  input, button, select { font: inherit; }
+  a { color: #16151A; text-decoration-color: #c9c5be; }
+  a:hover { color: #E8386A; text-decoration-color: #E8386A; }
+  @keyframes rbSpin { to { transform: rotate(360deg); } }
+  @keyframes rbPulse { 0% { transform: scale(.4); opacity: .55; } 100% { transform: scale(1.9); opacity: 0; } }
+  @keyframes rbSkel { 0%,100% { opacity: .6; } 50% { opacity: 1; } }
+  @keyframes rbPhIn { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes rbShine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes rbHair { 0% { left: -22%; } 100% { left: 100%; } }
+  @keyframes rbGlow { 0%,100% { transform: scale(1); box-shadow: 0 0 18px rgba(232,56,106,.18); } 50% { transform: scale(1.1); box-shadow: 0 0 34px rgba(232,56,106,.34); } }
+  @keyframes rbSeek { 0% { left: 8%; top: 16%; } 22% { left: 42%; top: 58%; } 44% { left: 74%; top: 16%; } 66% { left: 26%; top: 58%; } 88%, 100% { left: 8%; top: 16%; } }
+  @property --rbA { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  [data-glow] { position: relative; }
+  [data-glow]::after {
+    content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px;
+    background: conic-gradient(from var(--rbA) at 50% 50%, rgba(232,56,106,0) 0deg, #E8386A 22deg, #E8386A 46deg, rgba(232,56,106,.5) 74deg, rgba(231,230,227,.4) 104deg, rgba(232,56,106,0) 140deg, rgba(232,56,106,0) 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: var(--rbGlow, 0); pointer-events: none;
+    transition: opacity .35s ease, --rbA 1.1s cubic-bezier(.16,1,.3,1);
+  }
+  [data-glow]:hover::after, [data-glow]:focus-visible::after { opacity: 1; }
+  [data-glow]:focus-visible { outline: none; }
+
+  @media (max-width: 900px) {
+    [data-bento] { grid-template-columns: 1fr 1fr !important; grid-template-areas: "loja produto" "carrinho checkout" "meios meios" "celular fatura" !important; }
+  }
+  @media (max-width: 560px) {
+    [data-bento] { grid-template-columns: 1fr !important; grid-template-areas: "loja" "produto" "carrinho" "checkout" "meios" "celular" "fatura" !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-glow]::after { display: none; }
+  }
+  [data-rbtn]:hover { padding-left: 56px !important; padding-right: 22px !important; }
+  [data-rbtn]:hover [data-rbtn-i] { right: calc(100% - 44px); }
+  [data-step-row]:last-child [data-step-conn] { display: none; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; flex-direction: column;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px clamp(16px, 4vw, 48px); border-bottom: 1px solid rgba(22,21,26,.07);">
+    <div onClick="{{ goHome }}" style="display: flex; align-items: center; gap: 9px; cursor: pointer;">
+      <div style="position: relative; display: grid; place-items: center; width: 25px; height: 25px; border: 7px solid #16151A; border-radius: 50%;">
+        <span style="position: absolute; top: -7px; right: -7px; width: 8px; height: 8px; border: 2px solid #F4F3F1; border-radius: 50%; background: #E8386A;"></span>
+      </div>
+      <span style="font-size: 20px; font-weight: 800; letter-spacing: -.75px;">reborn</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: clamp(14px, 3vw, 30px); font-size: 13px; font-weight: 600; color: #6E6B75;">
+      <a href="#verifica" style="text-decoration: none; color: inherit;">O que verificamos</a>
+      <a href="#quem" style="text-decoration: none; color: inherit;">Quem faz</a>
+      <a href="#topo" style="text-decoration: none; color: #16151A;">Entrar</a>
+    </div>
+  </header>
+
+  <!-- ============================ LANDING ============================ -->
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+    <main id="topo">
+      <section style="position: relative; min-height: calc(100dvh - 66px); display: flex; align-items: center; padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px) clamp(64px, 8vw, 96px);">
+        <div style="max-width: 940px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;">
+          <div style="display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 16px; border-radius: 999px; background: #edebe7; font-size: 13px; font-weight: 600;">
+            Auditoria gratuita, de 40 a 90 segundos
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+          </div>
+
+          <h1 style="margin: 0; font-size: clamp(34px, 6.4vw, 56px); line-height: 1.04; letter-spacing: -.035em; font-weight: 600;">
+            <span style="background: linear-gradient(110deg,#5c5a63,35%,#16151A,50%,#5c5a63,75%,#5c5a63); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: rbShine 2.6s linear infinite;">O robô compra na sua loja e acha</span>
+            <span style="position: relative; display: block; width: 100%; height: clamp(44px, 8vw, 70px); overflow: hidden;">
+              <sc-for list="{{ rotWords }}" as="w" hint-placeholder-count="5">
+                <span style="{{ w.style }}">{{ w.text }}</span>
+              </sc-for>
+            </span>
+          </h1>
+
+          <p style="margin: 0; max-width: 620px; font-size: clamp(15px, 2.2vw, 18px); line-height: 1.55; color: #6E6B75; text-wrap: pretty;">Ele abre a sua loja, escolhe um produto, coloca no carrinho e vai até a tela de pagamento. Você assiste. No fim, a gente diz onde a venda está se perdendo.</p>
+
+          <div style="position: relative; width: 100%; max-width: 660px; margin-top: 8px;">
+            <svg aria-hidden="true" style="position: absolute; width: 0; height: 0; pointer-events: none;">
+              <defs>
+                <filter id="rbGoo">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"></feGaussianBlur>
+                  <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -15" result="goo"></feColorMatrix>
+                  <feComposite in="SourceGraphic" in2="goo" operator="atop"></feComposite>
+                </filter>
+              </defs>
+            </svg>
+            <div style="display: flex; align-items: center; gap: 14px; filter: url(#rbGoo);">
+              <div style="{{ pillStyle }}">
+                <canvas ref="{{ canvasRef }}" style="{{ canvasStyle }}"></canvas>
+                <input ref="{{ inputRef }}" type="text" aria-label="endereço da sua loja" value="{{ url }}" onChange="{{ onUrl }}" onKeyDown="{{ onKey }}" onBlur="{{ onBlur }}" style="{{ pillInputStyle }}" />
+                <div aria-hidden="true" style="position: absolute; inset: 0; display: flex; align-items: center; padding-left: 26px; overflow: hidden; pointer-events: none;">{{ phNode }}</div>
+              </div>
+              <button type="button" aria-label="Auditar meu checkout" onClick="{{ start }}" style="{{ sendBtnStyle }}">
+                <sc-if value="{{ submitting }}" hint-placeholder-val="{{ false }}">
+                  <span style="width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: rbSpin .7s linear infinite;"></span>
+                </sc-if>
+                <sc-if value="{{ notSubmitting }}" hint-placeholder-val="{{ true }}">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 18l6-6"></path><path d="M13 6l6 6"></path></svg>
+                </sc-if>
+              </button>
+            </div>
+          </div>
+
+          <sc-if value="{{ invalid }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #E8386A;">
+              <span style="width: 5px; height: 5px; border-radius: 50%; background: #E8386A; display: inline-block;"></span>
+              <span>Não consegui ler esse endereço. Tenta assim: minhaloja.com.br</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ helperVisible }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size: 14px; color: #6E6B75;">{{ helper }}</div>
+          </sc-if>
+        </div>
+        <a href="#verifica" style="position: absolute; left: 50%; bottom: clamp(20px, 3vw, 34px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 7px; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .06em; color: #969398; text-decoration: none;">
+          <span>ROLE PARA VER O QUE ELE OLHA</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>
+        </a>
+      </section>
+
+      <section id="verifica" data-reveal="" style="will-change: transform, opacity; padding: clamp(48px, 7vw, 96px) clamp(16px, 4vw, 48px); background: #16151A;">
+        <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px;">
+          <div style="max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; text-align: center;">
+            <h2 style="margin: 0; font-size: clamp(28px, 4.6vw, 46px); line-height: 1.05; letter-spacing: -.04em; font-weight: 700; color: #ffffff;">O que o robô olha antes de te dar a nota</h2>
+            <p style="margin: 0; font-size: clamp(15px, 2.2vw, 17px); line-height: 1.6; color: #6E6B75; text-wrap: pretty;">Ele não lê o seu código nem pede acesso a nada. Faz o que um cliente faria, do lado de fora, e anota onde a compra fica difícil.</p>
+          </div>
+          <div data-bento="" style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-auto-rows: minmax(150px, auto); grid-template-areas: 'loja produto meios' 'carrinho checkout meios' 'celular fatura fatura'; gap: 14px;">
+            <div data-glow="" tabindex="0" style="grid-area: loja; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">01</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">A loja abre</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Plataforma, tema e quanto tempo passa até a vitrine aparecer de verdade.</span>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: produto; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">02</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">O produto</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Preço, parcelamento e o que está escrito sobre pagamento antes de qualquer clique.</span>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: meios; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #eeede9;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">05</span>
+              <span style="font-size: 22px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">Os meios de pagamento</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Quais existem, em que tela aparecem, e o que some quando a compra é no celular. Quase sempre o cliente decide como vai pagar antes da loja dizer o que aceita.</span>
+              <span style="align-self: flex-start; margin-top: 6px; display: inline-flex; align-items: center; height: 24px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #ffffff; background: #E8386A;">onde mora a maioria dos achados</span>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: carrinho; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">03</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">O carrinho</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Quantos cliques até ele montar, e o que a tela não conta sobre a compra.</span>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: checkout; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">04</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">O checkout</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Quantas telas, quantos campos, e em qual delas o cliente trava.</span>
+              <div style="display: flex; align-items: center; gap: 7px; margin-top: 6px;">
+                <span style="display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #E6E4E0; border-radius: 8px; background: #F4F3F1; font-family: 'Geist Mono', monospace; font-size: 12px; color: #6E6B75;">1</span>
+                <span style="color: #c4c2c6;">›</span>
+                <span style="display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #E6E4E0; border-radius: 8px; background: #F4F3F1; font-family: 'Geist Mono', monospace; font-size: 12px; color: #6E6B75;">2</span>
+                <span style="color: #c4c2c6;">›</span>
+                <span style="display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #E6E4E0; border-radius: 8px; background: #F4F3F1; font-family: 'Geist Mono', monospace; font-size: 12px; color: #6E6B75;">3</span>
+                <span style="color: #c4c2c6;">›</span>
+                <span style="display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #f0c9d5; border-radius: 8px; background: #fff1f5; font-family: 'Geist Mono', monospace; font-size: 12px; color: #b62952;">4</span>
+              </div>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: celular; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">06</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">O celular</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">A mesma compra num aparelho de verdade, do começo, em paralelo com o computador.</span>
+            </div>
+            <div data-glow="" tabindex="0" style="grid-area: fatura; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; border: 0; border-radius: 16px; background: #ffffff;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">07</span>
+              <span style="font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: #16151A;">A fatura</span>
+              <span style="font-size: 13.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">O nome que vai chegar no extrato de quem comprou de você, trinta dias depois. É o motivo mais comum de contestação em compra legítima.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section data-reveal="" style="will-change: transform, opacity; padding: clamp(48px, 6vw, 88px) clamp(16px, 4vw, 48px); border-top: 1px solid #E6E4E0;">
+        <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 24px; justify-content: space-between;">
+            <h2 style="margin: 0; max-width: 640px; font-size: clamp(26px, 4vw, 40px); line-height: 1.08; letter-spacing: -.04em; font-weight: 600;">O que a gente já encontrou em outras lojas</h2>
+            <p style="margin: 0; max-width: 320px; font-size: 14px; line-height: 1.7; color: #6E6B75;">Achados reais de auditorias recentes, sem o nome das lojas.</p>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+            <sc-for list="{{ proof }}" as="p" hint-placeholder-count="3">
+              <div style="display: flex; flex-direction: column; gap: 12px; padding: 26px 24px 28px; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+                <span style="{{ p.chipStyle }}">{{ p.chip }}</span>
+                <span style="font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; text-wrap: pretty;">{{ p.t }}</span>
+                <span style="font-size: 13.5px; line-height: 1.65; color: #6E6B75; text-wrap: pretty;">{{ p.d }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section id="quem" data-reveal="" style="will-change: transform, opacity; padding: clamp(40px, 6vw, 80px) clamp(16px, 4vw, 48px);">
+        <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 40px; padding: clamp(28px, 4vw, 56px); border: 1px solid #E6E4E0; border-radius: 24px 8px; background: #fff;">
+          <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 14px;">
+            <h2 style="margin: 0; font-size: clamp(24px, 3.4vw, 34px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600;">A Reborn cuida do que acontece depois que a venda é aprovada</h2>
+            <p style="margin: 0; font-size: 15.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Somos infraestrutura de pagamento. Aceitar o pagamento é a parte fácil: o problema começa na conciliação, na contestação, no repasse e no nome que aparece na fatura do seu cliente. Esta auditoria existe porque quase todo checkout perde venda antes de chegar lá.</p>
+          </div>
+          <div style="flex: 0 0 auto;">
+            <button type="button" data-rbtn="" style="position: relative; display: inline-flex; align-items: center; height: 52px; padding: 0 60px 0 22px; border: 0; border-radius: 999px; background: #16151A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; overflow: hidden; transition: padding .5s cubic-bezier(.4,0,.2,1);">
+              <span style="position: relative; z-index: 1; white-space: nowrap;">Falar com a Reborn</span>
+              <span data-rbtn-i="" style="position: absolute; right: 4px; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: #16151A; transition: right .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"></path><path d="M7 7h10v10"></path></svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </sc-if>
+
+  <!-- ============================ EXECUÇÃO ============================ -->
+  <sc-if value="{{ isRun }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; padding: clamp(16px, 3vw, 32px) clamp(12px, 3vw, 32px) 48px;">
+      <div style="max-width: 1320px; margin: 0 auto;">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; width: max-content; padding: 8px 13px; border: 1px solid #f0c9d5; border-radius: 999px; background: #fff1f5; color: #b62952; font-size: 11px; font-weight: 700;">
+              <span style="display: flex; width: 15px; height: 15px; animation: rbSpin 1s linear infinite;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg></span>
+              Análise em andamento
+            </div>
+            <div>
+              <h1 style="margin: 0 0 5px; font-size: clamp(20px, 3vw, 25px); font-weight: 700; letter-spacing: -.03em; background: linear-gradient(110deg,#5c5a63,35%,#16151A,50%,#5c5a63,75%,#5c5a63); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: rbShine 2.6s linear infinite;">Analisando seu checkout</h1>
+              <p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 10px; color: #6E6B75;">{{ host }}</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div ref="{{ clockRef }}" style="font-family: 'Geist Mono', monospace; font-size: 15px;">00:00</div>
+            <button type="button" onClick="{{ copyLink }}" style="height: 40px; padding: 0 15px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 11px; font-weight: 700; cursor: pointer;">{{ shareLabel }}</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;">
+          <section style="flex: 1 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+            <sc-if value="{{ reconnected }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 15px 18px; border: 1px solid #E6E4E0; border-radius: 12px; background: #fff;">
+                <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px;">
+                  <span style="font-size: 12.5px; font-weight: 700;">Voltamos. Você ficou 16 segundos sem imagem.</span>
+                  <span style="font-size: 11px; line-height: 1.55; color: #6E6B75;">Enquanto estávamos fora o robô continuou e encontrou mais um problema. Recuperamos os passos e o achado. As imagens desse intervalo não voltam.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                  <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #6E6B75;">00:22</span>
+                  <span style="width: 72px; height: 4px; border-radius: 2px; background: repeating-linear-gradient(115deg, #E8386A 0 4px, transparent 4px 8px);"></span>
+                  <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #6E6B75;">00:38</span>
+                </div>
+              </div>
+            </sc-if>
+            <div style="overflow: hidden; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+              <div style="position: relative; display: flex; height: 52px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #E6E4E0; background: #fff; overflow: hidden;">
+                <sc-if value="{{ frozen }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; top: 0; left: -22%; width: 22%; height: 2px; background: #E8386A; animation: rbHair 1.8s linear infinite;"></div>
+                </sc-if>
+                <div style="display: flex; align-items: center; gap: 14px; flex-shrink: 0;">
+                  <div style="display: flex; gap: 8px;">
+                    <i style="width: 12px; height: 12px; border-radius: 50%; background: #E6E4E0; display: block;"></i>
+                    <i style="width: 12px; height: 12px; border-radius: 50%; background: #E6E4E0; display: block;"></i>
+                    <i style="width: 12px; height: 12px; border-radius: 50%; background: #E6E4E0; display: block;"></i>
+                  </div>
+                  <span style="display: flex; align-items: center; gap: 12px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                  </span>
+                </div>
+                <div style="flex: 1 1 auto; min-width: 0; max-width: 440px; margin: 0 14px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px; border-radius: 7px; background: #E6E4E0; font-family: 'Geist Mono', monospace; font-size: 10px; color: #565656;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                  <span style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">{{ liveUrl }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; flex-shrink: 0;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"></path><path d="M8 8l4-4 4 4"></path><rect x="4" y="12" width="16" height="8" rx="2"></rect></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+                </div>
+              </div>
+
+              <div style="position: relative; height: clamp(300px, 46vw, 520px); overflow: hidden; background: #eceae7;">
+                <sc-if value="{{ waiting }}" hint-placeholder-val="{{ true }}">
+                  <div style="position: absolute; inset: 0; padding: 20px; background: linear-gradient(135deg, #fafafa, #f3f3f2);">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                      <sc-for list="{{ skelCards }}" as="k" hint-placeholder-count="6">
+                        <div style="padding: 11px; border-radius: 10px; background: #fff;">
+                          <div style="height: 86px; border-radius: 7px; background: #eceaea; animation: rbSkel 1.6s ease-in-out infinite;"></div>
+                          <div style="height: 7px; width: 72%; margin-top: 10px; border-radius: 4px; background: #eeecec; animation: rbSkel 1.6s ease-in-out infinite;"></div>
+                          <div style="height: 7px; width: 44%; margin-top: 7px; border-radius: 4px; background: #f2f0f0; animation: rbSkel 1.6s ease-in-out infinite;"></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="position: absolute; z-index: 3; pointer-events: none; animation: rbSeek 9s cubic-bezier(.4,0,.2,1) infinite;">
+                      <div style="display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: rgba(232,56,106,.14); animation: rbGlow 1.2s ease-in-out infinite;">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#E8386A" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-5-5"></path></svg>
+                      </div>
+                    </div>
+                    <div style="position: absolute; left: 20px; right: 20px; bottom: 18px; display: flex; align-items: center; gap: 9px; padding: 10px 13px; border: 1px solid #E6E4E0; border-radius: 9px; background: rgba(255,255,255,.94);">
+                      <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #E8386A; flex-shrink: 0; box-shadow: 0 0 0 4px rgba(232,56,106,.1);"></span>
+                      <span style="font-size: 11.5px; font-weight: 700; line-height: 1.4;">O robô já está na sua loja. A primeira imagem chega em alguns segundos.</span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ showFrame }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; font-family: 'Geist Mono', monospace; font-size: 10px; color: #9a979c;">
+                      <div style="width: 52px; height: 38px; border: 1px solid #cfccc8; border-radius: 3px;"></div>
+                      <span>frame do screencast · 1280 × 720</span>
+                    </div>
+                  </div>
+                  <div style="{{ cursorStyle }}">
+                    <div style="position: absolute; inset: -10px; border-radius: 50%; border: 1.5px solid #E8386A; animation: rbPulse 1.7s ease-out infinite;"></div>
+                    <svg width="17" height="21" viewBox="0 0 15 19" fill="none"><path d="M1 1L1 15.5L5 12L7.5 17.5L10 16.3L7.6 11.2L12.5 10.8L1 1Z" fill="#E8386A" stroke="#fff" stroke-width="1.1"></path></svg>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ frozen }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; left: 18px; top: 18px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #dddcd9; border-radius: 8px; background: rgba(255,255,255,.95);">
+                    <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #99979c;"></span>
+                    <span style="font-size: 10.5px; font-weight: 700;">Imagem parada há {{ frozenFor }}</span>
+                  </div>
+                  <div style="position: absolute; left: 18px; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 11px; padding: 12px 15px; border: 1px solid #E6E4E0; border-radius: 10px; background: #fff; box-shadow: 0 6px 20px rgba(22,21,26,.06);">
+                    <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #E8386A; flex-shrink: 0; box-shadow: 0 0 0 4px rgba(232,56,106,.1);"></span>
+                    <span style="flex: 1; font-size: 11.5px; font-weight: 700;">A imagem parou, a leitura não. O robô está {{ currentLabel }} agora.</span>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="display: flex; height: 35px; align-items: center; justify-content: space-between; padding: 0 15px; border-top: 1px solid #E6E4E0; background: #fff; color: #6E6B75; font-size: 8px;">
+                <span style="display: flex; align-items: center; gap: 6px;"><span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: {{ dotColor }};"></span> {{ streamLabel }}</span>
+                <span style="font-family: 'Geist Mono', monospace;">1280 × 720</span>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; gap: 16px; padding: 0 3px; color: #6E6B75; font-size: 9px;">
+              <span>O robô está navegando como um cliente comum. Frame perdido é frame perdido.</span>
+            </div>
+          </section>
+
+          <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+            <div style="overflow: hidden; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+              <div style="display: flex; min-height: 47px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #ecebe8; font-size: 10px; font-weight: 700;">
+                <span>Etapas da análise</span><span style="color: #969499; font-family: 'Geist Mono', monospace; font-size: 9px; font-weight: 400;">{{ stepCount }}</span>
+              </div>
+              <div style="padding: 14px 16px 4px;">
+                <div style="position: relative; height: 8px; overflow: hidden; border-radius: 999px; background: rgba(232,56,106,.2);">
+                  <div style="{{ progressStyle }}"></div>
+                </div>
+              </div>
+              <div style="padding: 16px 0 6px;">
+                <sc-for list="{{ steps }}" as="s" hint-placeholder-count="7">
+                  <div data-step-row="" style="display: flex; gap: 13px; padding: 0 16px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
+                      <div style="{{ s.dotStyle }}">
+                        <sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                        </sc-if>
+                        <sc-if value="{{ s.now }}" hint-placeholder-val="{{ true }}">
+                          <span style="display: block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: rbSpin .8s linear infinite;"></span>
+                        </sc-if>
+                        <sc-if value="{{ s.wait }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #969499;">{{ s.n }}</span>
+                        </sc-if>
+                      </div>
+                      <div data-step-conn="" style="{{ s.connStyle }}"></div>
+                    </div>
+                    <div style="{{ s.textStyle }}">
+                      <div>
+                        <h3 style="margin: 0; font-size: 11px; font-weight: 700;">{{ s.label }}</h3>
+                      </div>
+                      <span style="flex-shrink: 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">{{ s.time }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="overflow: hidden; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+              <div style="display: flex; min-height: 47px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #ecebe8; font-size: 10px; font-weight: 700;">
+                <span>Já encontramos</span><span style="color: #969499; font-family: 'Geist Mono', monospace; font-size: 9px; font-weight: 400;">{{ foundCount }}</span>
+              </div>
+              <sc-if value="{{ noFindings }}" hint-placeholder-val="{{ true }}">
+                <div style="padding: 22px 16px; font-size: 11px; line-height: 1.6; color: #6E6B75;">Nada ainda. Os primeiros achados costumam aparecer quando o robô chega no carrinho.</div>
+              </sc-if>
+              <sc-for list="{{ liveFindings }}" as="f" hint-placeholder-count="0">
+                <div style="padding: 16px; border-bottom: 1px solid #ecebe8;">
+                  <span style="{{ f.chipStyle }}">{{ f.chip }}</span>
+                  <h4 style="margin: 9px 0 6px; font-size: 12px; font-weight: 700; line-height: 1.35;">{{ f.title }}</h4>
+                  <p style="margin: 0; color: #6E6B75; font-size: 9.5px; line-height: 1.55;">{{ f.short }}</p>
+                </div>
+              </sc-for>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ============================ WAF ============================ -->
+  <sc-if value="{{ isWaf }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; display: flex; align-items: center; padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px);">
+      <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch;">
+        <div style="flex: 1 1 520px; display: flex; flex-direction: column; gap: 16px; padding: clamp(28px, 4vw, 48px); border: 1px solid #E6E4E0; border-radius: 7px 22px; background: #fff;">
+          <div style="display: flex; align-items: center; gap: 9px;">
+            <span style="display: flex; color: #E8386A;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></span>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #E8386A;">achado, não erro</span>
+          </div>
+          <h1 style="margin: 0; font-size: clamp(24px, 4vw, 38px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600; text-wrap: pretty;">Sua loja bloqueou nosso robô na terceira página.</h1>
+          <p style="margin: 0; font-size: 15.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">O sistema antifraude entendeu que a navegação era suspeita e cortou a sessão. Isso protege a loja, e também acontece com gente de verdade: cliente em rede corporativa, em VPN, ou que navega rápido demais.</p>
+          <p style="margin: 0; font-size: 15.5px; line-height: 1.7;">Vale olhar quantas sessões legítimas você está perdendo por dia nessa mesma regra.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
+            <button type="button" data-rbtn="" style="position: relative; display: inline-flex; align-items: center; height: 48px; padding: 0 56px 0 22px; border: 0; border-radius: 999px; background: #16151A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; overflow: hidden; transition: padding .5s cubic-bezier(.4,0,.2,1);">
+              <span style="position: relative; z-index: 1; white-space: nowrap;">Falar com alguém da Reborn</span>
+              <span data-rbtn-i="" style="position: absolute; right: 4px; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #fff; color: #16151A; transition: right .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"></path><path d="M7 7h10v10"></path></svg>
+              </span>
+            </button>
+            <button type="button" onClick="{{ goHome }}" style="height: 48px; padding: 0 22px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">Tentar outro endereço</button>
+          </div>
+        </div>
+        <div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+          <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">o que deu tempo de ver</span>
+          <div style="display: flex; flex-direction: column; gap: 7px; font-family: 'Geist Mono', monospace; font-size: 12px; color: #a1a0a6;">
+            <span>✓ identificando a loja 5.2s</span>
+            <span>✓ abrindo um produto 3.8s</span>
+            <span>✓ adicionando ao carrinho 4.1s</span>
+            <span style="color: #E8386A;">✕ indo pro checkout</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid #E6E4E0; border-radius: 10px;">
+            <span style="align-self: flex-start; display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #ffffff; background: #E8386A;">Crítico</span>
+            <span style="font-size: 13px; font-weight: 700; line-height: 1.35;">Quem chega no carrinho ainda não sabe se você aceita Pix</span>
+          </div>
+          <span style="font-size: 12.5px; line-height: 1.6; color: #6E6B75;">Esse achado é seu de qualquer forma. O link continua valendo.</span>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ============================ QUEDA DE CONEXÃO ============================ -->
+  <sc-if value="{{ isDrop }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; display: flex; align-items: center; padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px);">
+      <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch;">
+        <div style="flex: 1 1 520px; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 16px; padding: clamp(28px, 4vw, 48px); border: 1px solid #E6E4E0; border-radius: 7px 22px; background: #fff;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #F4F3F1; overflow: hidden;">
+            <div style="width: 30%; height: 100%; background: #E8386A; animation: rbHair 1.6s ease-in-out infinite;"></div>
+          </div>
+          <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #6E6B75;">reconectando · tentativa 2 de 5</span>
+          <h1 style="margin: 0; font-size: clamp(24px, 4vw, 38px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600; text-wrap: pretty;">Perdemos a conexão com a loja no meio do checkout.</h1>
+          <p style="margin: 0; font-size: 15.5px; line-height: 1.7; color: #6E6B75; text-wrap: pretty;">Estamos voltando de onde paramos. Nada do que já foi encontrado se perde. Se a loja não responder em cinco tentativas, mandamos por e-mail o que deu para apurar.</p>
+          <p style="margin: 0; font-size: 15.5px; line-height: 1.7;">Se isso acontece com a gente às oito da noite, também acontece com quem está pagando.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
+            <button type="button" onClick="{{ goResult }}" style="height: 48px; padding: 0 22px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">Ver o que já temos</button>
+            <button type="button" onClick="{{ goHome }}" style="height: 48px; padding: 0 22px; border: 0; border-radius: 999px; background: transparent; font-size: 14px; color: #6E6B75; cursor: pointer;">Cancelar</button>
+          </div>
+        </div>
+        <div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+          <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">5 de 7 concluídos</span>
+          <div style="display: flex; flex-direction: column; gap: 7px; font-family: 'Geist Mono', monospace; font-size: 12px; color: #a1a0a6;">
+            <span>✓ identificando a loja 5.2s</span>
+            <span>✓ abrindo um produto 3.8s</span>
+            <span>✓ adicionando ao carrinho 4.1s</span>
+            <span>✓ indo pro checkout 6.4s</span>
+            <span>✓ meios de pagamento 8.7s</span>
+            <span style="color: #16151A;">⏸ repetindo no celular</span>
+            <span>· montando o relatório</span>
+          </div>
+          <span style="font-size: 12.5px; line-height: 1.6; color: #6E6B75;">Três achados guardados. Você não perde nada esperando.</span>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ============================ GRAVAÇÃO ============================ -->
+  <sc-if value="{{ isRec }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; padding: clamp(24px, 4vw, 48px) clamp(16px, 4vw, 48px) 64px;">
+      <div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;">
+          <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">{{ host }} · gravação da auditoria</span>
+          <button type="button" onClick="{{ goResult }}" style="height: 38px; padding: 0 15px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 11px; font-weight: 700; cursor: pointer;">Voltar ao resultado</button>
+        </div>
+
+        <div style="overflow: hidden; border: 1px solid #E6E4E0; border-radius: 14px; background: #fff;">
+          <div style="position: relative; height: clamp(240px, 46vw, 540px); background: #16151A;">
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">
+                <div style="width: 56px; height: 40px; border: 1px solid #3a383f; border-radius: 4px;"></div>
+                <span>gravação do screencast · 1280 × 720</span>
+              </div>
+            </div>
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+              <div style="display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; background: rgba(255,255,255,.16); cursor: pointer;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5z"></path></svg>
+              </div>
+            </div>
+            <div style="position: absolute; left: 18px; top: 18px; display: flex; align-items: center; gap: 9px; padding: 8px 13px; border-radius: 999px; background: rgba(0,0,0,.42);">
+              <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #E8386A;"></span>
+              <span style="font-size: 12px; font-weight: 600; color: #fff;">{{ host }}</span>
+            </div>
+            <div style="position: absolute; left: 18px; bottom: 18px; padding: 6px 12px; border-radius: 999px; background: rgba(0,0,0,.35); font-size: 12px; color: #cfccd4;">Pausado</div>
+          </div>
+
+          <div style="padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="position: relative; height: 26px;">
+              <div style="position: absolute; left: 0; right: 0; top: 10px; height: 6px; border-radius: 999px; background: #E6E4E0;"></div>
+              <sc-for list="{{ recTicks }}" as="t" hint-placeholder-count="6">
+                <div style="{{ t.style }}"></div>
+              </sc-for>
+              <sc-for list="{{ recPins }}" as="p" hint-placeholder-count="5">
+                <div style="{{ p.style }}"></div>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #16151A; cursor: pointer;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5z"></path></svg>
+                </div>
+                <span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: #6E6B75;">00:00 / 01:12</span>
+                <span style="width: 1px; height: 18px; background: #E6E4E0;"></span>
+                <span style="font-size: 13px; color: #6E6B75;">5 achados marcados em rosa</span>
+              </div>
+              <button type="button" onClick="{{ copyLink }}" style="height: 34px; padding: 0 14px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">{{ shareLabel }}</button>
+            </div>
+          </div>
+        </div>
+        <p style="margin: 0; padding: 0 4px; font-size: 12.5px; color: #6E6B75;">Clicar num alfinete rosa pula para o segundo em que o robô encontrou aquele problema.</p>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ============================ RESULTADO ============================ -->
+  <sc-if value="{{ isResult }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; padding: clamp(24px, 4vw, 56px) clamp(16px, 4vw, 48px) 64px;">
+      <div style="max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
+          <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">{{ host }} · auditoria de {{ today }}</span>
+          <button type="button" onClick="{{ copyLink }}" style="height: 38px; padding: 0 15px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 11px; font-weight: 700; cursor: pointer;">{{ shareLabel }}</button>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: clamp(24px, 4vw, 48px); padding: clamp(26px, 4vw, 44px); border: 1px solid #E6E4E0; border-radius: 22px 7px; background: #fff;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; flex-shrink: 0;">
+            <div style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 184px; height: 184px;">
+              <svg style="position: absolute; inset: 0; transform: rotate(-90deg);" width="184" height="184" viewBox="0 0 184 184" role="img" aria-label="Nota 61 de 100">
+                <circle cx="92" cy="92" r="86" stroke="#e4e2de" stroke-width="12" fill="none" stroke-dasharray="7 11" stroke-linecap="round"></circle>
+                <circle data-gauge="" cx="92" cy="92" r="86" stroke="#E8386A" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="540.35" stroke-dashoffset="210.74"></circle>
+              </svg>
+              <div style="position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center;">
+                <span data-score="61" style="font-family: 'Geist Mono', monospace; font-size: 46px; line-height: 1; letter-spacing: -.04em; font-weight: 500; color: #E8386A;">61</span>
+                <span style="margin-top: 4px; font-size: 17px; font-weight: 600; color: #6E6B75;">Mediano</span>
+              </div>
+            </div>
+            <span style="font-size: 13px; color: #6E6B75;">Nota do checkout, de 0 a 100</span>
+          </div>
+          <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 10px;">
+            <h1 style="margin: 0; font-size: clamp(21px, 3.2vw, 28px); line-height: 1.25; letter-spacing: -.025em; font-weight: 600; text-wrap: pretty;">Seu checkout perde gente em cinco pontos antes do pagamento. Três deles pesam.</h1>
+            <p style="margin: 0; font-size: 15px; line-height: 1.65; color: #6E6B75; text-wrap: pretty;">Comparado a 340 lojas do mesmo porte, você está no meio da tabela. Nenhum dos cinco achados exige trocar de plataforma.</p>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px; padding: clamp(24px, 4vw, 40px); border: 1px solid #E6E4E0; border-radius: 8px; background: #fff;">
+          <div style="display: flex; align-items: center; gap: 11px;">
+            <span style="display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: #ffffff; background: #E8386A;">Crítico</span>
+            <span style="font-size: 13.5px; color: #6E6B75;">Pagamento · achado 1 de 5</span>
+          </div>
+          <h2 style="margin: 0; max-width: 720px; font-size: clamp(22px, 3.4vw, 31px); line-height: 1.18; letter-spacing: -.028em; font-weight: 600; text-wrap: pretty;">Quem chega no carrinho ainda não sabe se você aceita Pix.</h2>
+          <div style="display: flex; flex-wrap: wrap; gap: clamp(24px, 4vw, 40px);">
+            <div style="flex: 1 1 340px; display: flex; flex-direction: column; gap: 14px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.65; text-wrap: pretty;">As formas de pagamento só aparecem na quarta tela, depois que o cliente já preencheu nome, CPF, endereço e escolheu o frete. Até ali, ninguém sabe se dá para pagar no Pix, em quantas vezes, ou se o cartão dele é aceito.</p>
+              <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #6E6B75; text-wrap: pretty;">Quem paga no Pix normalmente decide isso antes de digitar o CPF. Sem essa informação no carrinho, uma parte dessas pessoas fecha a aba achando que a loja só aceita cartão.</p>
+              <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid #E6E4E0;">
+                <span style="font-size: 14.5px; font-weight: 700;">O que dá para fazer nesta semana</span>
+                <span style="font-size: 15px; line-height: 1.6; color: #6E6B75;">Colocar os selos de Pix, boleto e bandeiras dentro do carrinho, ao lado do botão de finalizar. É mudança de vitrine, não de gateway.</span>
+              </div>
+            </div>
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 8px;">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #6E6B75;">o que o robô viu · carrinho</span>
+              <div style="overflow: hidden; border: 1px solid #E6E4E0; border-radius: 10px; background: #fff;">
+                <div style="padding: 8px 10px; border-bottom: 1px solid #E6E4E0; background: #faf9f8; font-family: 'Geist Mono', monospace; font-size: 10px; color: #6E6B75;">{{ host }}/carrinho</div>
+                <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+                  <div style="display: flex; gap: 12px;">
+                    <div style="width: 62px; height: 62px; border-radius: 4px; background: #edebe7;"></div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                      <span style="font-size: 12px;">Sérum de vitamina C 30ml</span>
+                      <span style="font-size: 12px; color: #6E6B75;">R$ 149,00</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid #f1efec; font-size: 12px;"><span>Total</span><span>R$ 149,00</span></div>
+                  <div style="height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #5a6b57; font-size: 12px; color: #fff;">Finalizar compra</div>
+                  <div style="height: 30px; display: flex; align-items: center; justify-content: center; border: 1px dashed #E8386A; border-radius: 4px; font-size: 11px; color: #E8386A;">nenhuma forma de pagamento nesta tela</div>
+                </div>
+              </div>
+              <span style="font-size: 12.5px; line-height: 1.55; color: #6E6B75;">Captura feita durante a auditoria, no navegador desktop.</span>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ locked }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 4px;">
+              <span style="font-size: 16px; font-weight: 700;">Faltam quatro achados</span>
+              <span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: #6E6B75;">2 críticos · 2 de atenção</span>
+            </div>
+            <sc-for list="{{ lockedFindings }}" as="f" hint-placeholder-count="4">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px; padding: 22px 26px; border: 1px solid #E6E4E0; border-radius: 8px; background: #fff;">
+                <div style="display: flex; align-items: center; gap: 11px; width: 190px; flex-shrink: 0;">
+                  <span style="{{ f.chipStyle }}">{{ f.chip }}</span>
+                  <span style="font-size: 14px; color: #6E6B75;">{{ f.cat }}</span>
+                </div>
+                <div style="flex: 1 1 200px; display: flex; flex-wrap: wrap; gap: 7px 9px; align-items: center;">
+                  <sc-for list="{{ f.words }}" as="w" hint-placeholder-count="8">
+                    <span style="{{ w.style }}"></span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+
+            <div style="display: flex; flex-wrap: wrap; gap: clamp(24px, 4vw, 44px); align-items: center; padding: clamp(26px, 4vw, 40px); border-radius: 8px; background: #16151A;">
+              <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 10px;">
+                <span style="font-size: clamp(20px, 3vw, 26px); line-height: 1.2; letter-spacing: -.022em; font-weight: 600; color: #fff; text-wrap: pretty;">{{ capTitle }}</span>
+                <span style="font-size: 15px; line-height: 1.6; color: #a19ea8; text-wrap: pretty;">{{ capSub }}</span>
+              </div>
+              <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 14px;">
+                <sc-if value="{{ capIsField }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 8px 0 20px; border-radius: 999px; background: #fff;">
+                    <input type="text" aria-label="{{ capPlaceholder }}" value="{{ capValue }}" onChange="{{ onCap }}" onKeyDown="{{ onCapKey }}" placeholder="{{ capPlaceholder }}" style="flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 16px;" />
+                    <sc-if value="{{ capValid }}" hint-placeholder-val="{{ false }}">
+                      <button type="button" aria-label="Continuar" onClick="{{ capNext }}" style="display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; border: 0; border-radius: 50%; background: #E8386A; cursor: pointer;">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                      </button>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ capIsChoice }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                    <sc-for list="{{ faixas }}" as="f" hint-placeholder-count="4">
+                      <button type="button" onClick="{{ f.pick }}" style="height: 54px; padding: 0 16px; border: 1px solid #3a383f; border-radius: 999px; background: transparent; font-size: 14px; color: #fff; cursor: pointer;">{{ f.label }}</button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                  <sc-if value="{{ capCanBack }}" hint-placeholder-val="{{ false }}">
+                    <button type="button" onClick="{{ capBack }}" style="display: flex; align-items: center; gap: 7px; padding: 0; border: 0; background: transparent; font-size: 13.5px; color: #a19ea8; cursor: pointer;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"></path></svg>
+                      Voltar
+                    </button>
+                  </sc-if>
+                  <div style="display: flex; align-items: center; gap: 9px; margin-left: auto;">
+                    <sc-for list="{{ capDots }}" as="d" hint-placeholder-count="4">
+                      <span style="{{ d.style }}"></span>
+                    </sc-for>
+                    <span style="margin-left: 4px; font-family: 'Geist Mono', monospace; font-size: 12px; color: #6E6B75;">{{ capCount }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ unlocked }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 15px 18px; border: 1px solid #E6E4E0; border-radius: 8px; background: #fff;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: #16151A; display: inline-block;"></span>
+              <span style="font-size: 15px;">Mandamos o relatório completo para {{ emailShown }}. Chega em um minuto.</span>
+            </div>
+            <sc-for list="{{ openFindings }}" as="f" hint-placeholder-count="4">
+              <div style="display: flex; flex-direction: column; gap: 14px; padding: clamp(22px, 3vw, 32px); border: 1px solid #E6E4E0; border-radius: 8px; background: #fff;">
+                <div style="display: flex; align-items: center; gap: 11px;">
+                  <span style="{{ f.chipStyle }}">{{ f.chip }}</span>
+                  <span style="font-size: 14px; color: #6E6B75;">{{ f.cat }}</span>
+                </div>
+                <h3 style="margin: 0; max-width: 760px; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.2; letter-spacing: -.02em; font-weight: 600; text-wrap: pretty;">{{ f.title }}</h3>
+                <p style="margin: 0; max-width: 800px; font-size: 16px; line-height: 1.65; color: #6E6B75; text-wrap: pretty;">{{ f.body }}</p>
+                <div style="max-width: 800px; padding-top: 13px; border-top: 1px solid #E6E4E0; font-size: 15px; line-height: 1.6;">{{ f.fix }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 26px 4px 0; color: #6E6B75; font-size: 12.5px;">
+          <span>A auditoria não altera nada na sua loja. Só olha.</span>
+          <button type="button" onClick="{{ goRec }}" style="height: 42px; padding: 0 18px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 13px; font-weight: 700; cursor: pointer;">Ver a gravação</button>
+          <button type="button" onClick="{{ goHome }}" style="height: 42px; padding: 0 18px; border: 1px solid #E6E4E0; border-radius: 999px; background: #fff; font-size: 13px; font-weight: 700; cursor: pointer;">Auditar outra loja</button>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <footer style="padding: 32px clamp(16px, 4vw, 48px); border-top: 1px solid #E6E4E0;">
+    <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;">
+      <p style="margin: 0; max-width: 330px; font-size: 11.5px; line-height: 1.65; color: #6E6B75;">Reborn · infraestrutura de pagamento. A auditoria é gratuita e não altera nada na sua loja.</p>
+      <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #a1a0a6;">reborn.io</span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const STEPS = [
+  { label: 'identificando a loja', dur: 5.2, path: '' },
+  { label: 'abrindo um produto', dur: 3.8, path: '/serum-vitamina-c' },
+  { label: 'adicionando ao carrinho', dur: 4.1, path: '/carrinho' },
+  { label: 'indo pro checkout', dur: 6.4, path: '/checkout' },
+  { label: 'lendo os meios de pagamento', dur: 8.7, path: '/checkout/pagamento' },
+  { label: 'repetindo no celular', dur: 11.2, path: '/checkout/pagamento' },
+  { label: 'montando o relatório', dur: 2.9, path: '/checkout/pagamento' }
+];
+
+const CURSORS = [[46, 30], [30, 62], [72, 74], [64, 86], [38, 52], [82, 40], [50, 50]];
+
+const FINDINGS = [
+  { sev: 'alta', cat: 'Pagamento', at: 2, title: 'Quem chega no carrinho ainda não sabe se você aceita Pix',
+    short: 'As formas de pagamento só aparecem na quarta tela.',
+    body: 'As formas de pagamento só aparecem na quarta tela, depois de nome, CPF, endereço e frete. Até ali ninguém sabe se dá para pagar no Pix ou em quantas vezes.',
+    fix: 'Colocar os selos de Pix, boleto e bandeiras dentro do carrinho, ao lado do botão de finalizar.' },
+  { sev: 'média', cat: 'Parcelamento', at: 4, title: 'O parcelamento aparece sem dizer o valor da parcela',
+    short: 'A loja mostra "em até 12x" e não diz quanto é cada uma.',
+    body: 'A loja mostra "em até 12x sem juros" e não diz quanto é cada parcela. Quem compra parcelado faz essa conta de cabeça antes de decidir, e num produto de R$ 149 a diferença entre 12x e 6x muda a decisão.',
+    fix: 'Mostrar "12x de R$ 12,42" no produto e no carrinho, não só na tela de pagamento.' },
+  { sev: 'alta', cat: 'Pix', at: 4, title: 'O desconto do Pix só aparece na última tela',
+    short: 'O cliente escolhe cartão antes de saber que pagaria menos no Pix.',
+    body: 'A loja dá 12% no Pix, mas isso só aparece depois que o cliente já escolheu cartão. Quem digitou o número do cartão raramente volta para trocar, e você paga a taxa de cartão numa venda que teria saído no Pix.',
+    fix: 'Mostrar o preço no Pix junto do preço parcelado, desde a página do produto.' },
+  { sev: 'alta', cat: 'Celular', at: 5, title: 'Quem compra pelo celular passa por três telas a mais',
+    short: 'Quatro passos no computador, sete no celular.',
+    body: 'No computador são quatro passos até pagar. No celular são sete, porque endereço e frete viram telas separadas e o teclado cobre o botão de continuar em duas delas. Metade das suas visitas vem do celular.',
+    fix: 'Juntar endereço e frete numa tela só e fixar o botão de continuar acima do teclado.' },
+  { sev: 'média', cat: 'Fatura', at: 6, title: 'A fatura do seu cliente não vai dizer o nome da sua loja',
+    short: 'Vai aparecer um código do gateway, não a sua marca.',
+    body: 'Na fatura aparece o descritor do gateway, não o nome da loja. Trinta dias depois o cliente não reconhece a compra e contesta. Esse é o motivo mais comum de contestação em compra legítima, e cada uma custa a venda mais a taxa.',
+    fix: 'Trocar o descritor no painel do gateway para o nome da loja. Leva dez minutos e vale para todas as vendas.' }
+];
+
+const CHECKS = [
+  { n: '01', t: 'A loja abre', d: 'Plataforma, tema e tempo até a vitrine aparecer.' },
+  { n: '02', t: 'O produto', d: 'Preço, parcelamento e o que está escrito sobre pagamento.' },
+  { n: '03', t: 'O carrinho', d: 'Quantos cliques, quanto de informação, e o que falta ali.' },
+  { n: '04', t: 'O checkout', d: 'Quantas telas, quantos campos, e onde o cliente trava.' },
+  { n: '05', t: 'Os meios de pagamento', d: 'Quais existem, quando aparecem, e o que some no celular.' },
+  { n: '06', t: 'O celular', d: 'A mesma compra num aparelho de verdade, do começo.' },
+  { n: '07', t: 'A fatura', d: 'O nome que vai chegar no extrato de quem comprou.' }
+];
+
+const PROOF = [
+  { sev: 'crítico', t: 'Nove toques até pagar, no celular', d: 'Loja de moda, R$ 1,2 milhão por mês. No computador eram quatro.' },
+  { sev: 'crítico', t: 'O Pix aparecia depois do cartão', d: 'Suplementos. A loja pagava taxa de cartão em venda que sairia no Pix.' },
+  { sev: 'atenção', t: 'A fatura dizia o nome do gateway', d: 'Pet shop. Um em cada onze pedidos virava contestação de compra legítima.' }
+];
+
+class Component extends DCLogic {
+  state = { screen: 'landing', url: '', touched: false, submitting: false, stage: 0, capStep: 0, unlocked: false, copied: false, ph: 0, rot: 0 };
+
+  canvasRef = React.createRef();
+  inputRef = React.createRef();
+  clockRef = React.createRef();
+  elapsed = 0;
+  scale = 0.62;
+
+  placeholders = ['casaverde.com.br', 'minhaloja.com.br', 'lojinhadabia.com', 'suamarca.com.br/loja'];
+  rotList = ['o Pix escondido no fim', 'o parcelamento sem valor', 'os toques a mais no celular', 'a fatura sem o seu nome', 'o frete que só aparece depois'];
+
+  onTouch = (ev) => {
+    const t = ev.touches && ev.touches[0];
+    if (t) this.onPointer({ clientX: t.clientX, clientY: t.clientY });
+  };
+
+  onFocusIn = (ev) => {
+    const el = ev.target && ev.target.closest && ev.target.closest('[data-glow]');
+    if (!el || this.reduced) return;
+    const cur = parseFloat(el.dataset.angle || '0');
+    el.dataset.angle = String(cur + 300);
+    el.style.setProperty('--rbA', (cur + 300).toFixed(1) + 'deg');
+  };
+
+  onPointer = (ev) => {
+    if (this.reduced) return;
+    const cards = document.querySelectorAll('[data-glow]');
+    const prox = 90;
+    for (let i = 0; i < cards.length; i++) {
+      const el = cards[i];
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const near = ev.clientX > r.left - prox && ev.clientX < r.right + prox && ev.clientY > r.top - prox && ev.clientY < r.bottom + prox;
+      if (!near) { el.style.setProperty('--rbGlow', '0'); continue; }
+      el.style.setProperty('--rbGlow', '1');
+      const target = (180 * Math.atan2(ev.clientY - cy, ev.clientX - cx)) / Math.PI + 90;
+      const current = parseFloat(el.dataset.angle || '0');
+      const diff = ((target - current + 180) % 360) - 180;
+      const next = current + diff;
+      el.dataset.angle = String(next);
+      el.style.setProperty('--rbA', next.toFixed(1) + 'deg');
+    }
+  };
+
+  reveal = () => {
+    const vh = window.innerHeight || 800;
+    const nodes = document.querySelectorAll('[data-reveal]');
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      const r = el.getBoundingClientRect();
+      const p = Math.max(0, Math.min(1, (vh - r.top) / (vh * 0.72)));
+      const eased = 1 - Math.pow(1 - p, 3);
+      if (eased > 0.995) {
+        el.style.transform = '';
+        el.style.opacity = '';
+        el.style.borderRadius = '';
+        el.style.overflow = '';
+      } else {
+        el.style.transform = 'scale(' + (0.94 + 0.06 * eased).toFixed(4) + ')';
+        el.style.opacity = String((0.45 + 0.55 * eased).toFixed(3));
+        el.style.borderRadius = (28 - 28 * eased).toFixed(1) + 'px';
+        el.style.overflow = 'hidden';
+      }
+    }
+  };
+
+  componentDidMount() {
+    this.tick = setInterval(() => this.advance(), 100);
+    this.reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!this.reduced) {
+      document.addEventListener('pointermove', this.onPointer, { passive: true });
+      document.addEventListener('touchmove', this.onTouch, { passive: true });
+      document.addEventListener('focusin', this.onFocusIn);
+    }
+    window.addEventListener('scroll', this.reveal, { passive: true });
+    window.addEventListener('resize', this.reveal);
+    this.reveal();
+    this.revealTick = setInterval(this.reveal, 500);
+    this.phTick = setInterval(() => this.setState(s => ({ ph: (s.ph + 1) % this.placeholders.length })), 3000);
+    this.rotTick = setInterval(() => this.setState(s => ({ rot: (s.rot + 1) % this.rotList.length })), 2200);
+  }
+  componentWillUnmount() {
+    clearInterval(this.tick); clearInterval(this.phTick); clearInterval(this.rotTick); clearInterval(this.revealTick);
+    document.removeEventListener('pointermove', this.onPointer);
+    document.removeEventListener('touchmove', this.onTouch);
+    document.removeEventListener('focusin', this.onFocusIn);
+    window.removeEventListener('scroll', this.reveal);
+    window.removeEventListener('resize', this.reveal);
+  }
+  componentDidUpdate() { this.armGauge(); this.reveal(); }
+
+  advance() {
+    if (this.state.screen !== 'run' || !this.t0) return;
+    const e = (Date.now() - this.t0) / 1000;
+    this.elapsed = e / this.scale;
+    if (this.clockRef.current) {
+      const m = Math.floor(this.elapsed / 60), sec = Math.floor(this.elapsed % 60);
+      this.clockRef.current.textContent = String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    }
+    if (this.willDrop && e > 16) { this.setState({ screen: 'drop', stage: 5 }); return; }
+    let acc = 0, stage = 0;
+    for (let i = 0; i < STEPS.length; i++) { acc += STEPS[i].dur * this.scale; if (e > acc) stage = i + 1; }
+    if (stage >= STEPS.length) { this.setState({ screen: 'result', stage: STEPS.length }); return; }
+    if (stage !== this.state.stage) this.setState({ stage: stage });
+  }
+
+  countTo(el, end, ms) {
+    let t0 = null;
+    const step = (t) => {
+      if (t0 === null) t0 = t;
+      const p = Math.min(1, (t - t0) / ms);
+      el.textContent = String(Math.round(end * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  armGauge() {
+    const ring = document.querySelector('[data-gauge]');
+    const num = document.querySelector('[data-score]');
+    if (!ring || ring.dataset.armed) return;
+    ring.dataset.armed = '1';
+    const fire = () => {
+      if (ring.dataset.ran) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      ring.dataset.ran = '1';
+      const c = parseFloat(ring.getAttribute('stroke-dasharray'));
+      const off = parseFloat(ring.getAttribute('stroke-dashoffset'));
+      if (ring.animate && c && !isNaN(off)) ring.animate([{ strokeDashoffset: c }, { strokeDashoffset: off }], { duration: 1600, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' });
+      if (num) this.countTo(num, 61, 1600);
+    };
+    const poll = setInterval(() => {
+      if (ring.dataset.ran) { clearInterval(poll); return; }
+      const r = ring.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) { fire(); clearInterval(poll); }
+    }, 300);
+  }
+
+  drawPixels() {
+    const canvas = this.canvasRef.current, input = this.inputRef.current;
+    if (!canvas || !input) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = 800; canvas.height = 800;
+    ctx.clearRect(0, 0, 800, 800);
+    const cs = getComputedStyle(input);
+    ctx.font = (parseFloat(cs.fontSize) * 2) + 'px ' + cs.fontFamily;
+    ctx.fillStyle = '#FFF';
+    ctx.fillText(this.state.url || '', 16, 44);
+    const d = ctx.getImageData(0, 0, 800, 800).data;
+    const out = [];
+    for (let t = 0; t < 800; t++) {
+      const i = 4 * t * 800;
+      for (let n = 0; n < 800; n++) {
+        const e = i + 4 * n;
+        if (d[e] !== 0 && d[e + 1] !== 0 && d[e + 2] !== 0) out.push({ x: n, y: t, r: 1, color: 'rgba(' + d[e] + ',' + d[e + 1] + ',' + d[e + 2] + ',' + d[e + 3] + ')' });
+      }
+    }
+    this.pixels = out;
+  }
+
+  animateVanish(pos, done) {
+    requestAnimationFrame(() => {
+      const next = [];
+      for (const p of this.pixels) {
+        if (p.x < pos) { next.push(p); continue; }
+        if (p.r <= 0) continue;
+        p.x += Math.random() > 0.5 ? 1 : -1;
+        p.y += Math.random() > 0.5 ? 1 : -1;
+        p.r -= 0.05 * Math.random();
+        next.push(p);
+      }
+      this.pixels = next;
+      const ctx = this.canvasRef.current && this.canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(pos, 0, 800, 800);
+        for (const p of this.pixels) {
+          if (p.x > pos) { ctx.beginPath(); ctx.rect(p.x, p.y, p.r, p.r); ctx.fillStyle = p.color; ctx.strokeStyle = p.color; ctx.stroke(); }
+        }
+      }
+      if (this.pixels.length > 0) this.animateVanish(pos - 8, done);
+      else { this.setState({ vanishing: false }); done && done(); }
+    });
+  }
+
+  vanish(done) {
+    this.drawPixels();
+    if (!this.pixels || !this.pixels.length) { done && done(); return; }
+    const maxX = this.pixels.reduce((a, p) => (p.x > a ? p.x : a), 0);
+    this.setState({ vanishing: true });
+    this.animateVanish(maxX, done);
+  }
+
+  clean() { return this.state.url.trim().replace(/^https?:\/\//i, '').replace(/\/$/, ''); }
+  valid(v) { return /^([a-z0-9-]+\.)+[a-z]{2,}/i.test(v); }
+
+  onUrl = (ev) => { if (!this.state.vanishing) this.setState({ url: ev.target.value, touched: true }); };
+  onBlur = () => this.setState({ touched: true });
+  onKey = (ev) => { if (ev.key === 'Enter') this.start(); };
+
+  start = () => {
+    const v = this.clean();
+    if (!this.valid(v)) { this.setState({ touched: true }); return; }
+    this.setState({ submitting: true });
+    this.vanish(() => {});
+    setTimeout(() => {
+      const waf = /bloquead|bloqueio/i.test(v);
+      this.willDrop = /queda|caiu|offline/i.test(v);
+      this.host = v;
+      this.t0 = Date.now();
+      this.elapsed = 0;
+      window.scrollTo(0, 0);
+      this.setState({ submitting: false, stage: 0, screen: waf ? 'waf' : 'run' });
+    }, 1200);
+  };
+
+  goRec = () => { window.scrollTo(0, 0); this.setState({ screen: 'rec' }); };
+  goResult = () => { this.t0 = null; window.scrollTo(0, 0); this.setState({ screen: 'result', stage: STEPS.length }); };
+  goHome = () => { this.t0 = null; this.willDrop = false; window.scrollTo(0, 0); this.setState({ screen: 'landing', url: '', touched: false, stage: 0, capStep: 0, unlocked: false }); };
+  copyLink = () => { this.setState({ copied: true }); setTimeout(() => this.setState({ copied: false }), 1800); };
+
+  capFields = [
+    { key: 'nome', title: 'Antes de abrir, como a gente te chama?', sub: 'O relatório vem com o seu nome e o endereço da loja no topo, para você mandar para quem cuida do site.', placeholder: 'seu nome' },
+    { key: 'zap', title: 'Qual o seu WhatsApp?', sub: 'Só usamos se você pedir. O relatório completo vai por e-mail.', placeholder: '(11) 90000-0000' },
+    { key: 'email', title: 'Para onde mandamos o relatório?', sub: 'Um e-mail, uma vez, com os cinco achados por extenso, as capturas e o que fazer em cada caso. Sem sequência depois, sem ligação de vendedor.', placeholder: 'seu e-mail' },
+    { key: 'faixa', title: 'Quanto a loja fatura por mês?', sub: 'Serve para comparar a sua nota com lojas do mesmo porte. Fica entre a gente.', choice: true }
+  ];
+  capValidate(key, v) {
+    v = (v || '').trim();
+    if (key === 'nome') return v.length >= 2;
+    if (key === 'zap') return v.replace(/\D/g, '').length >= 10;
+    if (key === 'email') return /.+@.+\..+/.test(v);
+    return false;
+  }
+  onCap = (ev) => this.setState({ [this.capFields[this.state.capStep].key]: ev.target.value });
+  onCapKey = (ev) => { if (ev.key === 'Enter') this.capNext(); };
+  capNext = () => {
+    const i = this.state.capStep, f = this.capFields[i];
+    if (!this.capValidate(f.key, this.state[f.key])) return;
+    this.setState({ capStep: i + 1 });
+  };
+  capBack = () => this.setState({ capStep: Math.max(0, this.state.capStep - 1) });
+  pickFaixa = (label) => () => this.setState({ faixa: label, unlocked: true });
+
+  chip(sev) {
+    const crit = sev === 'alta';
+    return {
+      chip: crit ? 'Crítico' : 'Atenção',
+      chipStyle: 'display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;border:0;font-size:12px;font-weight:600;letter-spacing:-.005em;color:#ffffff;background:' + (crit ? '#E8386A;' : '#16151A;')
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const clean = this.clean();
+    const invalid = st.touched && clean.length > 0 && !this.valid(clean);
+    const typing = clean.length > 0 && !invalid;
+
+    const stage = Math.min(st.stage, STEPS.length - 1);
+    const cur = STEPS[stage];
+    const e = this.elapsed * this.scale;
+    const waiting = st.screen === 'run' && e < 3.4;
+    const frozen = st.screen === 'run' && e > 13.5 && e < 19.5;
+
+    const steps = STEPS.map((s, i) => {
+      const done = i < st.stage, now = i === st.stage;
+      const bg = done ? '#16151A' : now ? '#E8386A' : '#f0efec';
+      return {
+        label: s.label, n: String(i + 1), done: done, now: now, wait: !done && !now,
+        time: done ? s.dur.toFixed(1) + 's' : '',
+        dotStyle: 'display:grid;width:24px;height:24px;place-items:center;border-radius:50%;background:' + bg + ';',
+        connStyle: 'width:2px;flex:1;min-height:12px;margin:5px 0;border-radius:1px;background:' + (done ? '#16151A' : '#E6E4E0') + ';',
+        textStyle: 'flex:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:16px;opacity:' + ((done || now) ? '1' : '.62') + ';'
+      };
+    });
+
+    const found = FINDINGS.filter(f => f.at <= st.stage);
+    const liveFindings = found.slice().reverse().map(f => Object.assign({ title: f.title, short: f.short }, this.chip(f.sev)));
+
+    const rest = FINDINGS.slice(1);
+    const lockedFindings = rest.map(f => Object.assign({
+      cat: f.cat,
+      words: f.title.split(' ').map(w => ({ style: 'display:inline-block;height:16px;border-radius:2px;background:' + (f.sev === 'alta' ? '#e4e1dc' : '#eae8e4') + ';width:' + Math.max(16, Math.round(w.length * 8.2)) + 'px;' }))
+    }, this.chip(f.sev)));
+    const openFindings = rest.map(f => Object.assign({ cat: f.cat, title: f.title, body: f.body, fix: f.fix }, this.chip(f.sev)));
+
+    const capI = Math.min(st.capStep, 3);
+    const capF = this.capFields[capI];
+
+    const host = this.host || 'sualoja.com.br';
+
+    return {
+      isLanding: st.screen === 'landing', isRun: st.screen === 'run', isWaf: st.screen === 'waf', isResult: st.screen === 'result',
+      isDrop: st.screen === 'drop', isRec: st.screen === 'rec',
+      goHome: this.goHome, goRec: this.goRec, goResult: this.goResult, host: host, today: '1 de setembro',
+      reconnected: st.screen === 'run' && e > 22 && e < 29,
+      recTicks: [8, 20, 33, 48, 66, 88].map(x => ({ style: 'position:absolute;left:' + x + '%;top:8px;width:2px;height:10px;background:#d6d4d0;' })),
+      recPins: [33, 52, 61, 74, 91].map(x => ({ style: 'position:absolute;left:' + x + '%;top:5px;margin-left:-6px;width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:#E8386A;cursor:pointer;' })),
+
+      url: st.url, invalid: invalid, submitting: st.submitting, notSubmitting: !st.submitting,
+      helperVisible: !invalid,
+      helper: typing ? 'Vamos abrir esse endereço agora. Você acompanha cada passo.' : 'Leva de 40 a 90 segundos. Sem cadastro, sem instalar nada.',
+      onUrl: this.onUrl, onKey: this.onKey, onBlur: this.onBlur, start: this.start,
+      canvasRef: this.canvasRef, inputRef: this.inputRef, clockRef: this.clockRef,
+      pillStyle: 'position:relative;flex:1;min-width:0;height:66px;border-radius:999px;background:#16151A;overflow:hidden;',
+      pillInputStyle: 'position:relative;z-index:5;width:100%;height:100%;padding:0 26px;border:0;outline:0;background:transparent;font-size:16px;color:' + (st.vanishing ? 'transparent' : '#ffffff') + ';',
+      canvasStyle: 'position:absolute;top:22%;left:14px;transform:scale(.5);transform-origin:top left;pointer-events:none;opacity:' + (st.vanishing ? 1 : 0) + ';',
+      sendBtnStyle: 'display:flex;flex-shrink:0;align-items:center;justify-content:center;width:62px;height:62px;border:0;border-radius:50%;cursor:pointer;background:#16151A;color:' + (typing ? '#E8386A' : '#6E6B75') + ';transition:color .25s;',
+      phNode: clean ? null : React.createElement('div', { key: st.ph, style: { animation: 'rbPhIn .3s linear', fontSize: 16, color: '#6E6B75', whiteSpace: 'nowrap' } }, this.placeholders[st.ph]),
+      rotWords: this.rotList.map((t, i) => {
+        const y = i === st.rot ? 0 : (st.rot > i ? -140 : 140);
+        return { text: t, style: 'position:absolute;left:0;right:0;top:2px;font-weight:700;letter-spacing:-.035em;color:#16151A;opacity:' + (i === st.rot ? 1 : 0) + ';transform:translateY(' + y + '%);transition:transform .8s cubic-bezier(.2,.8,.2,1),opacity .5s ease;' };
+      }),
+
+      checks: CHECKS,
+      proof: PROOF.map(p => Object.assign({ t: p.t, d: p.d }, this.chip(p.sev === 'crítico' ? 'alta' : 'média'))),
+      skelCards: [1, 2, 3, 4, 5, 6],
+
+      liveUrl: host + cur.path,
+      currentLabel: cur.label,
+      stepCount: Math.min(st.stage + 1, 7) + ' de 7',
+      progressStyle: 'height:100%;width:100%;border-radius:999px;background:#E8386A;transition:transform .4s ease;transform:translateX(-' + (100 - Math.round(st.stage / 7 * 100)) + '%);',
+      steps: steps,
+      waiting: waiting, showFrame: !waiting, frozen: frozen, frozenFor: Math.round(e - 13.5) + 's',
+      dotColor: frozen ? '#99979c' : '#E8386A',
+      streamLabel: waiting ? 'conectado · aguardando primeira imagem' : (frozen ? 'imagem parada · execução seguindo' : 'transmissão ao vivo'),
+      cursorStyle: 'position:absolute;z-index:5;pointer-events:none;transition:left .85s cubic-bezier(.5,0,.2,1),top .85s cubic-bezier(.5,0,.2,1);left:' + CURSORS[stage][0] + '%;top:' + CURSORS[stage][1] + '%;',
+      liveFindings: liveFindings, noFindings: found.length === 0, foundCount: String(found.length),
+      shareLabel: st.copied ? 'link copiado' : 'Copiar link',
+      copyLink: this.copyLink,
+
+      locked: !st.unlocked, unlocked: st.unlocked, lockedFindings: lockedFindings, openFindings: openFindings,
+      emailShown: st.email || 'seu e-mail',
+      capTitle: capF.title, capSub: capF.sub, capPlaceholder: capF.placeholder || '',
+      capIsField: !capF.choice, capIsChoice: !!capF.choice,
+      capValue: st[capF.key] || '', capValid: this.capValidate(capF.key, st[capF.key]),
+      capCanBack: capI > 0, capCount: (capI + 1) + ' de 4',
+      capDots: [0, 1, 2, 3].map(i => ({ style: 'display:inline-block;width:7px;height:7px;border-radius:50%;background:' + (i <= capI ? '#E8386A' : '#3a383f') + ';' })),
+      onCap: this.onCap, onCapKey: this.onCapKey, capNext: this.capNext, capBack: this.capBack,
+      faixas: ['até R$ 100 mil', 'R$ 100 mil a R$ 500 mil', 'R$ 500 mil a R$ 2 mi', 'acima de R$ 2 mi'].map(l => ({ label: l, pick: this.pickFaixa(l) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

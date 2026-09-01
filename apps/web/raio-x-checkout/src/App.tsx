@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  MoveRight,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -41,18 +44,44 @@ const steps: Step[] = [
   { label: "Montando o relatório", detail: "Priorizando o que afeta vendas" },
 ];
 
-const auditStats = [
-  { value: "9", label: "toques até pagar no celular", note: "média das lojas com alerta" },
-  { value: "38%", label: "escondem o desconto do Pix", note: "até a última etapa" },
-  { value: "1 em 4", label: "não explica o parcelamento", note: "antes do checkout" },
+type Severidade = "crítico" | "atenção";
+
+/* Os sete itens da grade. O texto e o do markup do desenho, que e mais longo
+   que o do array CHECKS do script — o markup e o que aparece na tela. */
+const checks = [
+  { area: "loja", n: "01", t: "A loja abre", d: "Plataforma, tema e quanto tempo passa até a vitrine aparecer de verdade." },
+  { area: "produto", n: "02", t: "O produto", d: "Preço, parcelamento e o que está escrito sobre pagamento antes de qualquer clique." },
+  { area: "carrinho", n: "03", t: "O carrinho", d: "Quantos cliques até ele montar, e o que a tela não conta sobre a compra." },
+  { area: "checkout", n: "04", t: "O checkout", d: "Quantas telas, quantos campos, e em qual delas o cliente trava." },
+  { area: "meios", n: "05", t: "Os meios de pagamento", d: "Quais existem, em que tela aparecem, e o que some quando a compra é no celular. Quase sempre o cliente decide como vai pagar antes da loja dizer o que aceita." },
+  { area: "celular", n: "06", t: "O celular", d: "A mesma compra num aparelho de verdade, do começo, em paralelo com o computador." },
+  { area: "fatura", n: "07", t: "A fatura", d: "O nome que vai chegar no extrato de quem comprou de você, trinta dias depois. É o motivo mais comum de contestação em compra legítima." },
 ];
 
-const checks = [
-  { number: "01", title: "Caminho até o pagamento", text: "Quantos cliques e telas separam o produto da compra concluída." },
-  { number: "02", title: "Pix, cartão e parcelamento", text: "Quando as condições aparecem e se o valor final fica claro." },
-  { number: "03", title: "Experiência no celular", text: "O robô repete a compra como metade dos seus clientes faria." },
-  { number: "04", title: "Sinais que geram desconfiança", text: "Nome na fatura, mensagens confusas e surpresas na última tela." },
+/* Achados de auditorias reais, sem o nome das lojas. */
+const proof: { sev: Severidade; t: string; d: string }[] = [
+  { sev: "crítico", t: "Nove toques até pagar, no celular", d: "Loja de moda, R$ 1,2 milhão por mês. No computador eram quatro." },
+  { sev: "crítico", t: "O Pix aparecia depois do cartão", d: "Suplementos. A loja pagava taxa de cartão em venda que sairia no Pix." },
+  { sev: "atenção", t: "A fatura dizia o nome do gateway", d: "Pet shop. Um em cada onze pedidos virava contestação de compra legítima." },
 ];
+
+/* Duas severidades, duas cores da paleta. Crítico e o acento, atenção e a
+   tinta. Nao existe uma terceira: verde e amarelo nao entram no projeto. */
+function Severidade({ sev }: { sev: Severidade }) {
+  return <span className={`severity ${sev === "crítico" ? "critico" : "atencao"}`}>{sev === "crítico" ? "Crítico" : "Atenção"}</span>;
+}
+
+/* O menu de estados serve para gravar video e revisar sem digitar endereco
+   falso. Nao aparece para quem usa o produto: so em desenvolvimento, ou com
+   ?estados=1 na URL, que e como abrir para gravar em producao. */
+function mostrarEstados(): boolean {
+  if (import.meta.env.DEV) return true;
+  try {
+    return new URLSearchParams(window.location.search).get("estados") === "1";
+  } catch {
+    return false;
+  }
+}
 
 function Logo() {
   return (
@@ -77,14 +106,15 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
         <nav className="desktop-nav" aria-label="Navegação principal">
           {screen === "landing" ? (
             <>
-              <a href="#o-que-verificamos">O que verificamos</a>
-              <a href="#como-funciona">Como funciona</a>
-              <a href="#sobre">Sobre a Reborn</a>
+              <a href="#verifica">O que verificamos</a>
+              <a href="#quem">Quem faz</a>
+              <a href="#topo" className="nav-forte">Entrar</a>
             </>
           ) : (
             <button className="back-link" onClick={() => onNavigate("landing")}><ArrowLeft size={15} /> Nova análise</button>
           )}
         </nav>
+        {mostrarEstados() && (
         <details className="state-menu">
           <summary>Ver estados <ChevronDown size={14} /></summary>
           <div className="state-popover">
@@ -94,168 +124,276 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
             <button onClick={() => onNavigate("connection")}><WifiOff size={15} /> Conexão interrompida</button>
           </div>
         </details>
+        )}
         <button className="mobile-menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Abrir menu">
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
       {menuOpen && (
         <div className="mobile-menu">
-          <button onClick={() => { onNavigate("landing"); setMenuOpen(false); }}>Início</button>
-          <button onClick={() => { onNavigate("running"); setMenuOpen(false); }}>Execução ao vivo</button>
-          <button onClick={() => { onNavigate("result"); setMenuOpen(false); }}>Ver resultado</button>
-          <button onClick={() => { onNavigate("waf"); setMenuOpen(false); }}>Estado de bloqueio</button>
+          <a href="#verifica" onClick={() => setMenuOpen(false)}>O que verificamos</a>
+          <a href="#quem" onClick={() => setMenuOpen(false)}>Quem faz</a>
+          <a href="#topo" onClick={() => setMenuOpen(false)}>Entrar</a>
         </div>
       )}
     </header>
   );
 }
 
-function UrlForm({ onStart, compact = false }: { onStart: (url: string) => void; compact?: boolean }) {
+function UrlForm({ onStart }: { onStart: (url: string) => void }) {
   const [url, setUrl] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [tocado, setTocado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const ph = useRotacao(PLACEHOLDERS.length, 3000);
 
-  const validate = (value: string) => {
-    const cleaned = value.trim();
-    if (!cleaned) return "Cole o endereço da sua loja para começar.";
-    const candidate = cleaned.startsWith("http") ? cleaned : `https://${cleaned}`;
-    try {
-      const parsed = new URL(candidate);
-      if (!parsed.hostname.includes(".")) return "Digite um endereço válido, como sualoja.com.br.";
-      return "";
-    } catch {
-      return "Digite um endereço válido, como sualoja.com.br.";
-    }
-  };
+  const limpo = url.trim();
+  const valido = /^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(limpo.replace(/^https?:\/\//, ""));
+  const invalido = tocado && limpo.length > 0 && !valido;
+  const digitando = limpo.length > 0;
 
-  const handleSubmit = (event: FormEvent) => {
+  const enviar = (event: FormEvent) => {
     event.preventDefault();
-    const message = validate(url);
-    if (message) {
-      setError(message);
-      return;
-    }
-    setError("");
-    setLoading(true);
-    window.setTimeout(() => onStart(url), 900);
+    setTocado(true);
+    if (!valido) return;
+    setEnviando(true);
+    window.setTimeout(() => onStart(limpo), 700);
   };
 
   return (
-    <form className={`url-form ${compact ? "compact" : ""} ${error ? "has-error" : ""}`} onSubmit={handleSubmit} noValidate>
-      <div className="url-input-wrap">
-        <Globe2 size={19} aria-hidden="true" />
-        <input
-          type="text"
-          value={url}
-          onChange={(event) => { setUrl(event.target.value); if (error) setError(""); }}
-          onBlur={() => { if (url) setError(validate(url)); }}
-          placeholder="sualoja.com.br"
-          aria-label="Endereço da loja"
-          aria-describedby="url-message"
-          disabled={loading}
-        />
+    <form className="url-form" onSubmit={enviar} noValidate>
+      <svg aria-hidden="true" className="goo-defs">
+        <defs>
+          <filter id="rbGoo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -15" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+        </defs>
+      </svg>
+      <div className="url-row">
+        <div className="url-pill">
+          <input
+            type="text"
+            aria-label="endereço da sua loja"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onBlur={() => setTocado(true)}
+            disabled={enviando}
+          />
+          {limpo.length === 0 && (
+            <div className="url-placeholder" aria-hidden="true" key={ph}>{PLACEHOLDERS[ph]}</div>
+          )}
+        </div>
+        <button type="submit" className={`send-button ${digitando ? "pronto" : ""}`} aria-label="Auditar meu checkout" disabled={enviando}>
+          {enviando ? <span className="send-spinner" /> : <MoveRight size={20} aria-hidden="true" />}
+        </button>
       </div>
-      <button className="primary-button" type="submit" disabled={loading}>
-        {loading ? <><Spinner /> Abrindo a loja</> : "Analisar meu checkout"}
-      </button>
-      <p id="url-message" className="form-message">
-        {error || "Análise gratuita. Você não precisa instalar nada."}
-      </p>
+      {invalido ? (
+        <p className="url-invalid">
+          <span className="url-invalid-dot" />
+          Não consegui ler esse endereço. Tenta assim: minhaloja.com.br
+        </p>
+      ) : (
+        <p className="url-helper">
+          {digitando
+            ? "Vamos abrir esse endereço agora. Você acompanha cada passo."
+            : "Leva de 40 a 90 segundos. Sem cadastro, sem instalar nada."}
+        </p>
+      )}
     </form>
   );
 }
 
-function Landing({ onStart }: { onStart: (url: string) => void }) {
+/* O campo do heroi: pilula escura fluida com o botao circular ao lado, os dois
+   sob o filtro goo, que os faz se esticar um na direcao do outro. A seta so
+   fica rosa quando ha texto — e o unico sinal de que da para enviar. */
+const PLACEHOLDERS = ["casaverde.com.br", "minhaloja.com.br", "lojinhadabia.com", "suamarca.com.br/loja"];
+
+const ROTATIVAS = [
+  "o Pix escondido no fim",
+  "o parcelamento sem valor",
+  "os toques a mais no celular",
+  "a fatura sem o seu nome",
+  "o frete que só aparece depois",
+];
+
+function useRotacao(total: number, ms: number): number {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setI((n) => (n + 1) % total), ms);
+    return () => window.clearInterval(t);
+  }, [total, ms]);
+  return i;
+}
+
+function HeroTitle() {
+  const atual = useRotacao(ROTATIVAS.length, 2200);
   return (
-    <main>
+    <h1 className="hero-title">
+      <span className="hero-title-fixa">O robô compra na sua loja e acha</span>
+      <span className="hero-title-rot">
+        {ROTATIVAS.map((texto, i) => (
+          <span
+            key={texto}
+            style={{ opacity: i === atual ? 1 : 0, transform: `translateY(${i === atual ? 0 : atual > i ? -140 : 140}%)` }}
+          >
+            {texto}
+          </span>
+        ))}
+      </span>
+    </h1>
+  );
+}
+
+/* A borda que acende seguindo o cursor. Um angulo registrado com @property para
+   ser interpolavel, e um ouvinte que so escreve duas variaveis — sem redesenhar
+   nada. Com movimento reduzido, o ouvinte nem e registrado. */
+function useBordaQueAcende() {
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const mover = (x: number, y: number) => {
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-glow]"))) {
+        const r = el.getBoundingClientRect();
+        const perto = x > r.left - 90 && x < r.right + 90 && y > r.top - 90 && y < r.bottom + 90;
+        if (!perto) { el.style.setProperty("--rbGlow", "0"); continue; }
+        el.style.setProperty("--rbGlow", "1");
+        const alvo = (180 * Math.atan2(y - (r.top + r.height / 2), x - (r.left + r.width / 2))) / Math.PI + 90;
+        const atual = Number.parseFloat(el.dataset["angle"] ?? "0");
+        const proximo = atual + (((alvo - atual + 180) % 360) - 180);
+        el.dataset["angle"] = String(proximo);
+        el.style.setProperty("--rbA", `${proximo.toFixed(1)}deg`);
+      }
+    };
+    const porPonteiro = (e: PointerEvent) => mover(e.clientX, e.clientY);
+    const porFoco = (e: FocusEvent) => {
+      const el = (e.target as HTMLElement)?.closest?.("[data-glow]") as HTMLElement | null;
+      if (!el) return;
+      const atual = Number.parseFloat(el.dataset["angle"] ?? "0") + 300;
+      el.dataset["angle"] = String(atual);
+      el.style.setProperty("--rbA", `${atual.toFixed(1)}deg`);
+    };
+    document.addEventListener("pointermove", porPonteiro, { passive: true });
+    document.addEventListener("focusin", porFoco);
+    return () => {
+      document.removeEventListener("pointermove", porPonteiro);
+      document.removeEventListener("focusin", porFoco);
+    };
+  }, []);
+}
+
+/* Cada secao entra a 94% de escala com canto arredondado e abre ate encostar
+   nas bordas. Calculado da posicao real da secao e escrito direto no elemento:
+   nao sequestra a roda do mouse, entao voltar, teclado e gesto continuam
+   funcionando. */
+function useRevelacao() {
+  useEffect(() => {
+    const revelar = () => {
+      const vh = window.innerHeight || 800;
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"))) {
+        const p = Math.max(0, Math.min(1, (vh - el.getBoundingClientRect().top) / (vh * 0.72)));
+        const e = 1 - (1 - p) ** 3;
+        if (e > 0.995) {
+          el.style.transform = "";
+          el.style.opacity = "";
+          el.style.borderRadius = "";
+          el.style.overflow = "";
+        } else {
+          el.style.transform = `scale(${(0.94 + 0.06 * e).toFixed(4)})`;
+          el.style.opacity = (0.45 + 0.55 * e).toFixed(3);
+          el.style.borderRadius = `${(28 - 28 * e).toFixed(1)}px`;
+          el.style.overflow = "hidden";
+        }
+      }
+    };
+    revelar();
+    const t = window.setInterval(revelar, 500);
+    window.addEventListener("scroll", revelar, { passive: true });
+    window.addEventListener("resize", revelar);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener("scroll", revelar);
+      window.removeEventListener("resize", revelar);
+    };
+  }, []);
+}
+
+function Landing({ onStart }: { onStart: (url: string) => void }) {
+  useBordaQueAcende();
+  useRevelacao();
+
+  return (
+    <main id="topo">
       <section className="hero">
-        <div className="hero-grid" aria-hidden="true" />
         <div className="hero-content">
-          <div className="eyebrow"><span className="live-dot" /> Raio-X do Checkout</div>
-          <h1>Descubra onde seu checkout está <span>perdendo vendas.</span></h1>
-          <p className="hero-copy">Cole o endereço da sua loja. Nosso robô faz uma compra de verdade e mostra o que pode estar fazendo o cliente desistir.</p>
+          <div className="hero-badge">
+            Auditoria gratuita, de 40 a 90 segundos
+            <ArrowRight size={14} aria-hidden="true" />
+          </div>
+          <HeroTitle />
+          <p className="hero-copy">Ele abre a sua loja, escolhe um produto, coloca no carrinho e vai até a tela de pagamento. Você assiste. No fim, a gente diz onde a venda está se perdendo.</p>
           <UrlForm onStart={onStart} />
-          <div className="trust-line">
-            <span><Check size={14} /> Sem cadastro</span>
-            <span><Check size={14} /> Resultado em até 90 segundos</span>
-            <span><Check size={14} /> Nenhuma compra é concluída</span>
-          </div>
         </div>
-        <div className="scroll-cue" aria-hidden="true"><span /> Veja o que o robô encontra</div>
+        <a className="scroll-cue mono" href="#verifica">
+          <span>ROLE PARA VER O QUE ELE OLHA</span>
+          <ChevronDown size={15} aria-hidden="true" />
+        </a>
       </section>
 
-      <section className="proof-section section-shell">
-        <div className="section-heading split-heading">
-          <div><p className="section-kicker">O que já encontramos</p><h2>Pequenos atritos.<br />Vendas que não voltam.</h2></div>
-          <p>Os números abaixo vêm de checkouts que parecem funcionar. O problema aparece quando alguém tenta comprar.</p>
-        </div>
-        <div className="stats-grid">
-          {auditStats.map((stat) => (
-            <article className="stat-card" key={stat.value}>
-              <strong>{stat.value}</strong>
-              <h3>{stat.label}</h3>
-              <p>{stat.note}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="o-que-verificamos" className="checks-section section-shell">
-        <div className="section-heading centered-heading">
-          <p className="section-kicker">Uma compra vista por inteiro</p>
-          <h2>O robô não avalia sua home.<br />Ele tenta pagar.</h2>
-          <p>Do primeiro produto até a última tela antes da cobrança, no computador e no celular.</p>
-        </div>
-        <div className="checks-grid">
-          {checks.map((item, index) => (
-            <article className={`check-card card-${index + 1}`} key={item.number}>
-              <span className="check-number">{item.number}</span>
-              <div className="check-icon">
-                {index === 0 && <MousePointer2 size={23} />}
-                {index === 1 && <span className="pix-glyph">◇</span>}
-                {index === 2 && <Smartphone size={23} />}
-                {index === 3 && <Search size={23} />}
-              </div>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="como-funciona" className="process-section">
-        <div className="section-shell process-shell">
-          <div className="process-intro">
-            <p className="section-kicker light">Como funciona</p>
-            <h2>Você assiste.<br />O robô trabalha.</h2>
-            <p>Não pedimos faturamento, plataforma ou telefone. A análise começa pela loja, não por um formulário.</p>
-            <button className="light-button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Analisar minha loja</button>
-          </div>
-          <div className="process-list">
-            <article><span>1</span><div><h3>Você cola o endereço</h3><p>O robô identifica a plataforma e procura um produto disponível.</p></div></article>
-            <article><span>2</span><div><h3>A compra acontece ao vivo</h3><p>Você acompanha cada clique no computador e no celular.</p></div></article>
-            <article><span>3</span><div><h3>O relatório mostra onde agir</h3><p>Cada achado vem com evidência e uma explicação direta.</p></div></article>
-          </div>
-        </div>
-      </section>
-
-      <section id="sobre" className="about-section section-shell">
-        <div className="about-card">
-          <div className="about-mark"><span className="logo-mark large"><span /></span></div>
-          <div>
-            <p className="section-kicker">Feito pela Reborn</p>
-            <h2>Aprovar o pagamento é só o começo.</h2>
-            <p>A Reborn constrói infraestrutura de pagamento para lojas brasileiras. Criamos este raio-x porque boa parte das vendas se perde antes mesmo de o pagamento ser tentado.</p>
-          </div>
-          <a href="https://reborn.co" target="_blank" rel="noreferrer">Conheça a Reborn <ExternalLink size={15} /></a>
-        </div>
-      </section>
-
-      <section className="final-cta">
+      <section id="verifica" className="checks-section" data-reveal>
         <div className="section-shell">
-          <p className="section-kicker">Seu checkout visto como um cliente vê</p>
-          <h2>Tem venda escapando.<br />Descubra por onde.</h2>
-          <UrlForm onStart={onStart} compact />
+          <div className="checks-heading">
+            <h2>O que o robô olha antes de te dar a nota</h2>
+            <p>Ele não lê o seu código nem pede acesso a nada. Faz o que um cliente faria, do lado de fora, e anota onde a compra fica difícil.</p>
+          </div>
+          <div className="checks-grid" data-bento>
+            {checks.map((c) => (
+              <article className={`check-card area-${c.area}`} key={c.n} data-glow tabIndex={0}>
+                <span className="check-number mono">{c.n}</span>
+                <h3>{c.t}</h3>
+                <p>{c.d}</p>
+                {c.area === "meios" && <span className="check-flag">onde mora a maioria dos achados</span>}
+                {c.area === "checkout" && (
+                  <div className="check-telas" aria-hidden="true">
+                    <span className="mono">1</span><i>›</i>
+                    <span className="mono">2</span><i>›</i>
+                    <span className="mono">3</span><i>›</i>
+                    <span className="mono ultima">4</span>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="proof-section" data-reveal>
+        <div className="section-shell">
+          <div className="proof-heading">
+            <h2>O que a gente já encontrou em outras lojas</h2>
+            <p>Achados reais de auditorias recentes, sem o nome das lojas.</p>
+          </div>
+          <div className="proof-grid">
+            {proof.map((p) => (
+              <article className="proof-card" key={p.t}>
+                <Severidade sev={p.sev} />
+                <h3>{p.t}</h3>
+                <p>{p.d}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="quem" className="about-section" data-reveal>
+        <div className="about-card">
+          <div className="about-copy">
+            <h2>A Reborn cuida do que acontece depois que a venda é aprovada</h2>
+            <p>Somos infraestrutura de pagamento. Aceitar o pagamento é a parte fácil: o problema começa na conciliação, na contestação, no repasse e no nome que aparece na fatura do seu cliente. Esta auditoria existe porque quase todo checkout perde venda antes de chegar lá.</p>
+          </div>
+          <button type="button" className="pill-button">
+            <span>Falar com a Reborn</span>
+            <span className="button-icon"><ArrowUpRight size={15} aria-hidden="true" /></span>
+          </button>
         </div>
       </section>
     </main>

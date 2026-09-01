@@ -151,31 +151,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .state-popover button:hover { background: var(--ground); }
 .mobile-menu-button, .mobile-menu { display: none; }
 
-.hero {
-  position: relative;
-  display: grid;
-  min-height: min(840px, 100vh);
-  place-items: center;
-  padding: 130px 24px 90px;
-  border-bottom: 1px solid var(--line);
-  background: #f8f8f6;
-}
-.hero-grid {
-  position: absolute;
-  inset: 80px 0 0;
-  opacity: .45;
-  background-image:
-    linear-gradient(to right, rgba(22,21,26,.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(22,21,26,.035) 1px, transparent 1px);
-  background-size: 88px 88px;
-  mask-image: radial-gradient(circle at center, #000 5%, transparent 66%);
-}
-.hero-content {
-  position: relative;
-  z-index: 1;
-  width: min(890px, 100%);
-  text-align: center;
-}
 .eyebrow, .running-pill, .complete-pill, .info-pill {
   display: flex;
   align-items: center;
@@ -201,118 +176,9 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   background: #99979c;
   box-shadow: none;
 }
-.hero h1 {
-  max-width: 870px;
-  margin: 0 auto;
-  font-size: clamp(48px, 6.2vw, 82px);
-  line-height: .99;
-  letter-spacing: -.066em;
-  font-weight: 600;
-}
-.hero h1 span { color: #79777c; }
-.hero-copy {
-  max-width: 690px;
-  margin: 27px auto 34px;
-  color: #65636a;
-  font-size: 17px;
-  line-height: 1.6;
-}
-.url-form {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  max-width: 730px;
-  margin: auto;
-  padding: 7px;
-  border: 1px solid #d9d8d5;
-  border-radius: 15px;
-  background: var(--surface);
-  box-shadow: 0 8px 30px rgba(30,28,34,.06);
-  text-align: left;
-}
-.url-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-inline: 13px 10px;
-  color: #7a787e;
-}
-.url-input-wrap input {
-  width: 100%;
-  height: 54px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: 'Geist Mono', monospace;
-  font-size: 14px;
-}
-.url-input-wrap input::placeholder { color: #aaa8ad; }
-.primary-button {
-  display: inline-flex;
-  min-height: 54px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 22px;
-  border: 1px solid var(--ink);
-  border-radius: 10px;
-  background: var(--ink);
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  transition: .2s ease;
-}
-.primary-button:hover {
-  background: #2c2a30;
-  transform: translateY(-1px);
-}
-.primary-button:disabled {
-  cursor: wait;
-  opacity: .82;
-}
-.form-message {
-  grid-column: 1 / -1;
-  min-height: 16px;
-  margin: 5px 13px 1px;
-  color: #8c898f;
-  font-size: 10px;
-}
-.url-form.has-error { border-color: var(--accent); }
-.url-form.has-error .form-message { color: #c72856; }
 .spinner { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.trust-line {
-  display: flex;
-  justify-content: center;
-  gap: 25px;
-  margin-top: 20px;
-  color: #77757b;
-  font-size: 10px;
-  font-weight: 600;
-}
-.trust-line span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.scroll-cue {
-  position: absolute;
-  bottom: 25px;
-  color: #969398;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.proof-section, .checks-section, .about-section, .process-section {
-  padding: 128px 0;
-}
 .section-heading { margin-bottom: 56px; }
-.section-kicker {
-  margin: 0 0 20px;
-  color: #76747a;
-  font-size: 11px;
-  font-weight: 700;
-}
 .section-kicker::before {
   content: '[';
   margin-right: 8px;
@@ -342,30 +208,10 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 14px;
   line-height: 1.75;
 }
-.stats-grid, .checks-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-}
-.stats-grid { border-block: 1px solid #dad9d6; }
-.stat-card { padding: 44px 36px 42px 0; }
 .stat-card + .stat-card {
   padding-left: 36px;
   border-left: 1px solid #dad9d6;
 }
-.stat-card strong {
-  display: block;
-  margin-bottom: 32px;
-  color: var(--accent);
-  font: 500 clamp(52px, 6vw, 78px)/1 'Geist Mono', monospace;
-  letter-spacing: -.07em;
-}
-.stat-card h3 { margin: 0 0 7px; font-size: 16px; }
-.stat-card p {
-  margin: 0;
-  color: #838086;
-  font-size: 11px;
-}
-.checks-section { border-top: 1px solid var(--line); }
 .centered-heading {
   max-width: 760px;
   margin: 0 auto 60px;
@@ -375,80 +221,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   max-width: 560px;
   margin: 22px auto 0;
 }
-.checks-grid {
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-.check-card {
-  position: relative;
-  min-height: 310px;
-  padding: 37px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: white;
-}
-.check-card:nth-child(1) { border-radius: 24px 8px 8px 8px; }
-.check-card:nth-child(2) {
-  border-radius: 8px 24px 8px 8px;
-  background: #eeede9;
-}
-.check-card:nth-child(3) {
-  border-radius: 8px 8px 8px 24px;
-  background: #1d1c20;
-  color: white;
-}
-.check-card:nth-child(4) { border-radius: 8px 8px 24px 8px; }
-.check-number {
-  position: absolute;
-  top: 22px;
-  right: 25px;
-  color: #b0adb2;
-  font: 11px 'Geist Mono', monospace;
-}
-.check-icon {
-  display: grid;
-  width: 47px;
-  height: 47px;
-  place-items: center;
-  margin-bottom: 57px;
-  border: 1px solid #e2e1de;
-  border-radius: 50%;
-  background: #f7f7f5;
-}
-.check-card h3 { margin: 0 0 10px; font-size: 20px; }
-.check-card p {
-  max-width: 390px;
-  margin: 0;
-  color: #77747a;
-  font-size: 13px;
-  line-height: 1.65;
-}
-.check-card:nth-child(3) p { color: #aaa8ae; }
-
-.process-section {
-  background: #19181c;
-  color: white;
-}
-.process-shell {
-  display: grid;
-  grid-template-columns: .78fr 1.22fr;
-  gap: 120px;
-}
 .process-intro > p:not(.section-kicker) {
   max-width: 430px;
   margin: 25px 0 31px;
   color: #aaa8ae;
   font-size: 14px;
   line-height: 1.75;
-}
-.light-button {
-  min-height: 48px;
-  padding: 0 18px;
-  border: 1px solid #3a393f;
-  border-radius: 9px;
-  background: white;
-  font-size: 12px;
-  font-weight: 700;
 }
 .process-list article {
   display: grid;
@@ -476,36 +254,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 13px;
   line-height: 1.65;
 }
-.about-card {
-  display: grid;
-  grid-template-columns: 100px 1fr 180px;
-  align-items: center;
-  gap: 45px;
-  padding: 65px;
-  border: 1px solid var(--line);
-  border-radius: 25px 8px;
-  background: white;
-}
-.about-mark {
-  display: grid;
-  width: 80px;
-  height: 80px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--ground);
-}
 .about-card > a {
   justify-self: end;
   padding-bottom: 5px;
   border-bottom: 1px solid #aaa8ad;
   font-size: 12px;
   font-weight: 700;
-}
-.final-cta {
-  padding: 125px 24px;
-  border-top: 1px solid var(--line);
-  background: white;
-  text-align: center;
 }
 .final-cta h2 {
   margin-bottom: 37px;
@@ -526,7 +280,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 11px;
   line-height: 1.6;
 }
-
 .workspace-page, .result-page {
   width: min(1320px, calc(100% - 48px));
   margin: auto;
@@ -707,21 +460,6 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: #77757a;
   font-size: 8.5px;
   line-height: 1.55;
-}
-.severity {
-  display: inline-flex;
-  padding: 5px 8px;
-  border-radius: 4px;
-  font-size: 8px;
-  font-weight: 700;
-}
-.severity.critical {
-  color: var(--accent);
-  background: var(--accent-10);
-}
-.severity.attention {
-  color: var(--ink);
-  background: var(--surface);
 }
 
 /* Simulated storefront */
@@ -1654,3 +1392,403 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   .exception-actions { flex-direction: column; }
   .secondary-button { width: 100%; }
 }
+/* ==========================================================================
+   LANDING — desenho v3
+   ========================================================================== */
+
+@property --rbA { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+@keyframes rbShine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes rbPhIn { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes rbSpin { to { transform: rotate(360deg); } }
+
+.section-shell { max-width: 1180px; margin: 0 auto; }
+
+/* ---- herói ---- */
+
+.hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: calc(100dvh - 66px);
+  padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px) clamp(64px, 8vw, 96px);
+}
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 940px;
+  margin: 0 auto;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #edebe7;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Linha fixa com o brilho varrendo, linha de baixo trocando a cada 2.2s. A
+   base do gradiente é #5c5a63 e não um cinza claro: com base clara o título
+   ficava mais fraco que o parágrafo abaixo dele. */
+.hero-title {
+  margin: 0;
+  font-size: clamp(34px, 6.4vw, 56px);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+  font-weight: 600;
+}
+.hero-title-fixa {
+  display: block;
+  background: linear-gradient(110deg, #5c5a63, 35%, var(--ink), 50%, #5c5a63, 75%, #5c5a63);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rbShine 2.6s linear infinite;
+}
+.hero-title-rot {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(44px, 8vw, 70px);
+  overflow: hidden;
+}
+.hero-title-rot span {
+  position: absolute;
+  inset: 6px 0 auto;
+  font-weight: 700;
+  letter-spacing: -.035em;
+  color: var(--ink);
+  transition: transform .8s cubic-bezier(.2, .8, .2, 1), opacity .5s ease;
+}
+.hero-copy {
+  max-width: 620px;
+  margin: 0;
+  font-size: clamp(15px, 2.2vw, 18px);
+  line-height: 1.55;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* ---- campo ---- */
+
+.url-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 660px;
+  margin-top: 8px;
+}
+.goo-defs { position: absolute; width: 0; height: 0; pointer-events: none; }
+
+/* Os dois corpos precisam ser da mesma cor para a fusão funcionar — por isso a
+   única cor do conjunto é a seta. */
+.url-row { display: flex; align-items: center; gap: 14px; width: 100%; filter: url(#rbGoo); }
+
+.url-pill {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 66px;
+  border-radius: 999px;
+  background: var(--ink);
+  overflow: hidden;
+}
+.url-pill input {
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  padding: 0 26px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+  color: var(--surface);
+}
+.url-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 26px;
+  overflow: hidden;
+  font-size: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: rbPhIn .3s linear;
+}
+.send-button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--muted);
+  transition: color .25s;
+}
+.send-button.pronto { color: var(--accent); }
+.send-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, .3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rbSpin .7s linear infinite;
+}
+.url-helper { margin: 0; font-size: 14px; color: var(--muted); }
+.url-invalid { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--accent); }
+.url-invalid-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+.scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(20px, 3vw, 34px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: #969398;
+  transform: translateX(-50%);
+}
+
+/* ---- os sete itens ---- */
+
+.checks-section {
+  padding: clamp(48px, 7vw, 96px) clamp(16px, 4vw, 48px);
+  background: var(--ink);
+  will-change: transform, opacity;
+}
+.checks-section .section-shell { display: flex; flex-direction: column; gap: 40px; }
+.checks-heading { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; text-align: center; }
+.checks-heading h2 {
+  margin: 0;
+  font-size: clamp(28px, 4.6vw, 46px);
+  line-height: 1.05;
+  letter-spacing: -.04em;
+  font-weight: 700;
+  color: var(--surface);
+}
+.checks-heading p { margin: 0; font-size: clamp(15px, 2.2vw, 17px); line-height: 1.6; color: var(--muted); text-wrap: pretty; }
+
+/* Nove células, sete cards. Os spans de duas colunas do original só fecham em
+   exatamente três colunas — em duas, o bloco largo é empurrado e abre buraco.
+   Por isso a grade é por área nomeada, com um arranjo para cada largura. */
+.checks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-auto-rows: minmax(150px, auto);
+  grid-template-areas:
+    'loja     produto  meios'
+    'carrinho checkout meios'
+    'celular  fatura   fatura';
+  gap: 14px;
+}
+.area-loja { grid-area: loja; }
+.area-produto { grid-area: produto; }
+.area-carrinho { grid-area: carrinho; }
+.area-checkout { grid-area: checkout; }
+.area-meios { grid-area: meios; background: #eeede9 !important; }
+.area-celular { grid-area: celular; }
+.area-fatura { grid-area: fatura; }
+
+.check-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px 26px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.check-number { font-size: 11px; color: #a1a0a6; }
+.check-card h3 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.022em; line-height: 1.2; color: var(--ink); }
+.area-meios h3 { font-size: 22px; }
+.check-card p { margin: 0; font-size: 13.5px; line-height: 1.7; color: var(--muted); text-wrap: pretty; }
+.check-flag {
+  align-self: flex-start;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--surface);
+}
+.check-telas { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.check-telas span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ground);
+  font-size: 12px;
+  color: var(--muted);
+}
+.check-telas span.ultima { border-color: var(--accent); background: var(--accent-10); color: var(--accent); }
+.check-telas i { color: #c4c2c6; font-style: normal; }
+
+/* A borda que acende. Um cônico mascarado por mask-composite, girando num
+   ângulo interpolável — sem biblioteca. */
+[data-glow] { position: relative; }
+[data-glow]::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--rbA) at 50% 50%,
+    rgba(232, 56, 106, 0) 0deg, var(--accent) 22deg, var(--accent) 46deg,
+    rgba(232, 56, 106, .5) 74deg, rgba(230, 228, 224, .4) 104deg,
+    rgba(232, 56, 106, 0) 140deg, rgba(232, 56, 106, 0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: var(--rbGlow, 0);
+  pointer-events: none;
+  transition: opacity .35s ease, --rbA 1.1s cubic-bezier(.16, 1, .3, 1);
+}
+[data-glow]:hover::after, [data-glow]:focus-visible::after { opacity: 1; }
+[data-glow]:focus-visible { outline: none; }
+
+/* ---- achados de outras lojas ---- */
+
+.proof-section {
+  padding: clamp(48px, 6vw, 88px) clamp(16px, 4vw, 48px);
+  border-top: 1px solid var(--line);
+  will-change: transform, opacity;
+}
+.proof-section .section-shell { display: flex; flex-direction: column; gap: 32px; }
+.proof-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.proof-heading h2 { margin: 0; max-width: 640px; font-size: clamp(26px, 4vw, 40px); line-height: 1.08; letter-spacing: -.04em; font-weight: 600; }
+.proof-heading p { margin: 0; max-width: 320px; font-size: 14px; line-height: 1.7; color: var(--muted); }
+.proof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.proof-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 26px 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.proof-card h3 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; text-wrap: pretty; }
+.proof-card p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
+
+/* Duas severidades, e nenhuma cor nova: crítico é o acento, atenção é a tinta.
+   Sem ícone — elas aparecem doze vezes, quase sempre empilhadas, e um ícone em
+   cada uma vira textura. Badge de estado se move, severidade não. */
+.severity {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  color: var(--surface);
+}
+.severity.critico { background: var(--accent); }
+.severity.atencao { background: var(--ink); }
+
+/* ---- quem é a Reborn ---- */
+
+.about-section { padding: clamp(40px, 6vw, 80px) clamp(16px, 4vw, 48px); will-change: transform, opacity; }
+.about-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 40px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 56px);
+  border: 1px solid var(--line);
+  border-radius: 24px 8px;
+  background: var(--surface);
+}
+.about-copy { flex: 1 1 420px; display: flex; flex-direction: column; gap: 14px; }
+.about-copy h2 { margin: 0; font-size: clamp(24px, 3.4vw, 34px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600; }
+.about-copy p { margin: 0; font-size: 15.5px; line-height: 1.7; color: var(--muted); text-wrap: pretty; }
+
+/* O círculo dorme na direita e desliza para a esquerda no hover, girando 45
+   graus. O deslocamento é proporcional ao diâmetro, não fixo, senão o círculo
+   é cortado nos botões grandes. */
+.pill-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 60px 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  transition: padding .5s cubic-bezier(.4, 0, .2, 1);
+}
+.pill-button:hover { padding: 0 22px 0 56px; }
+.pill-button .button-icon {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  transition: right .5s cubic-bezier(.4, 0, .2, 1), transform .5s cubic-bezier(.4, 0, .2, 1);
+}
+.pill-button:hover .button-icon { right: calc(100% - 48px); transform: rotate(45deg); }
+
+@media (max-width: 900px) {
+  .checks-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: 'loja produto' 'carrinho checkout' 'meios meios' 'celular fatura';
+  }
+}
+@media (max-width: 560px) {
+  .checks-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'loja' 'produto' 'carrinho' 'checkout' 'meios' 'celular' 'fatura';
+  }
+  .url-row { filter: none; flex-direction: column; gap: 10px; }
+  .url-pill { width: 100%; height: 58px; }
+  .send-button { width: 100%; height: 54px; border-radius: 999px; background: var(--ink); color: var(--surface); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-glow]::after { display: none; }
+  .hero-title-fixa { animation: none; background: none; color: var(--ink); }
+  .hero-title-rot span { transition: none; }
+}
+
+.nav-forte { color: var(--ink); }
