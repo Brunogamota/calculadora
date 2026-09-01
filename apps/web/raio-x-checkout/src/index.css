@@ -1,23 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: 'Manrope', sans-serif;
-  color: #16151a;
-  background: #f6f6f4;
+  font-family: 'Instrument Sans', sans-serif;
+  color: #16151A;
+  background: #F4F3F1;
   font-synthesis: none;
-  --ink: #16151a;
-  --muted: #6d6b72;
-  --surface: #fff;
-  --ground: #f6f6f4;
-  --line: #e7e6e3;
-  --accent: #e8386a;
-  --soft-accent: #fff1f5;
-  --success: #26704e;
-  --warning: #876c2b;
+
+  /* As sete do desenho. Nao existe uma oitava: estado positivo e neutro,
+     estado de atencao e escuro, e so o problema e rosa. */
+  --ink: #16151A;
+  --muted: #6E6B75;
+  --surface: #FFFFFF;
+  --ground: #F4F3F1;
+  --line: #E6E4E0;
+  --accent: #E8386A;
+
+  /* Onde o rosa precisa ser suave — fundo de etiqueta, trilho de barra, aro de
+     foco — e o proprio acento com opacidade, nunca um hex novo. */
+  --accent-10: rgba(232, 56, 106, .10);
+  --accent-20: rgba(232, 56, 106, .20);
+  --accent-25: rgba(232, 56, 106, .25);
 }
 
 * { box-sizing: border-box; }
@@ -33,7 +39,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .app { min-height: 100vh; overflow: hidden; }
 .section-shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
-.mono { font-family: 'JetBrains Mono', monospace; }
+.mono { font-family: 'Geist Mono', monospace; }
 
 .site-header {
   position: absolute;
@@ -237,7 +243,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   outline: 0;
   background: transparent;
   color: var(--ink);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Geist Mono', monospace;
   font-size: 14px;
 }
 .url-input-wrap input::placeholder { color: #aaa8ad; }
@@ -350,7 +356,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   display: block;
   margin-bottom: 32px;
   color: var(--accent);
-  font: 500 clamp(52px, 6vw, 78px)/1 'JetBrains Mono', monospace;
+  font: 500 clamp(52px, 6vw, 78px)/1 'Geist Mono', monospace;
   letter-spacing: -.07em;
 }
 .stat-card h3 { margin: 0 0 7px; font-size: 16px; }
@@ -397,7 +403,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   top: 22px;
   right: 25px;
   color: #b0adb2;
-  font: 11px 'JetBrains Mono', monospace;
+  font: 11px 'Geist Mono', monospace;
 }
 .check-icon {
   display: grid;
@@ -460,7 +466,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border: 1px solid #4a494e;
   border-radius: 50%;
   color: #b2b0b6;
-  font: 10px 'JetBrains Mono', monospace;
+  font: 10px 'Geist Mono', monospace;
 }
 .process-list h3 { margin: 2px 0 9px; font-size: 17px; }
 .process-list p {
@@ -537,7 +543,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .workspace-topbar p, .result-domain {
   margin: 0;
   color: #77757a;
-  font: 10px 'JetBrains Mono', monospace;
+  font: 10px 'Geist Mono', monospace;
 }
 .running-pill, .complete-pill, .info-pill {
   margin: 0;
@@ -545,13 +551,13 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .running-pill {
   border-color: #f0c9d5;
-  background: var(--soft-accent);
+  background: var(--accent-10);
   color: #b62952;
 }
 .complete-pill {
   border-color: #cde3d7;
-  background: #f1f8f4;
-  color: var(--success);
+  background: var(--surface);
+  color: var(--ink);
 }
 .info-pill { background: #f0efec; }
 .share-button {
@@ -603,7 +609,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border-radius: 7px;
   background: white;
   text-align: center;
-  font: 9px 'JetBrains Mono', monospace;
+  font: 9px 'Geist Mono', monospace;
 }
 .store-page {
   position: relative;
@@ -646,7 +652,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .panel-title span:last-child {
   color: #969499;
-  font: 9px 'JetBrains Mono', monospace;
+  font: 9px 'Geist Mono', monospace;
 }
 .step-row {
   display: grid;
@@ -669,12 +675,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .step-row.done .step-status {
   border-color: #cadfd3;
-  background: #edf7f1;
-  color: var(--success);
+  background: var(--surface);
+  color: var(--ink);
 }
 .step-row.active .step-status {
   border-color: #f0cad6;
-  background: var(--soft-accent);
+  background: var(--accent-10);
   color: var(--accent);
 }
 .step-row h3 { margin: 0 0 3px; font-size: 10px; }
@@ -710,12 +716,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-weight: 700;
 }
 .severity.critical {
-  color: #b6244e;
-  background: var(--soft-accent);
+  color: var(--accent);
+  background: var(--accent-10);
 }
 .severity.attention {
-  color: var(--warning);
-  background: #f6f0df;
+  color: var(--ink);
+  background: var(--surface);
 }
 
 /* Simulated storefront */
@@ -732,7 +738,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .demo-store-nav b { letter-spacing: .18em; }
 .demo-store-nav > span {
   color: #716b66;
-  font: 9px 'Manrope', sans-serif;
+  font: 9px 'Instrument Sans', sans-serif;
 }
 .demo-store-nav > div {
   display: flex;
@@ -746,7 +752,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   place-items: center;
   border: 1px solid #c9c4bc;
   border-radius: 50%;
-  font: 8px 'Manrope', sans-serif;
+  font: 8px 'Instrument Sans', sans-serif;
 }
 .collection-view {
   display: grid;
@@ -821,7 +827,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border-radius: 65% 23% 40% 45%;
   background: #efebe3;
   color: #aaa197;
-  font: 800 45px 'Manrope';
+  font: 800 45px 'Instrument Sans';
   transform: rotate(-9deg);
   box-shadow: 0 20px 35px rgba(43,39,34,.12);
 }
@@ -1013,10 +1019,10 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   flex-direction: column;
   align-items: center;
 }
-.score-gauge strong { font: 500 42px 'JetBrains Mono', monospace; }
+.score-gauge strong { font: 500 42px 'Geist Mono', monospace; }
 .score-gauge > div span {
   color: #8c898f;
-  font: 8px 'JetBrains Mono';
+  font: 8px 'Geist Mono';
 }
 .score-copy > p {
   margin: 0 0 16px;
@@ -1043,7 +1049,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   border-bottom: 1px solid var(--line);
 }
 .score-summary div:last-child { border-bottom: 0; }
-.score-summary b { font: 500 19px 'JetBrains Mono'; }
+.score-summary b { font: 500 19px 'Geist Mono'; }
 .score-summary span {
   color: #838086;
   font-size: 9px;
@@ -1148,7 +1154,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   background: white;
   color: #9b9893;
   text-align: center;
-  font: 6px 'JetBrains Mono';
+  font: 6px 'Geist Mono';
 }
 .evidence-content {
   position: relative;
@@ -1202,7 +1208,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .evidence-note span {
   color: #f291ad;
-  font: 9px 'JetBrains Mono';
+  font: 9px 'Geist Mono';
 }
 .evidence-note p {
   margin: 0;
@@ -1228,7 +1234,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .sealed-number, .finding-index {
   color: #aaa7ac;
-  font: 10px 'JetBrains Mono';
+  font: 10px 'Geist Mono';
 }
 .sealed-finding h3 {
   max-width: 630px;
@@ -1275,7 +1281,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   height: 42px;
   place-items: center;
   border-radius: 50%;
-  background: var(--soft-accent);
+  background: var(--accent-10);
   color: var(--accent);
 }
 .unlock-copy h3 { margin: 0 0 7px; font-size: 16px; }
@@ -1346,8 +1352,8 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   max-width: 730px;
   margin-top: 19px;
   padding: 15px;
-  background: #f5f6f3;
-  color: var(--success);
+  background: var(--surface);
+  color: var(--ink);
 }
 .recommendation span {
   display: flex;
@@ -1363,7 +1369,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   padding: 7px 10px;
   border-radius: 5px;
   background: #eef7f2;
-  color: var(--success);
+  color: var(--ink);
   font-size: 9px;
 }
 .result-footer {
@@ -1558,7 +1564,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
     color: #9a4962;
     font-size: 7px;
   }
-  .mobile-current-step b { font: 8px 'JetBrains Mono'; }
+  .mobile-current-step b { font: 8px 'Geist Mono'; }
   .store-page { height: 400px; }
   .demo-store-nav > span { display: none; }
   .collection-view { grid-template-columns: 1fr 1fr; }
