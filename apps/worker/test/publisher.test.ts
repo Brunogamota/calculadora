@@ -57,9 +57,11 @@ describe('MemoryPublisher — entrega', () => {
 describe('MemoryPublisher — estado para quem reconecta (§7.4)', () => {
   test('acumula os passos com rótulo e situação', () => {
     const bus = new MemoryPublisher()
-    bus.publish('a1', { type: 'step:start', id: 'identify', label: 'x', at: agora() })
-    bus.publish('a1', { type: 'step:done', id: 'identify', detail: 'Shopify', at: agora() })
-    bus.publish('a1', { type: 'step:start', id: 'add-to-cart', label: 'y', at: agora() })
+    const comeco = '2026-09-01T12:00:00.000Z'
+    const fim = '2026-09-01T12:00:07.500Z'
+    bus.publish('a1', { type: 'step:start', id: 'identify', label: 'x', at: comeco })
+    bus.publish('a1', { type: 'step:done', id: 'identify', detail: 'Shopify', at: fim })
+    bus.publish('a1', { type: 'step:start', id: 'add-to-cart', label: 'y', at: fim })
 
     const estado = bus.stateOf('a1')!
     assert.equal(estado.steps.length, 2)
@@ -68,8 +70,40 @@ describe('MemoryPublisher — estado para quem reconecta (§7.4)', () => {
       label: STEP_LABELS.identify,
       status: 'done',
       detail: 'Shopify',
+      startedAt: comeco,
+      finishedAt: fim,
     })
     assert.equal(estado.steps[1]?.status, 'running')
+  })
+
+  /* Os horários estão no estado, e não só nos eventos, porque quem reconecta
+     recebe o estado. Sem eles a tela teria que inventar a duração das etapas
+     que já passaram — e ela inventava: mostrava os segundos do desenho, então
+     uma etapa que levou 90s aparecia como "4.1s". */
+  test('o estado carrega quanto cada etapa levou, para quem chegou depois', () => {
+    const bus = new MemoryPublisher()
+    bus.publish('a1', { type: 'step:start', id: 'identify', label: 'x', at: '2026-09-01T12:00:00.000Z' })
+    bus.publish('a1', { type: 'step:done', id: 'identify', at: '2026-09-01T12:00:01.000Z' })
+    bus.publish('a1', { type: 'step:start', id: 'add-to-cart', label: 'y', at: '2026-09-01T12:00:01.000Z' })
+    bus.publish('a1', { type: 'step:fail', id: 'add-to-cart', reason: 'x', at: '2026-09-01T12:01:31.000Z' })
+
+    const passos = bus.stateOf('a1')!.steps
+    const duracao = (i: number): number =>
+      (Date.parse(passos[i]!.finishedAt!) - Date.parse(passos[i]!.startedAt!)) / 1000
+    assert.equal(duracao(0), 1)
+    assert.equal(duracao(1), 90)
+  })
+
+  /* Etapa pulada nunca começa: o motor emite `step:skip` sem `step:start`.
+     Sem começo não existe duração, e é isso que a tela precisa ver — melhor
+     campo ausente do que duração fabricada. */
+  test('etapa pulada tem fim e não tem começo', () => {
+    const bus = new MemoryPublisher()
+    bus.publish('a1', { type: 'step:skip', id: 'mobile', reason: 'fora desta fase', at: agora() })
+    const passo = bus.stateOf('a1')!.steps[0]!
+    assert.equal(passo.status, 'skipped')
+    assert.equal(passo.startedAt, undefined)
+    assert.ok(passo.finishedAt)
   })
 
   test('frame NÃO entra no estado: frame perdido é frame perdido', () => {

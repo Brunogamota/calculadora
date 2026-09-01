@@ -33,7 +33,8 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { deQuemEAculpa, paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
+import { STEP_IDS, deQuemEAculpa, paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
+import type { StepId } from "./live.ts";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
 
@@ -566,7 +567,11 @@ function EsperandoPrimeiroFrame() {
   );
 }
 
-function PainelEtapas({ stage, parou }: { stage: number; parou?: boolean }) {
+/* `duracoes` chega vazio na demonstração, e aí cada etapa mostra o tempo do
+   desenho. Com o motor ligado é o tempo que a etapa levou de verdade: mostrar
+   "4.1s" numa etapa que levou 90 segundos escondia exatamente o lugar onde a
+   pessoa precisava olhar. */
+function PainelEtapas({ stage, parou, duracoes }: { stage: number; parou?: boolean; duracoes?: Partial<Record<StepId, number>> }) {
   return (
     <div className="painel">
       <div className="painel-topo">
@@ -592,7 +597,7 @@ function PainelEtapas({ stage, parou }: { stage: number; parou?: boolean }) {
               </div>
               <div className={`etapa-texto ${feito || agora ? "" : "fila"}`}>
                 <h3>{s.label}</h3>
-                <span className="mono">{feito ? `${s.seconds.toFixed(1)}s` : ""}</span>
+                <span className="mono">{feito ? `${(duracoes?.[STEP_IDS[i] as StepId] ?? s.seconds).toFixed(1)}s` : ""}</span>
               </div>
             </div>
           );
@@ -794,7 +799,7 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
           </section>
 
           <aside className="exec-side">
-            <PainelEtapas stage={stage} parou={parou} />
+            <PainelEtapas stage={stage} parou={parou} duracoes={vivo.duracoes} />
             <PainelAchados stage={stage} doMotor={vivo.achados} />
           </aside>
         </div>

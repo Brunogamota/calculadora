@@ -26,7 +26,19 @@ type AuditEvent =
   | { type: "finding"; code: string; severity: Severidade; title: string; at: string }
   | { type: "complete"; auditId: string; score: number | null; caveat: string | null }
   | { type: "aborted"; auditId: string; code: string; reason: string }
-  | { type: "state"; state: unknown };
+  | { type: "state"; state: EstadoDoServidor };
+
+/* O que o servidor manda para quem chega ou reconecta (§7.4): os PASSOS, nunca
+   o histórico de frames. A tela ignorava isto — então quem reconectava via a
+   barra voltar do zero, e mesmo quem só chegava tarde perdia o `step:start` da
+   primeira etapa, que sai antes de o WebSocket abrir. */
+type EstadoDoServidor = {
+  steps?: { id: StepId; status: "running" | "done" | "failed" | "skipped"; startedAt?: string; finishedAt?: string }[];
+  findings?: { code: string; severity: Severidade; title: string }[];
+  finished?: boolean;
+  score?: number | null;
+  caveat?: string | null;
+};
 
 export type EstadoAoVivo = {
   /** Quantas etapas já concluíram. É o mesmo `stage` que a tela simulada usa. */
@@ -51,6 +63,10 @@ export type EstadoAoVivo = {
   /** Há quantos segundos nenhuma imagem nova chega. Zero enquanto nem a
    *  primeira chegou — aí quem manda é `frame === null`. */
   semImagem: number;
+  /** Quanto cada etapa levou DE VERDADE, do relógio do motor. A tela trazia os
+   *  segundos do desenho aqui, então uma etapa que levou 90s aparecia como
+   *  "4.1s" — e era justamente onde a pessoa precisava olhar. */
+  duracoes: Partial<Record<StepId, number>>;
   /** Segundos desde o início, para o cronômetro e as janelas de estado. */
   segundos: number;
   /** true quando existe servidor e a ligação está de pé. */
@@ -58,7 +74,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -99,14 +115,50 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
       setEstado((e) => ({ ...e, segundos: (Date.now() - inicio) / 1000, semImagem }));
     }, 100);
 
+    /* Quando cada etapa começou, pelo relógio do motor. `at` vem em ISO no
+       evento; usar o relógio do navegador aqui somaria a latência da rede à
+       conta da loja. */
+    const comecouEm = new Map<StepId, number>();
+
+    /* Traduz o estado inteiro de uma vez. Cada etapa que já tem começo e fim
+       entra com a duração medida; a que só começou entra só com o começo, para
+       o `step:done` que vier depois ter de onde contar. */
+    const doEstado = (e: EstadoAoVivo, st: EstadoDoServidor): EstadoAoVivo => {
+      const duracoes = { ...e.duracoes };
+      let stage = e.stage;
+      for (const p of st.steps ?? []) {
+        if (p.startedAt) comecouEm.set(p.id, Date.parse(p.startedAt));
+        const inicio = comecouEm.get(p.id);
+        if (p.finishedAt && inicio !== undefined) duracoes[p.id] = (Date.parse(p.finishedAt) - inicio) / 1000;
+        if (p.status === "done" || p.status === "skipped") stage = Math.max(stage, STEP_IDS.indexOf(p.id) + 1);
+      }
+      const achados = [...e.achados];
+      for (const f of st.findings ?? []) {
+        if (!achados.some((a) => a.code === f.code)) achados.push({ code: f.code, severity: f.severity, title: f.title });
+      }
+      const fim = st.finished && st.score !== undefined ? { score: st.score, caveat: st.caveat ?? null } : e.fim;
+      return { ...e, stage, duracoes, achados, fim };
+    };
+
     const aplicar = (ev: AuditEvent) => {
+      if (ev.type === "step:start") comecouEm.set(ev.id, Date.parse(ev.at));
       setEstado((e) => {
         switch (ev.type) {
+          case "step:fail": {
+            const inicio = comecouEm.get(ev.id);
+            if (inicio === undefined) return e;
+            return { ...e, duracoes: { ...e.duracoes, [ev.id]: (Date.parse(ev.at) - inicio) / 1000 } };
+          }
           case "step:done":
           case "step:skip":
+          {
             /* Pulada conta como andada: a etapa não vai acontecer, e travar a
                barra nela deixaria a tela parecendo pendurada. */
-            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1) };
+            const inicio = comecouEm.get(ev.id);
+            const duracoes =
+              inicio === undefined ? e.duracoes : { ...e.duracoes, [ev.id]: (Date.parse(ev.at) - inicio) / 1000 };
+            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1), duracoes };
+          }
           case "frame": {
             const pulados = ev.seq > ultimaSeq + 1 ? ev.seq - ultimaSeq - 1 : 0;
             ultimaSeq = ev.seq;
@@ -126,6 +178,8 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
             return { ...e, fim: { score: ev.score, caveat: ev.caveat }, stage: STEP_IDS.length };
           case "aborted":
             return { ...e, abortado: { code: ev.code, reason: ev.reason } };
+          case "state":
+            return doEstado(e, ev.state);
           default:
             return e;
         }

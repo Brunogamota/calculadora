@@ -59,7 +59,18 @@ export type AuditEventType = AuditEvent['type']
 /** Estado que uma reconexão recebe: passos, sim; histórico de frames, não (§7.4). */
 export interface LiveState {
   auditId: string
-  steps: Array<{ id: StepId; label: string; status: 'running' | 'done' | 'failed' | 'skipped'; detail?: string }>
+  /* `startedAt`/`finishedAt` são ISO, do relógio do motor. Estão no ESTADO e
+     não só nos eventos porque quem reconecta recebe o estado, e sem eles a
+     tela teria que ou inventar a duração das etapas que já passaram ou deixá-la
+     em branco. */
+  steps: Array<{
+    id: StepId
+    label: string
+    status: 'running' | 'done' | 'failed' | 'skipped'
+    detail?: string
+    startedAt?: string
+    finishedAt?: string
+  }>
   findings: Array<{ code: string; severity: Severity; title: string }>
   finished: boolean
   score: number | null

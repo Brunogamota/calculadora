@@ -91,32 +91,35 @@ export class MemoryPublisher implements Publisher {
     return fresh
   }
 
-  #setStep(auditId: string, id: StepId, status: StepStatus, detail?: string): void {
+  #setStep(auditId: string, id: StepId, status: StepStatus, detail: string | undefined, at: string): void {
     const state = this.#stateFor(auditId)
     const existing = state.steps.find((s) => s.id === id)
     if (existing) {
       existing.status = status
       if (detail !== undefined) existing.detail = detail
+      if (status !== 'running') existing.finishedAt = at
       return
     }
     const step: LiveState['steps'][number] = { id, label: STEP_LABELS[id], status }
     if (detail !== undefined) step.detail = detail
+    if (status === 'running') step.startedAt = at
+    else step.finishedAt = at
     state.steps.push(step)
   }
 
   #applyToState(auditId: string, event: AuditEvent): void {
     switch (event.type) {
       case 'step:start':
-        this.#setStep(auditId, event.id, 'running')
+        this.#setStep(auditId, event.id, 'running', undefined, event.at)
         break
       case 'step:done':
-        this.#setStep(auditId, event.id, 'done', event.detail)
+        this.#setStep(auditId, event.id, 'done', event.detail, event.at)
         break
       case 'step:fail':
-        this.#setStep(auditId, event.id, 'failed', event.reason)
+        this.#setStep(auditId, event.id, 'failed', event.reason, event.at)
         break
       case 'step:skip':
-        this.#setStep(auditId, event.id, 'skipped', event.reason)
+        this.#setStep(auditId, event.id, 'skipped', event.reason, event.at)
         break
       case 'finding':
         this.#stateFor(auditId).findings.push({
