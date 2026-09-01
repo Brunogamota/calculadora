@@ -1802,3 +1802,8 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .erro-achado-titulo { font-size: 13px; font-weight: 700; line-height: 1.35; }
 .erro-achado .fraco, .erro-nota { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+/* O frame de verdade, quando o motor está transmitindo. Ocupa a mesma caixa do
+   slot para a troca não mexer no layout. */
+.frame-vivo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #eceae7; }
+.nota-ressalva { max-width: 220px; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }

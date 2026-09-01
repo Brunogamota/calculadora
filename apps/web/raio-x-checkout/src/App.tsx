@@ -31,8 +31,9 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
+import { paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
 
-type Screen = "landing" | "running" | "result" | "waf" | "connection";
+type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
 
 const DEMO_STORE = "casaverde.com.br";
 
@@ -589,8 +590,17 @@ function PainelEtapas({ stage }: { stage: number }) {
   );
 }
 
-function PainelAchados({ stage }: { stage: number }) {
-  const visiveis = findings.filter((f) => f.at <= stage);
+function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: string; severity: string; title: string }[] }) {
+  const visiveis = doMotor?.length
+    ? doMotor.map((a) => ({
+        title: a.title,
+        short: "",
+        severity: paraSeveridade(a.severity as "critica" | "alta" | "media" | "baixa"),
+        category: "",
+      }))
+    : temServidor()
+      ? []
+      : findings.filter((f) => f.at <= stage);
   return (
     <div className="painel">
       <div className="painel-topo">
@@ -604,7 +614,7 @@ function PainelAchados({ stage }: { stage: number }) {
           <article className="achado-vivo" key={f.title}>
             <Severidade sev={f.severity} />
             <h4>{f.title}</h4>
-            <p>{f.short}</p>
+            {f.short && <p>{f.short}</p>}
           </article>
         ))
       )}
@@ -612,8 +622,10 @@ function PainelAchados({ stage }: { stage: number }) {
   );
 }
 
-function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
-  const e = useCronometro(true);
+function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | null, ressalva: string | null) => void; url: string; onAbortado: (code: string) => void }) {
+  const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
+  const simulado = useCronometro(!temServidor());
+  const e = temServidor() ? vivo.segundos : simulado;
   const host = url || DEMO_STORE;
 
   /* Três estados de imagem em janelas fixas: o primeiro frame ainda não chegou,
@@ -623,16 +635,25 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
   const travado = e > 13.5 && e < 19.5;
   const reconectado = e > 22 && e < 29;
 
-  let stage = 0;
-  let acc = 0;
-  for (let i = 0; i < steps.length; i++) {
-    acc += (steps[i] as (typeof steps)[number]).seconds * ESCALA;
-    if (e > acc) stage = i + 1;
+  /* Com servidor, a etapa vem do evento; sem ele, do relógio da demonstração.
+     Os dois alimentam o mesmo `stage`, então a tela é uma só. */
+  let stage = vivo.stage;
+  if (!temServidor()) {
+    let acc = 0;
+    stage = 0;
+    for (let i = 0; i < steps.length; i++) {
+      acc += (steps[i] as (typeof steps)[number]).seconds * ESCALA;
+      if (e > acc) stage = i + 1;
+    }
   }
 
   useEffect(() => {
-    if (stage >= steps.length) onComplete();
-  }, [stage, onComplete]);
+    if (stage >= steps.length) onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null);
+  }, [stage, onComplete, vivo.fim]);
+
+  useEffect(() => {
+    if (vivo.abortado) onAbortado(vivo.abortado.code);
+  }, [vivo.abortado, onAbortado]);
 
   const passo = steps[Math.min(stage, steps.length - 1)]!;
   const cursor = CURSORES[Math.min(stage, CURSORES.length - 1)]!;
@@ -690,10 +711,14 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
                 <EsperandoPrimeiroFrame />
               ) : (
                 <>
-                  <div className="slot-screencast">
-                    <div className="slot-moldura" />
-                    <span className="mono">frame do screencast · 1280 × 720</span>
-                  </div>
+                  {vivo.frame ? (
+                    <img className="frame-vivo" src={vivo.frame} alt="transmissão da loja auditada" />
+                  ) : (
+                    <div className="slot-screencast">
+                      <div className="slot-moldura" />
+                      <span className="mono">frame do screencast · 1280 × 720</span>
+                    </div>
+                  )}
                   <div className="cursor-robo" style={{ left: `${cursor[0]}%`, top: `${cursor[1]}%` }} aria-hidden="true">
                     <span className="cursor-anel" />
                     <svg width="17" height="21" viewBox="0 0 15 19" fill="none">
@@ -722,7 +747,7 @@ function Running({ onComplete, url }: { onComplete: () => void; url: string }) {
 
           <aside className="exec-side">
             <PainelEtapas stage={stage} />
-            <PainelAchados stage={stage} />
+            <PainelAchados stage={stage} doMotor={vivo.achados} />
           </aside>
         </div>
       </div>
@@ -909,7 +934,7 @@ function Anel({ nota }: { nota: number }) {
   );
 }
 
-function Result({ onRestart, onGravacao, url }: { onRestart: () => void; onGravacao: () => void; url: string }) {
+function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number; ressalva: string | null }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("seu e-mail");
   const host = url || DEMO_STORE;
@@ -925,8 +950,12 @@ function Result({ onRestart, onGravacao, url }: { onRestart: () => void; onGrava
 
         <section className="nota-card">
           <div className="nota-bloco">
-            <Anel nota={61} />
+            <Anel nota={nota} />
             <span className="nota-legenda">Nota do checkout, de 0 a 100</span>
+            {/* A ressalva de cobertura viaja junto com o número: ele nunca
+                chega sozinho. Quando a auditoria mediu pouco, dizer só a nota
+                seria promessa falsa. */}
+            {ressalva && <span className="nota-ressalva">{ressalva}</span>}
           </div>
           <div className="nota-copy">
             <h1>Seu checkout perde gente em cinco pontos antes do pagamento. Três deles pesam.</h1>
@@ -1080,18 +1109,28 @@ function Footer() {
 function App() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [storeUrl, setStoreUrl] = useState("");
+  /* A nota vem do motor quando ele responde. Sem servidor, a do desenho. */
+  const [resultado, setResultado] = useState<{ nota: number; ressalva: string | null }>({ nota: 61, ressalva: null });
 
   const start = (url: string) => { setStoreUrl(url); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
+  const concluir = (nota: number | null, ressalva: string | null) => {
+    if (nota !== null) setResultado({ nota, ressalva });
+    navigate("result");
+  };
 
   return (
     <div className="app">
       <Header screen={screen} onNavigate={navigate} />
       {screen === "landing" && <><Landing onStart={start} /><Footer /></>}
-      {screen === "running" && <Running url={storeUrl} onComplete={() => navigate("result")} />}
-      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("landing")} url={storeUrl} />}
+      {screen === "running" && <Running url={storeUrl} onComplete={concluir} onAbortado={(code) => navigate(code === "ANTIBOT" || code === "HOME_NOT_OK" ? "waf" : "connection")} />}
+      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
+      {/* A gravação é a última tela e depende de onde os frames vão morar.
+          Até ela existir, cair aqui volta para o resultado em vez de mostrar
+          tela branca. */}
+      {screen === "gravacao" && <Result onRestart={() => navigate("landing")} onGravacao={() => undefined} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
     </div>
   );
 }
