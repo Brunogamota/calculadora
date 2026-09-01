@@ -42,7 +42,12 @@ export type EstadoAoVivo = {
   perdidos: number;
   achados: { code: string; severity: Severidade; title: string }[];
   fim: null | { score: number | null; caveat: string | null };
+  /** A auditoria parou por algo da LOJA: antibot, sessao cortada, prazo. */
   abortado: null | { code: string; reason: string };
+  /** NOSSO lado falhou: servidor fora, rede, resposta invalida. Fica separado
+   *  de propósito. Mostrar isto como "a loja caiu" seria acusar a loja de um
+   *  problema nosso — e o projeto inteiro existe para nao inventar resultado. */
+  falhaNossa: null | { reason: string };
   /** Segundos desde o início, para o cronômetro e as janelas de estado. */
   segundos: number;
   /** true quando existe servidor e a ligação está de pé. */
@@ -50,7 +55,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, segundos: 0, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -132,9 +137,9 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
         if (!r.ok || !corpo.auditId) throw new Error(corpo.error ?? `HTTP ${r.status}`);
         auditId = corpo.auditId;
       } catch (erro) {
-        /* Sem auditoria não há o que assistir. A tela mostra o motivo em vez
-           de girar para sempre, que é o que `aborted` existe para evitar. */
-        if (vivo) setEstado((e) => ({ ...e, abortado: { code: "SEM_SERVIDOR", reason: String(erro) } }));
+        /* Nao alcancamos o nosso proprio servidor. A tela precisa dizer isso e
+           nao girar para sempre — mas dizer como falha NOSSA, nunca da loja. */
+        if (vivo) setEstado((e) => ({ ...e, falhaNossa: { reason: String(erro) } }));
         return;
       }
       if (!vivo) return;
@@ -150,6 +155,9 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
       };
       ws.onopen = () => { if (vivo) setEstado((e) => ({ ...e, aoVivo: true })); };
       ws.onclose = () => { if (vivo) setEstado((e) => ({ ...e, aoVivo: false })); };
+      ws.onerror = () => {
+        if (vivo) setEstado((e) => ({ ...e, falhaNossa: { reason: "a transmissão caiu antes de terminar" } }));
+      };
     })();
 
     return () => {
@@ -171,4 +179,29 @@ export function paraSeveridade(s: Severidade): "crítico" | "atenção" {
 export function useReiniciar(): [number, () => void] {
   const [n, setN] = useState(0);
   return [n, useCallback(() => setN((x) => x + 1), [])];
+}
+
+/* De quem é a culpa quando a auditoria para.
+
+   Isto existe porque eu tinha mandado TODO aborto para a tela "perdemos a
+   conexão com a loja" — inclusive COOLDOWN_ACTIVE, que é o nosso próprio piso
+   entre tentativas. Dizer que a loja caiu quando quem barrou fomos nós é
+   inventar resultado, que é o que este projeto mais evita.
+
+   A regra: só afirmo que foi a loja quando o código diz que foi a loja. */
+
+/** A loja nos barrou de propósito. Isso é achado, não erro. */
+const A_LOJA_BLOQUEOU = new Set(["BOT_CHALLENGE", "HOME_NOT_OK", "RATE_LIMITED_BY_SITE", "ROBOTS_DISALLOWED"]);
+
+/** A loja parou de responder no meio. Também é sobre a loja. */
+const A_LOJA_CAIU = new Set(["NETWORK_ERROR", "REQUEST_TIMEOUT", "DNS_FAILURE"]);
+
+export type Culpa = "loja-bloqueou" | "loja-caiu" | "nossa";
+
+export function deQuemEAculpa(code: string): Culpa {
+  if (A_LOJA_BLOQUEOU.has(code)) return "loja-bloqueou";
+  if (A_LOJA_CAIU.has(code)) return "loja-caiu";
+  /* Cooldown, prazo estourado, blocklist, navegador que não subiu, endereço
+     inválido: tudo isto é nosso. Nenhum deles vira tela de erro da loja. */
+  return "nossa";
 }

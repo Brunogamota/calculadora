@@ -33,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
+import { deQuemEAculpa, paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
 
@@ -624,7 +624,7 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string) => void }) {
+function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string, reason: string) => void; nossoProblema: string | null }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
   const simulado = useCronometro(!temServidor());
   const e = temServidor() ? vivo.segundos : simulado;
@@ -653,8 +653,11 @@ function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | 
     if (stage >= steps.length) onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.gravacao);
   }, [stage, onComplete, vivo.fim, vivo.gravacao]);
 
+  /* Só evento do motor muda de tela. Falha nossa fica aqui, dita na linha de
+     estado: mandar o usuário para "a loja caiu" seria culpar a loja pelo que
+     quebrou do nosso lado. */
   useEffect(() => {
-    if (vivo.abortado) onAbortado(vivo.abortado.code);
+    if (vivo.abortado) onAbortado(vivo.abortado.code, vivo.abortado.reason);
   }, [vivo.abortado, onAbortado]);
 
   const passo = steps[Math.min(stage, steps.length - 1)]!;
@@ -702,8 +705,12 @@ function Running({ onComplete, url, onAbortado }: { onComplete: (nota: number | 
               rodape={
                 <>
                   <span className="rodape-estado">
-                    <span className="rodape-ponto" style={{ background: travado ? "#99979c" : "var(--accent)" }} />
-                    {esperando ? "conectado · aguardando primeira imagem" : travado ? "imagem parada · execução seguindo" : "transmissão ao vivo"}
+                    <span className="rodape-ponto" style={{ background: nossoProblema || vivo.falhaNossa || travado ? "#99979c" : "var(--accent)" }} />
+                    {nossoProblema
+                      ? `a auditoria parou do nosso lado · ${nossoProblema}`
+                      : vivo.falhaNossa
+                      ? "não conseguimos falar com o nosso servidor · a loja não tem nada a ver com isso"
+                      : esperando ? "conectado · aguardando primeira imagem" : travado ? "imagem parada · execução seguindo" : "transmissão ao vivo"}
                   </span>
                   <span className="mono">1280 × 720</span>
                 </>
@@ -1218,6 +1225,9 @@ function App() {
   const start = (url: string) => { setStoreUrl(url); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
   const [gravacao, setGravacao] = useState<{ data: string; t: number }[]>([]);
+  /* Quando quem barrou fomos nós — piso entre tentativas, prazo, blocklist —
+     a pessoa fica onde está e lê o motivo, em vez de ver a loja ser acusada. */
+  const [nossoProblema, setNossoProblema] = useState<string | null>(null);
   const concluir = (nota: number | null, ressalva: string | null, frames: { data: string; t: number }[]) => {
     if (nota !== null) setResultado({ nota, ressalva });
     setGravacao(frames);
@@ -1228,7 +1238,13 @@ function App() {
     <div className="app">
       <Header screen={screen} onNavigate={navigate} />
       {screen === "landing" && <><Landing onStart={start} /><Footer /></>}
-      {screen === "running" && <Running url={storeUrl} onComplete={concluir} onAbortado={(code) => navigate(code === "ANTIBOT" || code === "HOME_NOT_OK" ? "waf" : "connection")} />}
+      {screen === "running" && <Running url={storeUrl} nossoProblema={nossoProblema} onComplete={concluir} onAbortado={(code, reason) => {
+        const culpa = deQuemEAculpa(code);
+        if (culpa === "loja-bloqueou") return navigate("waf");
+        if (culpa === "loja-caiu") return navigate("connection");
+        /* Nosso: fica na execução, com o motivo do motor dito por extenso. */
+        setNossoProblema(reason);
+      }} />}
       {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
