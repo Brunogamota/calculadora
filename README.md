@@ -18,15 +18,34 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 
 ## Rodando
 
+Para ver o produto funcionando, é um comando só, na raiz:
+
 ```bash
 npm install
-npm test                                     # 260 testes, offline, ~2s
-npm run test:e2e                             # jornada completa na loja falsa, ~70s
+npm run tudo     # motor em :4000 e site em :5173, na mesma aba
+```
+
+Abra <http://localhost:5173>, cole o endereço de uma loja e assista. Ctrl+C
+para os dois — inclusive o Vite e o Chromium, que antes ficavam vivos
+segurando a porta 4000 e faziam a subida seguinte morrer com `EADDRINUSE`.
+
+`npm run tudo` existe porque a instrução anterior era "abra duas abas, numa
+rode `npm run live` na raiz, na outra entre em `apps/web/raio-x-checkout` e
+rode `npm run dev`" — e a pasta do site não é workspace do npm, então
+`npm run dev` na raiz respondia `Missing script: "dev"`. Instrução que erra
+assim é defeito do projeto. (Hoje `npm run dev` na raiz também funciona: ele
+encaminha para a pasta do site.)
+
+O resto:
+
+```bash
+npm test                                      # testes offline, ~6s
+npm run test:e2e                              # jornada completa na loja falsa
 npm run preflight -- <url-da-loja> --pretty   # bloco 1
 npm run detect    -- <url-da-loja> --pretty   # bloco 2 (abre o browser)
 npm run audit     -- <url-da-loja> --pretty   # bloco 3a (jornada + screenshots)
-npm test                                     # 115 testes, tudo offline
-npm run smoke                                # valida o browser de verdade
+npm run diagnostico                           # por que a jornada não conseguiu comprar
+npm run smoke                                 # valida o browser de verdade
 npm run typecheck
 ```
 
