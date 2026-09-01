@@ -25,7 +25,8 @@
     "live": "tsx apps/realtime/src/server.ts",
     "live:demo": "tsx apps/realtime/scripts/live-demo.ts",
     "ui:shot": "tsx apps/realtime/scripts/screenshot-ui.ts",
-    "live:fake": "tsx apps/realtime/scripts/live-fake.ts"
+    "live:fake": "tsx apps/realtime/scripts/live-fake.ts",
+    "diagnostico": "tsx apps/worker/scripts/diagnostico.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",

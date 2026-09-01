@@ -358,3 +358,35 @@ describe('botão de comprar que não é submit e não diz "adicionar"', { concur
     }
   })
 })
+
+describe('tema sem formulário clássico de /cart/add', { concurrency: false }, () => {
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    /* Reproduz a Carnan (carnan.com.br): a página do produto tem um botão
+       "Comprar" bem visível, mas nenhum `form[action*="/cart/add"]` — o item
+       vai para o carrinho por fetch.
+
+       A jornada exigia o formulário ANTES de procurar qualquer botão, e
+       desistia ali. A busca por texto de intenção de compra na página
+       inteira, que acha esse botão em um segundo, já existia logo abaixo e
+       nunca era alcançada. O lojista via "Perdemos a conexão com a loja no
+       meio do checkout" — uma loja perfeitamente auditável, recusada, e a
+       culpa posta nela. */
+    const run = await auditFake({ buyButton: 'sem-formulario' })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('o formulário ajuda, mas não é pré-requisito', () => {
+    assert.equal(result.cart?.ok, true, result.errorReason ?? '')
+    assert.equal(result.cart?.itemCount, 1)
+  })
+
+  test('a jornada vai até o fim e produz nota', () => {
+    assert.equal(result.errorCode, null, result.errorReason ?? '')
+    assert.ok((result.checks?.score ?? 0) > 0, 'nota zerada: a jornada não chegou ao relatório')
+  })
+})

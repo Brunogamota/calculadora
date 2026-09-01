@@ -326,7 +326,17 @@ export const shopifyJourney: JourneyDriver = {
     // o formulário às vezes ainda não existe quando a foto é tirada — foi o que
     // aconteceu na Insider Store, que encontrava o formulário nas rodadas
     // lentas e não encontrava nas rápidas. Esperar elimina a corrida.
-    const findTimeout = ctx.deadline.clamp(12_000)
+    /* O formulário AJUDA, mas não manda.
+       Ele existia como pré-requisito: sem `form[action*="/cart/add"]` a
+       jornada morria aqui, com o código de "formulário não encontrado". E
+       logo abaixo já havia uma busca pelo botão em TODA a página, por texto
+       de intenção de compra — que nunca chegava a rodar, porque este `throw`
+       vinha antes. Foi o que aconteceu na Carnan: a página tinha um botão
+       "Comprar" bem visível, e a busca que o encontraria estava atrás de uma
+       porta que o formulário ausente mantinha trancada.
+       Tema que envia o carrinho por JavaScript, sem formulário clássico, é
+       comum demais para ser tratado como loja que não dá para auditar. */
+    const findTimeout = ctx.deadline.clamp(8000)
     let form = null
     let formSpec = null
     for (const spec of ADD_TO_CART_FORMS) {
@@ -339,21 +349,6 @@ export const shopifyJourney: JourneyDriver = {
       } catch {
         continue
       }
-    }
-    if (!form || !formSpec) {
-      const html = await saveHtml(
-        ctx.outDir,
-        new URL(ctx.baseUrl).hostname,
-        'produto-sem-formulario',
-        await ctx.page.content(),
-      )
-      throw new AuditError('BUY_FORM_NOT_FOUND', 'formulário de adicionar ao carrinho não encontrado na página', {
-        tried: ADD_TO_CART_FORMS.map(describeSelector),
-        waitedMs: findTimeout,
-        productUrl: product.url,
-        currentUrl: ctx.page.url(),
-        htmlSavedTo: html,
-      })
     }
 
     // 2. botão dentro dele, em três estratégias, da mais específica para a mais
@@ -368,39 +363,44 @@ export const shopifyJourney: JourneyDriver = {
     let button = null
     let buttonHow: string | null = null
 
-    const candidatos = ADD_TO_CART_BUTTONS.map((spec) => ({ spec, locator: form.locator(spec.selector).first() }))
-    // Uma espera só, com os três separados por vírgula: o CSS já sabe fazer
-    // "qualquer um destes", e assim o teto de 5s é do conjunto inteiro.
-    await form
-      .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
-      .first()
-      .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
-      .catch(() => undefined)
-    for (const c of candidatos) {
-      if (!(await c.locator.isVisible().catch(() => false))) continue
-      button = c.locator
-      buttonHow = describeSelector(c.spec)
-      break
-    }
+    if (form) {
+      const candidatos = ADD_TO_CART_BUTTONS.map((spec) => ({ spec, locator: form.locator(spec.selector).first() }))
+      // Uma espera só, com os três separados por vírgula: o CSS já sabe fazer
+      // "qualquer um destes", e assim o teto de 5s é do conjunto inteiro.
+      await form
+        .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
+        .first()
+        .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
+        .catch(() => undefined)
+      for (const c of candidatos) {
+        if (!(await c.locator.isVisible().catch(() => false))) continue
+        button = c.locator
+        buttonHow = describeSelector(c.spec)
+        break
+      }
 
-    // Nenhum submit no formulário. Observado na Circulei (loja de aluguel em
-    // Shopify): o botão diz "QUERO ALUGAR" e não é submit. O rótulo varia com o
-    // MODELO DE NEGÓCIO — aluguel, assinatura, marketplace — e nenhum seletor
-    // estrutural cobre isso.
-    if (!button) {
-      const achado = await findByBuyIntent(form)
-      if (achado) {
-        button = achado.locator
-        buttonHow = `texto de intenção de compra: "${achado.label}"`
+      // Nenhum submit no formulário. Observado na Circulei (loja de aluguel em
+      // Shopify): o botão diz "QUERO ALUGAR" e não é submit. O rótulo varia com o
+      // MODELO DE NEGÓCIO — aluguel, assinatura, marketplace — e nenhum seletor
+      // estrutural cobre isso.
+      if (!button) {
+        const achado = await findByBuyIntent(form)
+        if (achado) {
+          button = achado.locator
+          buttonHow = `texto de intenção de compra: "${achado.label}"`
+        }
       }
     }
 
-    // Último recurso: fora do formulário. Tema pode pôr o botão ao lado dele.
+    /* A página inteira. Serve para o tema que põe o botão ao lado do
+       formulário, e também para o tema que não tem formulário nenhum. */
     if (!button) {
       const achado = await findByBuyIntent(ctx.page.locator('body'))
       if (achado) {
         button = achado.locator
-        buttonHow = `texto de intenção de compra fora do formulário: "${achado.label}"`
+        buttonHow = form
+          ? `texto de intenção de compra fora do formulário: "${achado.label}"`
+          : `texto de intenção de compra, sem formulário na página: "${achado.label}"`
       }
     }
 
@@ -408,11 +408,11 @@ export const shopifyJourney: JourneyDriver = {
       const html = await saveHtml(
         ctx.outDir,
         new URL(ctx.baseUrl).hostname,
-        'produto-sem-botao',
+        form ? 'produto-sem-botao' : 'produto-sem-formulario',
         await ctx.page.content(),
       )
       throw new AuditError('BUY_BUTTON_NOT_FOUND', 'botão de comprar não encontrado na página', {
-        formMatched: describeSelector(formSpec),
+        formMatched: formSpec ? describeSelector(formSpec) : 'nenhum formulário de /cart/add na página',
         triedSelectors: ADD_TO_CART_BUTTONS.map(describeSelector),
         triedText: 'léxico de intenção de compra (comprar, alugar, assinar, reservar…)',
         candidatesSeen: await listClickableLabels(ctx.page),

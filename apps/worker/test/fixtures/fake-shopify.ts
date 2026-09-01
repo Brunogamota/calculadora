@@ -33,7 +33,7 @@ export interface FakeStoreOptions {
    * onde o botão diz "QUERO ALUGAR", NÃO é submit, e a página ainda tem um
    * "FALE COM A NINA" que começa parecido e não pode ser clicado.
    */
-  buyButton?: 'submit' | 'aluguel'
+  buyButton?: 'submit' | 'aluguel' | 'sem-formulario'
 }
 
 const PRODUCTS = [
@@ -82,8 +82,23 @@ function productPage(handle: string, options: FakeStoreOptions): string {
 
   // O caso da Circulei: formulário existe, mas o botão não é submit e o rótulo
   // vem do modelo de negócio ("QUERO ALUGAR", não "adicionar ao carrinho").
+  /* O caso da Carnan: nenhum `form[action="/cart/add"]` na página. O botão
+     "Comprar" é um botão solto que manda o item por fetch. Tema assim era
+     auditoria perdida — a jornada exigia o formulário clássico antes de
+     procurar qualquer botão. */
   const form =
-    options.buyButton === 'aluguel'
+    options.buyButton === 'sem-formulario'
+      ? `
+    <div class="product-buy">
+      <button type="button" id="comprar" class="btn-buy">Comprar</button>
+    </div>
+    <script>
+      document.getElementById('comprar').addEventListener('click', async function () {
+        await fetch('/cart/add', { method: 'POST' })
+        location.href = '/cart'
+      })
+    </script>`
+      : options.buyButton === 'aluguel'
       ? `
     <form action="/cart/add" method="post" id="product-form">
       <input type="hidden" name="id" value="${product.id}">
