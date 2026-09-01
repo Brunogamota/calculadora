@@ -32,6 +32,17 @@ export type AuditErrorCode =
   | 'COOLDOWN_ACTIVE'
   | 'FORCE_WITHOUT_OWNERSHIP'
   | 'RATE_LIMITED_BY_SITE'
+  // a jornada não deu para seguir NESTA loja (§6.3/§6.4)
+  //
+  // Estes quatro eram todos 'NETWORK_ERROR', e a tela lê NETWORK_ERROR como
+  // "a loja caiu". Então "não achamos o botão de comprar neste tema" chegava
+  // no lojista como "perdemos a conexão com a loja no meio do checkout" — um
+  // defeito nosso vestido de defeito da loja dele. Nenhum destes é queda de
+  // rede, e nenhum é culpa da loja: é o nosso alcance que acabou ali.
+  | 'CATALOG_UNREADABLE'
+  | 'CATALOG_EMPTY'
+  | 'BUY_FORM_NOT_FOUND'
+  | 'BUY_BUTTON_NOT_FOUND'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

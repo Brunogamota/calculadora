@@ -530,8 +530,14 @@ function makeJourneyContext(
         /* §7.2: um passeio curto depois de carregar. Sem isto a pagina fica
            parada, o Chrome nao repinta e o screencast emudece — que e por que
            a transmissao aparecia como uma imagem so. O passeio da o que
-           mandar, e some assim que a jornada volta a agir. */
-        await idleCursor(prepared.browser.page, 900).catch(() => undefined)
+           mandar, e some assim que a jornada volta a agir.
+
+           Eram 900ms, e como isto roda depois de CADA navegacao (home,
+           produto, carrinho, checkout) custava 3,6s de uma auditoria de 15s —
+           quase um quarto do tempo, gasto em enfeite. A 400ms o screencast
+           continua tendo o que mandar: o trajeto ate cada botao, que e o
+           movimento que importa, e feito pelo moveCursorToElement. */
+        await idleCursor(prepared.browser.page, 400).catch(() => undefined)
         return {
           url: prepared.browser.page.url(),
           status: response?.status() ?? null,

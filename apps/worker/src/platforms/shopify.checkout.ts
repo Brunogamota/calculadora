@@ -208,8 +208,20 @@ async function advanceStep(ctx: JourneyContext): Promise<boolean> {
   if ((await button.count()) === 0) return false
   if (!(await button.isVisible().catch(() => false))) return false
   await assertSafeToClick(button)
+  const antes = ctx.page.url()
   await button.click({ timeout: ctx.deadline.clamp(15_000) }).catch(() => undefined)
-  await ctx.page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined)
+  /* Espera a TELA mudar, não a rede calar. `networkidle` nunca acontece em
+     loja com pixel e chat, então esta linha cobrava 8 segundos cheios de toda
+     auditoria sem esperar por nada. O que interessa é a etapa do checkout ter
+     avançado: ou o endereço muda, ou aparece o botão de continuar da etapa
+     seguinte. */
+  await ctx.page
+    .waitForFunction((url) => window.location.href !== url, antes, {
+      timeout: ctx.deadline.clamp(8000),
+      polling: 200,
+    })
+    .catch(() => undefined)
+  await ctx.page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => undefined)
   return true
 }
 

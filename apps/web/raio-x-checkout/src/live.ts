@@ -257,10 +257,23 @@ const A_LOJA_BLOQUEOU = new Set(["BOT_CHALLENGE", "HOME_NOT_OK", "RATE_LIMITED_B
 /** A loja parou de responder no meio. Também é sobre a loja. */
 const A_LOJA_CAIU = new Set(["NETWORK_ERROR", "REQUEST_TIMEOUT", "DNS_FAILURE"]);
 
+/* Não achamos o botão de comprar, o formulário, ou o catálogo desta loja.
+   Isto NÃO é queda de conexão e NÃO é defeito da loja: é o nosso alcance que
+   acabou naquele tema. O motor mandava tudo isso como NETWORK_ERROR, e a
+   tela lia NETWORK_ERROR como "a loja caiu" — então um limite nosso chegava
+   no lojista como "perdemos a conexão com a loja no meio do checkout". */
+const NAO_ALCANCAMOS = new Set([
+  "BUY_FORM_NOT_FOUND",
+  "BUY_BUTTON_NOT_FOUND",
+  "CATALOG_UNREADABLE",
+  "CATALOG_EMPTY",
+]);
+
 export type Culpa = "loja-bloqueou" | "loja-caiu" | "nossa";
 
 export function deQuemEAculpa(code: string): Culpa {
   if (A_LOJA_BLOQUEOU.has(code)) return "loja-bloqueou";
+  if (NAO_ALCANCAMOS.has(code)) return "nossa";
   if (A_LOJA_CAIU.has(code)) return "loja-caiu";
   /* Cooldown, prazo estourado, blocklist, navegador que não subiu, endereço
      inválido: tudo isto é nosso. Nenhum deles vira tela de erro da loja. */

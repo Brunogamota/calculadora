@@ -639,7 +639,7 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string, reason: string) => void; nossoProblema: string | null }) {
+function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
   const simulado = useCronometro(!temServidor());
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
@@ -685,9 +685,18 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
   /* Só evento do motor muda de tela. Falha nossa fica aqui, dita na linha de
      estado: mandar o usuário para "a loja caiu" seria culpar a loja pelo que
      quebrou do nosso lado. */
+  /* Leva junto o que já tinha sido apurado. A tela de exceção mostra isso, e
+     sem passar por aqui ela não teria de onde tirar — o estado ao vivo morre
+     com esta tela. */
   useEffect(() => {
-    if (vivo.abortado) onAbortado(vivo.abortado.code, vivo.abortado.reason);
-  }, [vivo.abortado, onAbortado]);
+    if (!vivo.abortado) return;
+    onAbortado(vivo.abortado.code, vivo.abortado.reason, {
+      stage: vivo.stage,
+      duracoes: vivo.duracoes,
+      achados: vivo.achados.length,
+      motivo: vivo.abortado.reason,
+    });
+  }, [vivo.abortado, vivo.stage, vivo.duracoes, vivo.achados, onAbortado]);
 
   const passo = steps[Math.min(stage, steps.length - 1)]!;
   const cursor = CURSORES[Math.min(stage, CURSORES.length - 1)]!;
@@ -1179,9 +1188,30 @@ function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: st
   );
 }
 
-function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connection"; onRetry: () => void; onRestart: () => void }) {
+/* `real` chega quando a auditoria de verdade parou aqui; fica ausente na
+   demonstração, e aí a tela é a do desenho.
+
+   Isto existe porque a tela estava contando uma história. Uma auditoria que
+   morreu na terceira etapa, sem nenhum achado, abria esta tela dizendo "5 de 7
+   concluídos", listando "lendo os meios de pagamento 8.7s" com um ✓, e
+   fechando com "Três achados guardados". Nada daquilo aconteceu. Os números
+   eram os do desenho, que a tela mostrava sempre. */
+/** O que a auditoria de verdade tinha apurado quando parou. */
+type Apurado = { stage: number; duracoes: Partial<Record<StepId, number>>; achados: number; motivo: string | null };
+
+function ExceptionState({
+  type,
+  onRetry,
+  onRestart,
+  real,
+}: {
+  type: "waf" | "connection";
+  onRetry: () => void;
+  onRestart: () => void;
+  real?: Apurado;
+}) {
   const bloqueio = type === "waf";
-  const feitas = bloqueio ? 3 : 5;
+  const feitas = real ? real.stage : bloqueio ? 3 : 5;
 
   return (
     <main className="erro-page">
@@ -1196,6 +1226,11 @@ function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connectio
                 <ShieldCheck size={15} aria-hidden="true" />
                 <span className="mono">achado, não erro</span>
               </>
+            ) : real ? (
+              /* Não existe repetição automática e não existe e-mail. Anunciar
+                 "tentativa 2 de 5" era prometer um mecanismo que o motor não
+                 tem. O que existe é o motivo que o motor deu. */
+              <span className="mono">{real.motivo ?? "a loja parou de responder"}</span>
             ) : (
               <span className="mono">reconectando · tentativa 2 de 5</span>
             )}
@@ -1208,6 +1243,8 @@ function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connectio
           <p className="fraco">
             {bloqueio
               ? "O sistema antifraude entendeu que a navegação era suspeita e cortou a sessão. Isso protege a loja, e também acontece com gente de verdade: cliente em rede corporativa, em VPN, ou que navega rápido demais."
+              : real
+              ? "O que o robô já tinha apurado está guardado. Para tentar de novo, é você que decide quando."
               : "Estamos voltando de onde paramos. Nada do que já foi encontrado se perde. Se a loja não responder em cinco tentativas, mandamos por e-mail o que deu para apurar."}
           </p>
           <p>
@@ -1228,25 +1265,36 @@ function ExceptionState({ type, onRetry, onRestart }: { type: "waf" | "connectio
 
         <aside className="erro-lado">
           <span className="mono erro-lado-titulo">
-            {bloqueio ? "o que deu tempo de ver" : `${feitas} de ${steps.length} concluídos`}
+            {bloqueio && !real ? "o que deu tempo de ver" : `${feitas} de ${steps.length} concluídos`}
           </span>
           <div className="mono erro-etapas">
-            {steps.slice(0, bloqueio ? 4 : 7).map((s, i) => {
+            {steps.slice(0, bloqueio && !real ? 4 : 7).map((s, i) => {
               const ok = i < feitas;
-              const parada = !bloqueio && i === feitas;
+              const parada = i === feitas;
+              const medido = real?.duracoes[STEP_IDS[i] as StepId];
+              const segundos = real ? medido : s.seconds;
               return (
                 <span className={ok ? "" : parada ? "parada" : bloqueio ? "cortada" : "fila"} key={s.label}>
-                  {ok ? "✓" : parada ? "⏸" : bloqueio ? "✕" : "·"} {s.label} {ok ? `${s.seconds.toFixed(1)}s` : ""}
+                  {ok ? "✓" : parada ? "⏸" : bloqueio ? "✕" : "·"} {s.label}{" "}
+                  {ok && segundos !== undefined ? `${segundos.toFixed(1)}s` : ""}
                 </span>
               );
             })}
           </div>
-          {bloqueio ? (
+          {bloqueio && !real ? (
             <div className="erro-achado">
               <Severidade sev={findings[0]!.severity} />
               <span className="erro-achado-titulo">{findings[0]!.title}</span>
               <span className="fraco">Esse achado é seu de qualquer forma. O link continua valendo.</span>
             </div>
+          ) : real ? (
+            <span className="fraco erro-nota">
+              {real.achados === 0
+                ? "Nenhum achado até aqui. Não dá para tirar conclusão de uma jornada que parou no meio."
+                : real.achados === 1
+                ? "Um achado guardado."
+                : `${real.achados} achados guardados.`}
+            </span>
           ) : (
             <span className="fraco erro-nota">Três achados guardados. Você não perde nada esperando.</span>
           )}
@@ -1272,6 +1320,9 @@ function App() {
   /* Quando quem barrou fomos nós — piso entre tentativas, prazo, blocklist —
      a pessoa fica onde está e lê o motivo, em vez de ver a loja ser acusada. */
   const [nossoProblema, setNossoProblema] = useState<string | null>(null);
+  /* Só existe quando o motor está ligado. Sem ele, as telas de exceção são as
+     do desenho — que é o que o menu "Ver estados" precisa mostrar. */
+  const [apurado, setApurado] = useState<Apurado | null>(null);
   const concluir = (nota: number | null, ressalva: string | null, frames: { data: string; t: number }[]) => {
     if (nota !== null) setResultado({ nota, ressalva });
     setGravacao(frames);
@@ -1282,16 +1333,17 @@ function App() {
     <div className="app">
       <Header screen={screen} onNavigate={navigate} />
       {screen === "landing" && <><Landing onStart={start} /><Footer /></>}
-      {screen === "running" && <Running url={storeUrl} nossoProblema={nossoProblema} onComplete={concluir} onAbortado={(code, reason) => {
+      {screen === "running" && <Running url={storeUrl} nossoProblema={nossoProblema} onComplete={concluir} onAbortado={(code, reason, ate) => {
         const culpa = deQuemEAculpa(code);
+        setApurado(ate);
         if (culpa === "loja-bloqueou") return navigate("waf");
         if (culpa === "loja-caiu") return navigate("connection");
         /* Nosso: fica na execução, com o motivo do motor dito por extenso. */
         setNossoProblema(reason);
       }} />}
       {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
-      {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
-      {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} />}
+      {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
+      {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}
     </div>
   );

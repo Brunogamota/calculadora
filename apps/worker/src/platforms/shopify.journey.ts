@@ -147,6 +147,25 @@ export interface CartReading {
  * `fetch` de dentro da página, e o APIRequestContext do Playwright, que também
  * compartilha os cookies do contexto. A via usada fica registrada.
  */
+/**
+ * Pergunta ao /cart.js até o número de itens mudar, ou até o teto.
+ *
+ * O teto é o mesmo de antes (5s), mas agora ele é o pior caso e não o caso
+ * normal: a loja que responde rápido sai na primeira ou segunda pergunta.
+ * Carrinho que não muda também é resposta — devolve a última leitura, e quem
+ * chama decide o que fazer com ela (§6.4: nunca afirmar que entrou).
+ */
+async function esperarCarrinhoMudar(ctx: JourneyContext, antes: number | null): Promise<CartReading> {
+  const teto = Date.now() + ctx.deadline.clamp(5000)
+  let ultima = await readCart(ctx)
+  while (Date.now() < teto) {
+    if (ultima.count !== null && ultima.count !== antes) return ultima
+    await ctx.page.waitForTimeout(250)
+    ultima = await readCart(ctx)
+  }
+  return ultima
+}
+
 async function readCart(ctx: JourneyContext): Promise<CartReading> {
   const url = new URL('/cart.js', ctx.baseUrl).href
   if (!ctx.gate.check(url).allowed) {
@@ -214,7 +233,7 @@ export const shopifyJourney: JourneyDriver = {
     }
 
     if (res.status !== 200) {
-      throw new AuditError('NETWORK_ERROR', `/products.json respondeu ${res.status}`, { status: res.status })
+      throw new AuditError('CATALOG_UNREADABLE', `/products.json respondeu ${res.status}`, { status: res.status })
     }
 
     const url = res.url
@@ -222,19 +241,19 @@ export const shopifyJourney: JourneyDriver = {
     try {
       products = (JSON.parse(res.body) as { products: ShopifyProduct[] }).products
     } catch {
-      throw new AuditError('NETWORK_ERROR', '/products.json não devolveu JSON válido', {
+      throw new AuditError('CATALOG_UNREADABLE', '/products.json não devolveu JSON válido', {
         limit: usedLimit,
         bytes: res.body.length,
         primeiros120: res.body.slice(0, 120),
       })
     }
     if (!Array.isArray(products) || products.length === 0) {
-      throw new AuditError('NETWORK_ERROR', 'catálogo vazio em /products.json')
+      throw new AuditError('CATALOG_EMPTY', 'catálogo vazio em /products.json')
     }
 
     const pick = pickProduct(products)
     if (!pick) {
-      throw new AuditError('NETWORK_ERROR', 'nenhum produto disponível no catálogo', {
+      throw new AuditError('CATALOG_EMPTY', 'nenhum produto disponível no catálogo', {
         total: products.length,
       })
     }
@@ -328,7 +347,7 @@ export const shopifyJourney: JourneyDriver = {
         'produto-sem-formulario',
         await ctx.page.content(),
       )
-      throw new AuditError('NETWORK_ERROR', 'formulário de adicionar ao carrinho não encontrado na página', {
+      throw new AuditError('BUY_FORM_NOT_FOUND', 'formulário de adicionar ao carrinho não encontrado na página', {
         tried: ADD_TO_CART_FORMS.map(describeSelector),
         waitedMs: findTimeout,
         productUrl: product.url,
@@ -339,19 +358,29 @@ export const shopifyJourney: JourneyDriver = {
 
     // 2. botão dentro dele, em três estratégias, da mais específica para a mais
     //    geral. Esperando em vez de fotografar o DOM.
+    /* Os três ao mesmo tempo, não um depois do outro.
+       Em fila, o tema que só casa com o terceiro seletor pagava 5s + 5s antes
+       de chegar nele, e o tema que não casa com nenhum pagava 15s para
+       descobrir isso. Esperando os três juntos, o primeiro que aparecer ganha
+       e o pior caso volta a ser 5s. A ORDEM continua valendo no empate: se
+       mais de um estiver visível quando a espera resolve, vale o mais
+       específico, que é o primeiro da lista. */
     let button = null
     let buttonHow: string | null = null
 
-    for (const spec of ADD_TO_CART_BUTTONS) {
-      const candidate = form.locator(spec.selector).first()
-      try {
-        await candidate.waitFor({ state: 'visible', timeout: 5000 })
-        button = candidate
-        buttonHow = describeSelector(spec)
-        break
-      } catch {
-        continue
-      }
+    const candidatos = ADD_TO_CART_BUTTONS.map((spec) => ({ spec, locator: form.locator(spec.selector).first() }))
+    // Uma espera só, com os três separados por vírgula: o CSS já sabe fazer
+    // "qualquer um destes", e assim o teto de 5s é do conjunto inteiro.
+    await form
+      .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
+      .first()
+      .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
+      .catch(() => undefined)
+    for (const c of candidatos) {
+      if (!(await c.locator.isVisible().catch(() => false))) continue
+      button = c.locator
+      buttonHow = describeSelector(c.spec)
+      break
     }
 
     // Nenhum submit no formulário. Observado na Circulei (loja de aluguel em
@@ -382,7 +411,7 @@ export const shopifyJourney: JourneyDriver = {
         'produto-sem-botao',
         await ctx.page.content(),
       )
-      throw new AuditError('NETWORK_ERROR', 'botão de comprar não encontrado na página', {
+      throw new AuditError('BUY_BUTTON_NOT_FOUND', 'botão de comprar não encontrado na página', {
         formMatched: describeSelector(formSpec),
         triedSelectors: ADD_TO_CART_BUTTONS.map(describeSelector),
         triedText: 'léxico de intenção de compra (comprar, alugar, assinar, reservar…)',
@@ -481,14 +510,18 @@ export const shopifyJourney: JourneyDriver = {
       await ctx.page.waitForTimeout(1000)
     }
 
-    // 4. deixa a UI reagir sem prender a jornada num waitFor que pode não vir
-    await ctx.page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined)
+    // 4. espera o CARRINHO mudar, que é o sinal que interessa
+    //
+    // Antes isto era `waitForLoadState('networkidle', 5000)`. Loja de verdade
+    // não fica quieta nunca — pixel, chat, analytics batem a cada poucos
+    // segundos — então o networkidle NUNCA acontecia e a espera cobrava os 5
+    // segundos inteiros, em toda auditoria, sem esperar por nada. Perguntar ao
+    // /cart.js volta em ~200ms quando a loja é rápida, e o teto continua
+    // valendo para a loja que demora.
+    const after = await esperarCarrinhoMudar(ctx, before.count)
 
     const uiPattern = await detectCartUiPattern(ctx, urlBefore)
     const cartShot = await ctx.recorder.capture(ctx.page, 'carrinho')
-
-    // 5. confirmação por API (§6.4)
-    const after = await readCart(ctx)
 
     // 6. A página do carrinho é a segunda fonte mais rica da §6.6, e também
     //    costuma ser permitida pelo robots. Muita loja põe cupom, selo e
