@@ -209,7 +209,12 @@ function UrlForm({ onStart }: { onStart: (url: string) => void }) {
   const ph = useRotacao(PLACEHOLDERS.length, 3000);
 
   const limpo = url.trim();
-  const valido = /^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(limpo.replace(/^https?:\/\//, ""));
+  const semProtocolo = limpo.replace(/^https?:\/\//, "");
+  /* Endereço local só vale em desenvolvimento, e é o que permite testar contra
+     a loja falsa do `npm run live:fake`. Em produção continua recusado: IP não
+     é loja, e o motor recusa igual, com IP_LITERAL. */
+  const localOk = mostrarEstados() && /^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(semProtocolo);
+  const valido = localOk || /^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(semProtocolo);
   const invalido = tocado && limpo.length > 0 && !valido;
   const digitando = limpo.length > 0;
 
@@ -556,7 +561,7 @@ function EsperandoPrimeiroFrame() {
   );
 }
 
-function PainelEtapas({ stage }: { stage: number }) {
+function PainelEtapas({ stage, parou }: { stage: number; parou?: boolean }) {
   return (
     <div className="painel">
       <div className="painel-topo">
@@ -575,8 +580,8 @@ function PainelEtapas({ stage }: { stage: number }) {
           return (
             <div className="etapa" key={s.label}>
               <div className="etapa-marca">
-                <div className={`etapa-ponto ${feito ? "feito" : agora ? "agora" : "fila"}`}>
-                  {feito ? <Check size={13} strokeWidth={3} /> : agora ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
+                <div className={`etapa-ponto ${feito ? "feito" : agora && !parou ? "agora" : "fila"}`}>
+                  {feito ? <Check size={13} strokeWidth={3} /> : agora && !parou ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
                 </div>
                 {i < steps.length - 1 && <div className={`etapa-traco ${feito ? "feito" : ""}`} />}
               </div>
@@ -627,7 +632,14 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
 function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string, reason: string) => void; nossoProblema: string | null }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
   const simulado = useCronometro(!temServidor());
-  const e = temServidor() ? vivo.segundos : simulado;
+  /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
+     Nos dois casos nada esta acontecendo, e a tela precisa parar de encenar. */
+  const parou = Boolean(nossoProblema) || Boolean(vivo.falhaNossa);
+  const [congelado, setCongelado] = useState<number | null>(null);
+  useEffect(() => {
+    if (parou) setCongelado((c) => c ?? (temServidor() ? vivo.segundos : simulado));
+  }, [parou, vivo.segundos, simulado]);
+  const e = congelado ?? (temServidor() ? vivo.segundos : simulado);
   const host = url || DEMO_STORE;
 
   /* Três estados de imagem em janelas fixas: o primeiro frame ainda não chegou,
@@ -668,9 +680,9 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
       <div className="exec-shell">
         <div className="exec-topo">
           <div className="exec-titulo">
-            <span className="pill-andamento">
-              <LoaderCircle className="gira" size={15} aria-hidden="true" />
-              Análise em andamento
+            <span className={`pill-andamento ${parou ? "parada" : ""}`}>
+              {parou ? <X size={15} aria-hidden="true" /> : <LoaderCircle className="gira" size={15} aria-hidden="true" />}
+              {parou ? "Análise não começou" : "Análise em andamento"}
             </span>
             <div>
               <h1 className="texto-brilho">Analisando seu checkout</h1>
@@ -716,7 +728,18 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
                 </>
               }
             >
-              {esperando ? (
+              {parou ? (
+                <div className="parou-aviso">
+                  <X size={22} aria-hidden="true" />
+                  <span className="parou-titulo">
+                    {nossoProblema ? "A auditoria não começou" : "Não conseguimos falar com o nosso servidor"}
+                  </span>
+                  <span className="parou-motivo">
+                    {nossoProblema ?? "O motor não respondeu. A loja não tem nada a ver com isso."}
+                  </span>
+                  <span className="parou-nota">Isso é limitação nossa, não da loja.</span>
+                </div>
+              ) : esperando ? (
                 <EsperandoPrimeiroFrame />
               ) : (
                 <>
@@ -755,7 +778,7 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
           </section>
 
           <aside className="exec-side">
-            <PainelEtapas stage={stage} />
+            <PainelEtapas stage={stage} parou={parou} />
             <PainelAchados stage={stage} doMotor={vivo.achados} />
           </aside>
         </div>

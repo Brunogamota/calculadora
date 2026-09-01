@@ -1919,3 +1919,25 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: var(--surface);
 }
 .player-divisor { width: 1px; height: 18px; background: var(--line); }
+
+/* Quando a auditoria não começou, a tela para de encenar: o selo troca, a
+   etapa para de girar, o relógio congela e o motivo aparece onde a imagem
+   estaria. Antes eu deixava tudo rodando e escondia a verdade numa linha de
+   8px no rodapé. */
+.pill-andamento.parada { border-color: var(--line); background: var(--ground); color: var(--muted); }
+.parou-aviso {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 clamp(24px, 6vw, 72px);
+  text-align: center;
+  color: var(--muted);
+}
+.parou-aviso > svg { color: var(--muted); }
+.parou-titulo { font-size: 17px; font-weight: 700; color: var(--ink); }
+.parou-motivo { max-width: 520px; font-size: 14px; line-height: 1.6; }
+.parou-nota { font-size: 12.5px; color: var(--dim); }
