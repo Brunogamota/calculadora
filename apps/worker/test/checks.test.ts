@@ -307,6 +307,9 @@ describe('BUY_BUTTON_OBSCURED — fora da tabela da §8', () => {
     itemCount: 1,
     cartReadNote: null,
     clicks: 1,
+    via: 'texto' as const,
+    viaDetalhe: 'texto de intenção de compra: "Comprar"',
+    viasTentadas: [],
     overlay: {
       present: true,
       identity: 'div#modal',

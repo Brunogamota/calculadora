@@ -24,6 +24,8 @@ export interface FakeStoreOptions {
   blockCheckout?: boolean
   /** Responde desafio antibot na página de produto. */
   botChallenge?: boolean
+  /** `/cart/add.js` responde 422: exercita a queda para o caminho seguinte. */
+  apiRecusaAdd?: boolean
   /** Catálogo inclui produto de teste a R$ 0. */
   includeZeroPriceProduct?: boolean
   /**
@@ -219,6 +221,19 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       carts.set(session, (carts.get(session) ?? 0) + 1)
       res.writeHead(302, { location: '/cart', ...setCookie })
       return res.end()
+    }
+    /* `/cart/add.js` é o contrato de verdade do Shopify, e é por ele que a
+       jornada entra primeiro. A loja falsa não tinha esta rota, então o
+       primeiro caminho da cadeia falhava aqui por defeito da FIXTURE — e o
+       teste passava pelo segundo caminho sem que ninguém percebesse. */
+    if (path === '/cart/add.js') {
+      if (req.method !== 'POST') return send(405, 'text/plain', 'method not allowed')
+      // Variante inexistente responde 422, como o Shopify de verdade.
+      if (options.apiRecusaAdd === true) {
+        return send(422, 'application/json', JSON.stringify({ status: 422, message: 'Cart Error' }))
+      }
+      carts.set(session, (carts.get(session) ?? 0) + 1)
+      return send(200, 'application/json', JSON.stringify({ id: 111, quantity: 1 }))
     }
     if (path === '/cart') {
       return send(200, 'text/html', `<html><body><h1>Carrinho</h1><p>${carts.get(session) ?? 0} item(ns)</p></body></html>`)

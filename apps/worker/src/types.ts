@@ -127,6 +127,16 @@ export interface ProductRef {
   requiresVariantChoice: boolean
 }
 
+/**
+ * Por onde o item entrou no carrinho.
+ *
+ * Fica no resultado porque muda o que dá para AFIRMAR: entrando por API ou por
+ * submit de formulário não houve clique, e sem clique não há reação de UI para
+ * classificar nem overlay para observar. Quem lê o relatório precisa saber a
+ * diferença entre "não tinha modal" e "não olhamos".
+ */
+export type AddToCartVia = 'api' | 'formulario' | 'atributo' | 'texto'
+
 export interface AddToCartResult {
   /**
    * true confirmado, false negado, `null` NÃO VERIFICÁVEL.
@@ -144,6 +154,12 @@ export interface AddToCartResult {
   /** Por que a confirmação falhou, e por qual caminho. Sem isto não há diagnóstico. */
   cartReadNote: string | null
   clicks: number
+  /** Qual dos quatro caminhos colocou o item no carrinho. */
+  via: AddToCartVia | null
+  /** O seletor, o id da variante ou o rótulo que resolveu — evidência. */
+  viaDetalhe: string | null
+  /** O que cada caminho respondeu, na ordem. É o diagnóstico quando falha. */
+  viasTentadas: string[]
   /**
    * Overlay cobrindo o botão de comprar. Não é obstáculo técnico, é achado:
    * modal em cima do botão custa venda. Fica registrado com a identidade real

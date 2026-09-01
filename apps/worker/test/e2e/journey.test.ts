@@ -390,3 +390,66 @@ describe('tema sem formulário clássico de /cart/add', { concurrency: false }, 
     assert.ok((result.checks?.score ?? 0) > 0, 'nota zerada: a jornada não chegou ao relatório')
   })
 })
+
+describe('a cadeia de quatro caminhos até o carrinho', { concurrency: false }, () => {
+  /* A regra que estes testes protegem: NENHUM caminho pode depender de como a
+     loja escreve o botão, exceto o último.
+
+     A jornada tinha um caminho só — achar um botão e clicar — e cada loja que
+     escrevia o rótulo de um jeito novo virava auditoria perdida. O conserto
+     era sempre "põe mais um rótulo na lista", e lista de rótulos não fecha:
+     loja brasileira escreve "ADICIONE À SACOLA", "Colocar na cestinha", "EU
+     QUERO!". Agora o texto é o quarto e último recurso. */
+
+  let padrao: AuditResult
+  let semFormulario: AuditResult
+  let apiRecusando: AuditResult
+  const lojas: FakeStore[] = []
+
+  before(async () => {
+    for (const [alvo, opcoes] of [
+      ['padrao', {}],
+      ['semFormulario', { buyButton: 'sem-formulario' as const }],
+      ['apiRecusando', { apiRecusaAdd: true }],
+    ] as const) {
+      const run = await auditFake(opcoes)
+      lojas.push(run.store)
+      if (alvo === 'padrao') padrao = run.result
+      if (alvo === 'semFormulario') semFormulario = run.result
+      if (alvo === 'apiRecusando') apiRecusando = run.result
+    }
+  })
+  after(async () => {
+    for (const l of lojas) await l.close()
+  })
+
+  test('o caminho principal é a API da plataforma', () => {
+    assert.equal(padrao.cart?.via, 'api', padrao.cart?.viasTentadas.join(' | '))
+    assert.equal(padrao.cart?.itemCount, 1)
+  })
+
+  test('tema sem formulário nenhum entra pela API do mesmo jeito', () => {
+    // O tema da Carnan: botão "Comprar" solto, item enviado por JavaScript.
+    assert.equal(semFormulario.cart?.via, 'api', semFormulario.cart?.viasTentadas.join(' | '))
+    assert.equal(semFormulario.cart?.itemCount, 1)
+  })
+
+  test('API fora do ar cai para o caminho seguinte, e o item entra igual', () => {
+    assert.notEqual(apiRecusando.cart?.via, 'api')
+    assert.ok(apiRecusando.cart?.via, `nenhum caminho funcionou: ${apiRecusando.cart?.viasTentadas.join(' | ')}`)
+    assert.equal(apiRecusando.cart?.itemCount, 1)
+    assert.match(apiRecusando.cart?.viasTentadas.join(' | ') ?? '', /api: 422/)
+  })
+
+  test('a auditoria diz por qual caminho entrou, e o que tentou antes', () => {
+    // Sem isto, um relatório com carrinho confirmado não deixa saber se houve
+    // clique — e sem clique não há reação de UI para classificar.
+    assert.ok((padrao.cart?.viasTentadas.length ?? 0) > 0)
+    assert.ok(padrao.cart?.viaDetalhe, 'o caminho tem que trazer a evidência de como resolveu')
+  })
+
+  test('sem clique, o padrão de UI sai como desconhecido em vez de chutado', () => {
+    assert.equal(padrao.cart?.via, 'api')
+    assert.equal(padrao.cart?.uiPattern, 'unknown')
+  })
+})

@@ -12,7 +12,7 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { matchBuyIntent } from '../src/journey/buyIntent.ts'
+import { matchBuyIntent, melhorQue } from '../src/journey/buyIntent.ts'
 
 describe('rótulos que SÃO botão de comprar', () => {
   const compram = [
@@ -36,10 +36,11 @@ describe('rótulos que SÃO botão de comprar', () => {
     })
   }
 
-  test('a evidência guarda o texto observado, não o termo do léxico', () => {
+  test('a evidência guarda o texto observado, e o radical que o explicou', () => {
     const achado = matchBuyIntent('  QUERO   ALUGAR  ')
     assert.equal(achado?.label, 'QUERO ALUGAR')
-    assert.equal(achado?.term, 'quero alugar')
+    // O radical, não a frase: a lista deixou de ser de frases inteiras.
+    assert.equal(achado?.term, 'alug')
   })
 })
 
@@ -79,9 +80,27 @@ describe('bordas', () => {
     assert.equal(matchBuyIntent('Comprar '.repeat(20)), null)
   })
 
-  test('o verbo precisa começar o rótulo', () => {
-    assert.equal(matchBuyIntent('Você pode comprar depois'), null)
-    assert.ok(matchBuyIntent('Comprar depois'))
+  /* O radical vale em qualquer posição, então uma frase com "comprar" no meio
+     também casa. Isso é o preço de não ter lista fechada, e é pago onde deve:
+     na ESCOLHA. `melhorQue` põe o botão na frente da frase, e é assim que a
+     busca na página decide. */
+  test('frase que contém o verbo casa, mas perde para o botão', () => {
+    const frase = matchBuyIntent('Você pode comprar depois')
+    const botao = matchBuyIntent('Comprar')
+    assert.ok(frase, 'radical em qualquer posição: a frase casa')
+    assert.ok(botao)
+    assert.ok(melhorQue(botao, frase), 'o botão tem que ganhar da frase')
+    assert.ok(!melhorQue(frase, botao))
+  })
+
+  test('rótulo com cara de frase longa não é botão', () => {
+    assert.equal(matchBuyIntent('Você pode comprar isso aqui depois se quiser'), null)
+  })
+
+  test('radical curto só vale como palavra inteira', () => {
+    // "add" está dentro de "adicional" e de "address".
+    assert.equal(matchBuyIntent('Frete adicional'), null)
+    assert.ok(matchBuyIntent('ADD'))
   })
 
   test('acento não decide: "adicionar à sacola" e "a sacola" casam igual', () => {

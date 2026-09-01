@@ -1,6 +1,11 @@
 /**
- * Lê o HTML que a jornada salvou quando não conseguiu comprar, e diz em uma
- * tela o que aquele tema usa.
+ * Lê o HTML que a jornada salvou quando NENHUM dos quatro caminhos até o
+ * carrinho funcionou, e diz em uma tela o que aquele tema usa.
+ *
+ * Não serve para alimentar léxico à mão — isso não escala e foi justamente o
+ * que saiu do projeto. Serve para o caso raro em que a API da plataforma, o
+ * formulário e os atributos falharam juntos, que é quando a loja tem algo
+ * estruturalmente diferente e vale olhar.
  *
  *   npm run diagnostico
  *   npm run diagnostico -- out/www.carnan.com.br-produto-sem-formulario.html
@@ -73,7 +78,9 @@ async function olhar(arquivo: string): Promise<void> {
     console.log(`        ${b.tag.slice(0, 150)}`)
   }
   if (comprar.length === 0) {
-    console.log('     nenhum. Cole aqui as 6 primeiras linhas abaixo para eu ver os rótulos:')
+    console.log('     nenhum — e o texto é o QUARTO caminho, então antes dele')
+    console.log('     falharam também a API (/cart/add.js), o formulário e os atributos.')
+    console.log('     Os seis primeiros clicáveis, para ver o que a página tem:')
     for (const b of botoes.slice(0, 6)) console.log(`        ${b.slice(0, 120)}  -> "${rotulo(b, html)}"`)
   }
 

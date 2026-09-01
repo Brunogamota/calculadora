@@ -15,7 +15,7 @@
 import { AuditError } from '../lib/errors.ts'
 import { saveHtml } from '../lib/artifacts.ts'
 import { detectBotChallenge } from '../lib/challenge.ts'
-import { matchBuyIntent } from '../journey/buyIntent.ts'
+import { type BuyIntentMatch, matchBuyIntent, melhorQue } from '../journey/buyIntent.ts'
 import { observePage } from '../journey/observe.ts'
 import { makeStep } from '../lib/recorder.ts'
 import {
@@ -31,7 +31,7 @@ import {
   reachCheckout as reachCheckoutImpl,
   collectPayment as collectPaymentImpl,
 } from './shopify.checkout.ts'
-import type { AddToCartResult, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
+import type { AddToCartResult, AddToCartVia, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
 import { idleCursor, moveCursorToElement } from '../journey/cursor.ts'
 
 interface ShopifyVariant {
@@ -164,6 +164,83 @@ async function esperarCarrinhoMudar(ctx: JourneyContext, antes: number | null): 
     ultima = await readCart(ctx)
   }
   return ultima
+}
+
+/**
+ * Caminho 1: a API da plataforma.
+ *
+ * `POST /cart/add.js` com o id da variante que o /products.json já devolveu.
+ * É o caminho mais confiável que existe aqui, porque não depende de tema, de
+ * como a loja escreve o botão, nem de o elemento existir na tela.
+ *
+ * Sai de DENTRO da página, com `fetch`, e não do Node: assim leva os cookies
+ * e a sessão do carrinho que o navegador já tem. Pedir do lado de fora criaria
+ * um carrinho que não é o que a jornada vai visitar depois.
+ */
+async function adicionarPorApi(
+  ctx: JourneyContext,
+  product: ProductRef,
+): Promise<{ ok: boolean; nota: string }> {
+  const id = Number(product.variantId)
+  if (!Number.isFinite(id) || id <= 0) return { ok: false, nota: 'sem id de variante utilizável' }
+
+  const alvo = new URL('/cart/add.js', ctx.baseUrl).href
+  if (!ctx.gate.check(alvo).allowed) return { ok: false, nota: 'robots.txt proíbe /cart/add.js' }
+
+  const r = await ctx
+    .rateLimited(() =>
+      ctx.page.evaluate(
+        async ({ url, variante }: { url: string; variante: number }) => {
+          try {
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ id: variante, quantity: 1 }),
+            })
+            return { status: resp.status, corpo: (await resp.text()).slice(0, 300) }
+          } catch (e) {
+            return { status: 0, corpo: e instanceof Error ? e.message : 'fetch falhou' }
+          }
+        },
+        { url: alvo, variante: id },
+      ),
+    )
+    .catch((e: unknown) => ({ status: 0, corpo: e instanceof Error ? e.message : 'evaluate falhou' }))
+
+  if (r.status === 200) return { ok: true, nota: `200 na variante ${id}` }
+  // 422 é a resposta do Shopify para variante sem estoque ou id inválido: a
+  // API respondeu certo, o produto é que não serve. Vale dizer isso, e não
+  // "a API falhou".
+  if (r.status === 422) return { ok: false, nota: `422: ${r.corpo.slice(0, 120)}` }
+  if (r.status === 0) return { ok: false, nota: `não respondeu: ${r.corpo.slice(0, 120)}` }
+  return { ok: false, nota: `HTTP ${r.status}` }
+}
+
+/**
+ * Caminho 2: submeter o formulário, sem depender de achar botão nele.
+ *
+ * `requestSubmit()` dispara os validadores e os handlers do tema, que é o que
+ * um clique faria; `submit()` puro pula tudo isso e é o plano B, porque em
+ * tema que só ouve o evento o requestSubmit sem botão pode não disparar nada.
+ */
+async function submeterFormulario(
+  ctx: JourneyContext,
+  form: import('playwright').Locator,
+): Promise<{ ok: boolean; nota: string }> {
+  try {
+    const como = await form.evaluate((el: Element) => {
+      const f = el as HTMLFormElement
+      if (typeof f.requestSubmit === 'function') {
+        f.requestSubmit()
+        return 'requestSubmit'
+      }
+      f.submit()
+      return 'submit'
+    })
+    return { ok: true, nota: `enviado por ${como}` }
+  } catch (e) {
+    return { ok: false, nota: e instanceof Error ? e.message.slice(0, 120) : 'submit falhou' }
+  }
 }
 
 async function readCart(ctx: JourneyContext): Promise<CartReading> {
@@ -319,115 +396,29 @@ export const shopifyJourney: JourneyDriver = {
 
     const before = await readCart(ctx)
 
-    // 1. formulário do Shopify
-    //
-    // `waitFor`, não `count()`: count é uma FOTO do DOM naquele instante, e a
-    // navegação só espera domcontentloaded. Numa loja que leva 10s para montar,
-    // o formulário às vezes ainda não existe quando a foto é tirada — foi o que
-    // aconteceu na Insider Store, que encontrava o formulário nas rodadas
-    // lentas e não encontrava nas rápidas. Esperar elimina a corrida.
-    /* O formulário AJUDA, mas não manda.
-       Ele existia como pré-requisito: sem `form[action*="/cart/add"]` a
-       jornada morria aqui, com o código de "formulário não encontrado". E
-       logo abaixo já havia uma busca pelo botão em TODA a página, por texto
-       de intenção de compra — que nunca chegava a rodar, porque este `throw`
-       vinha antes. Foi o que aconteceu na Carnan: a página tinha um botão
-       "Comprar" bem visível, e a busca que o encontraria estava atrás de uma
-       porta que o formulário ausente mantinha trancada.
-       Tema que envia o carrinho por JavaScript, sem formulário clássico, é
-       comum demais para ser tratado como loja que não dá para auditar. */
-    const findTimeout = ctx.deadline.clamp(8000)
-    let form = null
-    let formSpec = null
-    for (const spec of ADD_TO_CART_FORMS) {
-      const candidate = ctx.page.locator(spec.selector).first()
-      try {
-        await candidate.waitFor({ state: 'attached', timeout: findTimeout })
-        form = candidate
-        formSpec = spec
-        break
-      } catch {
-        continue
-      }
-    }
+    /* COMO O ITEM ENTRA NO CARRINHO — quatro caminhos, nesta ordem.
+       
+       A versão anterior tinha um só: achar um botão e clicar. Toda loja que
+       escrevia o botão de um jeito novo virava auditoria perdida, e o conserto
+       era sempre "põe mais um rótulo na lista". Lista de rótulos não fecha:
+       loja brasileira escreve "ADICIONE À SACOLA", "Colocar na cestinha",
+       "EU QUERO!", e a cada cliente novo a lista fica devendo.
+       
+       Então o texto virou o ÚLTIMO recurso, e na frente dele entrou o que não
+       depende de como a loja escreve:
+       
+         1. API da plataforma — POST /cart/add.js com o id da variante que o
+            /products.json já nos deu. Não depende de tema, de texto, nem de
+            elemento existir na tela.
+         2. Formulário — submeter form[action*="/cart/add"]. Funciona em quase
+            toda Shopify, inclusive com tema customizado.
+         3. Atributo — name="add", submit dentro do formulário, data-testid
+            com cart ou add.
+         4. Texto — e por radical flexível, não por frase exata.
+       
+       Falhar nas quatro tem que ser raro. Quando acontece, é `partial` com o
+       motivo e o HTML salvo — nunca um palpite. */
 
-    // 2. botão dentro dele, em três estratégias, da mais específica para a mais
-    //    geral. Esperando em vez de fotografar o DOM.
-    /* Os três ao mesmo tempo, não um depois do outro.
-       Em fila, o tema que só casa com o terceiro seletor pagava 5s + 5s antes
-       de chegar nele, e o tema que não casa com nenhum pagava 15s para
-       descobrir isso. Esperando os três juntos, o primeiro que aparecer ganha
-       e o pior caso volta a ser 5s. A ORDEM continua valendo no empate: se
-       mais de um estiver visível quando a espera resolve, vale o mais
-       específico, que é o primeiro da lista. */
-    let button = null
-    let buttonHow: string | null = null
-
-    if (form) {
-      const candidatos = ADD_TO_CART_BUTTONS.map((spec) => ({ spec, locator: form.locator(spec.selector).first() }))
-      // Uma espera só, com os três separados por vírgula: o CSS já sabe fazer
-      // "qualquer um destes", e assim o teto de 5s é do conjunto inteiro.
-      await form
-        .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
-        .first()
-        .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
-        .catch(() => undefined)
-      for (const c of candidatos) {
-        if (!(await c.locator.isVisible().catch(() => false))) continue
-        button = c.locator
-        buttonHow = describeSelector(c.spec)
-        break
-      }
-
-      // Nenhum submit no formulário. Observado na Circulei (loja de aluguel em
-      // Shopify): o botão diz "QUERO ALUGAR" e não é submit. O rótulo varia com o
-      // MODELO DE NEGÓCIO — aluguel, assinatura, marketplace — e nenhum seletor
-      // estrutural cobre isso.
-      if (!button) {
-        const achado = await findByBuyIntent(form)
-        if (achado) {
-          button = achado.locator
-          buttonHow = `texto de intenção de compra: "${achado.label}"`
-        }
-      }
-    }
-
-    /* A página inteira. Serve para o tema que põe o botão ao lado do
-       formulário, e também para o tema que não tem formulário nenhum. */
-    if (!button) {
-      const achado = await findByBuyIntent(ctx.page.locator('body'))
-      if (achado) {
-        button = achado.locator
-        buttonHow = form
-          ? `texto de intenção de compra fora do formulário: "${achado.label}"`
-          : `texto de intenção de compra, sem formulário na página: "${achado.label}"`
-      }
-    }
-
-    if (!button || !buttonHow) {
-      const html = await saveHtml(
-        ctx.outDir,
-        new URL(ctx.baseUrl).hostname,
-        form ? 'produto-sem-botao' : 'produto-sem-formulario',
-        await ctx.page.content(),
-      )
-      throw new AuditError('BUY_BUTTON_NOT_FOUND', 'botão de comprar não encontrado na página', {
-        formMatched: formSpec ? describeSelector(formSpec) : 'nenhum formulário de /cart/add na página',
-        triedSelectors: ADD_TO_CART_BUTTONS.map(describeSelector),
-        triedText: 'léxico de intenção de compra (comprar, alugar, assinar, reservar…)',
-        candidatesSeen: await listClickableLabels(ctx.page),
-        productUrl: product.url,
-        htmlSavedTo: html,
-      })
-    }
-
-    // 3. clique de verdade — a Fase 2 vai transmitir isto ao vivo
-    const urlBefore = ctx.page.url()
-    await button.scrollIntoViewIfNeeded().catch(() => undefined)
-
-    // Antes de clicar: alguém está cobrindo o botão? Isso é achado, não
-    // obstáculo. Modal em cima do botão de comprar custa venda, e o comprador
-    // real precisa dos mesmos cliques extras que o robô.
     const overlay = {
       present: false,
       identity: null as string | null,
@@ -439,88 +430,229 @@ export const shopifyJourney: JourneyDriver = {
       likelyAuditArtifact: false,
     }
 
-    let blocker = await findBlocker(button)
-    let clicks = 1
+    const urlBefore = ctx.page.url()
+    const tentativas: string[] = []
+    let via: AddToCartVia | null = null
+    let comoAchou: string | null = null
+    let clicks = 0
 
-    if (blocker) {
-      overlay.present = true
-      overlay.identity = blocker.identity
-      overlay.text = blocker.text
-      overlay.kind = classifyOverlay(blocker.text ?? '')
-      overlay.likelyAuditArtifact = isLikelyAuditArtifact(overlay.kind, ctx.auditedFromBrazil)
+    /* Confirmar entre uma tentativa e a próxima evita o pior erro possível
+       aqui: insistir depois de já ter dado certo e somar o item duas vezes. */
+    const entrou = async (): Promise<CartReading> => esperarCarrinhoMudar(ctx, before.count)
+    const confirmou = (leitura: CartReading): boolean =>
+      leitura.count !== null && before.count !== null && leitura.count > before.count
+    let after: CartReading = before
 
-      // 1. Esc — gesto padrão, não depende de seletor nenhum.
-      overlay.dismissAttempts.push('Escape')
-      await ctx.page.keyboard.press('Escape').catch(() => undefined)
-      await ctx.page.waitForTimeout(400)
-      blocker = await findBlocker(button)
+    // ---- 1. API da plataforma -------------------------------------------
+    const porApi = await adicionarPorApi(ctx, product)
+    tentativas.push(`api: ${porApi.nota}`)
+    if (porApi.ok) {
+      after = await entrou()
+      if (confirmou(after) || after.count === null) {
+        via = 'api'
+        comoAchou = `POST /cart/add.js com a variante ${product.variantId}`
+      }
+    }
 
-      // 2. Botão de fechar por rótulo acessível.
-      if (blocker) {
-        for (const spec of OVERLAY_DISMISS) {
-          const closer = ctx.page.locator(spec.selector).first()
-          if ((await closer.count()) === 0) continue
-          if (!(await closer.isVisible().catch(() => false))) continue
-          overlay.dismissAttempts.push(spec.id)
-          await closer.click({ timeout: 3000 }).catch(() => undefined)
-          clicks++
-          await ctx.page.waitForTimeout(400)
-          blocker = await findBlocker(button)
-          if (!blocker) break
+    // ---- 2. formulário ---------------------------------------------------
+    /* `waitFor`, não `count()`: count é uma FOTO do DOM naquele instante, e a
+       navegação só espera domcontentloaded. Numa loja que leva 10s para
+       montar, o formulário às vezes ainda não existe quando a foto é tirada —
+       foi o que aconteceu na Insider Store, que encontrava o formulário nas
+       rodadas lentas e não nas rápidas. */
+    let form: import('playwright').Locator | null = null
+    let formSpec: (typeof ADD_TO_CART_FORMS)[number] | null = null
+    if (!via) {
+      for (const spec of ADD_TO_CART_FORMS) {
+        const candidate = ctx.page.locator(spec.selector).first()
+        try {
+          await candidate.waitFor({ state: 'attached', timeout: ctx.deadline.clamp(8000) })
+          form = candidate
+          formSpec = spec
+          break
+        } catch {
+          continue
         }
       }
 
-      // 3. Botão pelo TEXTO visível — é o que uma pessoa faria ao ver
-      // "continuar neste site". Léxico, não seletor de tema.
-      if (blocker) {
-        const byText = ctx.page.getByRole('button', { name: DISMISS_TEXT }).first()
-        if ((await byText.count()) > 0 && (await byText.isVisible().catch(() => false))) {
-          overlay.dismissAttempts.push('texto-de-fechar')
-          await byText.click({ timeout: 3000 }).catch(() => undefined)
-          clicks++
-          await ctx.page.waitForTimeout(400)
-          blocker = await findBlocker(button)
+      if (form) {
+        const enviado = await submeterFormulario(ctx, form)
+        tentativas.push(`formulario: ${enviado.nota}`)
+        if (enviado.ok) {
+          after = await entrou()
+          if (confirmou(after) || after.count === null) {
+            via = 'formulario'
+            comoAchou = describeSelector(formSpec as (typeof ADD_TO_CART_FORMS)[number])
+          }
         }
+      } else {
+        tentativas.push('formulario: nenhum form[action*="/cart/add"] na página')
+      }
+    }
+
+    // ---- 3 e 4. um botão: atributo, depois texto -------------------------
+    /* Procurado SEMPRE, mesmo quando a API já resolveu.
+       
+       Não para clicar: para OLHAR. "Tem um modal em cima do seu botão de
+       comprar" é um dos achados que mais valem para o lojista, e ele só existe
+       se soubermos onde o botão está. Entrando pela API sem procurar o botão,
+       o achado sumiria silenciosamente da auditoria — e "não tinha modal"
+       passaria a significar "não olhamos", que é a mentira que este projeto
+       mais evita. Custa poucos segundos e paga um achado. */
+    let button: import('playwright').Locator | null = null
+    let achadoPor: AddToCartVia | null = null
+    let comoAchouBotao: string | null = null
+    {
+      const escopo = form ?? ctx.page.locator('body')
+
+      // 3. atributo — estrutura, não texto.
+      await escopo
+        .locator(ADD_TO_CART_BUTTONS.map((spec) => spec.selector).join(', '))
+        .first()
+        .waitFor({ state: 'visible', timeout: ctx.deadline.clamp(5000) })
+        .catch(() => undefined)
+      for (const spec of ADD_TO_CART_BUTTONS) {
+        const candidato = escopo.locator(spec.selector).first()
+        if (!(await candidato.isVisible().catch(() => false))) continue
+        button = candidato
+        comoAchouBotao = describeSelector(spec)
+        achadoPor = 'atributo'
+        break
+      }
+      tentativas.push(`atributo: ${button ? `achou (${comoAchouBotao})` : 'nenhum dos seletores estruturais'}`)
+
+      // 4. texto — último recurso, radical flexível.
+      if (!button) {
+        const achado = (await findByBuyIntent(escopo)) ?? (await findByBuyIntent(ctx.page.locator('body')))
+        if (achado) {
+          button = achado.locator
+          comoAchouBotao = `texto de intenção de compra: "${achado.label}"`
+          achadoPor = 'texto'
+        }
+        tentativas.push(`texto: ${achado ? `achou "${achado.label}"` : 'nenhum rótulo com intenção de compra'}`)
       }
 
-      overlay.dismissed = blocker === null
-      await ctx.recorder.capture(ctx.page, overlay.dismissed ? 'overlay-fechado' : 'overlay-persistente')
+      // Só vira o CAMINHO quando os anteriores não resolveram.
+      if (!via && button) {
+        via = achadoPor
+        comoAchou = comoAchouBotao
+      }
     }
 
-    try {
-      /* §7.2: leva o cursor ate o botao antes de clicar. O caminho ate ele e o
-         que a pessoa assiste — e cada passo do trajeto repinta a tela, entao e
-         tambem o que faz o screencast ter frame para mandar. Falhar em mover
-         nunca impede o clique. */
-      await moveCursorToElement(ctx.page, button).catch(() => false)
-      await button.click({ timeout: ctx.deadline.clamp(10_000) })
-    } catch (e) {
-      if (!overlay.present) throw e
-      // O overlay resistiu.
-      //
-      // `force: true` NÃO resolve: ele pula a espera de actionability, mas o
-      // clique continua indo por coordenada, e quem recebe é o overlay. Foi o
-      // que aconteceu na Insider Store — clicou, e o carrinho ficou vazio.
-      //
-      // `el.click()` no DOM dispara o handler no próprio elemento, sem teste de
-      // sobreposição. Registra o dado do carrinho, e clickRequiredForce marca
-      // que um comprador NÃO teria conseguido fazer isso.
-      overlay.clickRequiredForce = true
-      await button.evaluate((el) => (el as HTMLElement).click())
-      await ctx.page.waitForTimeout(1000)
+    if (!via) {
+      const html = await saveHtml(
+        ctx.outDir,
+        new URL(ctx.baseUrl).hostname,
+        form ? 'produto-sem-botao' : 'produto-sem-formulario',
+        await ctx.page.content(),
+      )
+      throw new AuditError('BUY_BUTTON_NOT_FOUND', 'nenhum dos quatro caminhos colocou o item no carrinho', {
+        tentativas,
+        formMatched: formSpec ? describeSelector(formSpec) : 'nenhum formulário de /cart/add na página',
+        triedSelectors: ADD_TO_CART_BUTTONS.map(describeSelector),
+        candidatesSeen: await listClickableLabels(ctx.page),
+        productUrl: product.url,
+        htmlSavedTo: html,
+      })
     }
 
-    // 4. espera o CARRINHO mudar, que é o sinal que interessa
+    /* O overlay é observado sempre que sabemos onde o botão está, e o clique
+       só acontece quando o botão É o caminho. Modal em cima do botão de
+       comprar custa venda; o comprador real precisa dos mesmos cliques extras
+       que o robô, e é isso que `clickRequiredForce` registra. */
+    const vaiClicar = button !== null && (via === 'atributo' || via === 'texto')
+    if (button) {
+      await button.scrollIntoViewIfNeeded().catch(() => undefined)
+
+      let blocker = await findBlocker(button)
+      if (vaiClicar) clicks = 1
+
+      if (blocker) {
+        overlay.present = true
+        overlay.identity = blocker.identity
+        overlay.text = blocker.text
+        overlay.kind = classifyOverlay(blocker.text ?? '')
+        overlay.likelyAuditArtifact = isLikelyAuditArtifact(overlay.kind, ctx.auditedFromBrazil)
+
+        // 1. Esc — gesto padrão, não depende de seletor nenhum.
+        overlay.dismissAttempts.push('Escape')
+        await ctx.page.keyboard.press('Escape').catch(() => undefined)
+        await ctx.page.waitForTimeout(400)
+        blocker = await findBlocker(button)
+
+        // 2. Botão de fechar por rótulo acessível.
+        if (blocker) {
+          for (const spec of OVERLAY_DISMISS) {
+            const closer = ctx.page.locator(spec.selector).first()
+            if ((await closer.count()) === 0) continue
+            if (!(await closer.isVisible().catch(() => false))) continue
+            overlay.dismissAttempts.push(spec.id)
+            await closer.click({ timeout: 3000 }).catch(() => undefined)
+            clicks++
+            await ctx.page.waitForTimeout(400)
+            blocker = await findBlocker(button)
+            if (!blocker) break
+          }
+        }
+
+        // 3. Botão pelo TEXTO visível — é o que uma pessoa faria ao ver
+        // "continuar neste site". Léxico, não seletor de tema.
+        if (blocker) {
+          const byText = ctx.page.getByRole('button', { name: DISMISS_TEXT }).first()
+          if ((await byText.count()) > 0 && (await byText.isVisible().catch(() => false))) {
+            overlay.dismissAttempts.push('texto-de-fechar')
+            await byText.click({ timeout: 3000 }).catch(() => undefined)
+            clicks++
+            await ctx.page.waitForTimeout(400)
+            blocker = await findBlocker(button)
+          }
+        }
+
+        overlay.dismissed = blocker === null
+        await ctx.recorder.capture(ctx.page, overlay.dismissed ? 'overlay-fechado' : 'overlay-persistente')
+      }
+    }
+
+    if (vaiClicar && button) {
+      try {
+        /* §7.2: leva o cursor ate o botao antes de clicar. O caminho ate ele e
+           o que a pessoa assiste — e cada passo do trajeto repinta a tela,
+           entao e tambem o que faz o screencast ter frame para mandar. Falhar
+           em mover nunca impede o clique. */
+        await moveCursorToElement(ctx.page, button).catch(() => false)
+        await button.click({ timeout: ctx.deadline.clamp(10_000) })
+      } catch (e) {
+        if (!overlay.present) throw e
+        // O overlay resistiu.
+        //
+        // `force: true` NÃO resolve: ele pula a espera de actionability, mas o
+        // clique continua indo por coordenada, e quem recebe é o overlay. Foi
+        // o que aconteceu na Insider Store — clicou, e o carrinho ficou vazio.
+        //
+        // `el.click()` no DOM dispara o handler no próprio elemento, sem teste
+        // de sobreposição. Registra o dado do carrinho, e clickRequiredForce
+        // marca que um comprador NÃO teria conseguido fazer isso.
+        overlay.clickRequiredForce = true
+        await button.evaluate((el) => (el as HTMLElement).click())
+        await ctx.page.waitForTimeout(1000)
+      }
+    }
+
+    // A confirmação final. Para os caminhos que já confirmaram acima, esta
+    // leitura volta na primeira pergunta; para o clique, ela é a espera de
+    // verdade.
     //
-    // Antes isto era `waitForLoadState('networkidle', 5000)`. Loja de verdade
-    // não fica quieta nunca — pixel, chat, analytics batem a cada poucos
-    // segundos — então o networkidle NUNCA acontecia e a espera cobrava os 5
-    // segundos inteiros, em toda auditoria, sem esperar por nada. Perguntar ao
-    // /cart.js volta em ~200ms quando a loja é rápida, e o teto continua
-    // valendo para a loja que demora.
-    const after = await esperarCarrinhoMudar(ctx, before.count)
+    // Isto era `waitForLoadState('networkidle', 5000)`. Loja de verdade não
+    // fica quieta nunca — pixel, chat, analytics batem a cada poucos segundos
+    // — então o networkidle NUNCA acontecia e a espera cobrava os 5 segundos
+    // inteiros, em toda auditoria, sem esperar por nada.
+    if (!confirmou(after)) after = await entrou()
 
-    const uiPattern = await detectCartUiPattern(ctx, urlBefore)
+    /* O padrão de UI (gaveta, modal, redirecionamento) é a REAÇÃO ao clique.
+       Sem clique não há reação para classificar: entrar por API ou por submit
+       de formulário não deixa isso observável, e chutar 'inline' seria
+       inventar. */
+    const uiPattern = vaiClicar ? await detectCartUiPattern(ctx, urlBefore) : 'unknown'
     const cartShot = await ctx.recorder.capture(ctx.page, 'carrinho')
 
     // 6. A página do carrinho é a segunda fonte mais rica da §6.6, e também
@@ -568,6 +700,9 @@ export const shopifyJourney: JourneyDriver = {
       cartReadNote: confirmed === null ? `antes: ${before.note} | depois: ${after.note}` : null,
       clicks,
       overlay,
+      via,
+      viaDetalhe: comoAchou,
+      viasTentadas: tentativas,
     }
   },
 
@@ -670,8 +805,15 @@ async function detectCartUiPattern(
 async function findByBuyIntent(
   scope: import('playwright').Locator,
 ): Promise<{ locator: import('playwright').Locator; label: string } | null> {
-  const clicaveis = scope.locator('button, a, [role="button"], input[type="button"]')
+  const clicaveis = scope.locator('button, a, [role="button"], input[type="button"], input[type="submit"]')
   const total = Math.min(await clicaveis.count(), 80)
+
+  /* Compara TODOS e fica com o melhor, em vez de parar no primeiro.
+     Com radical solto no lugar da lista fechada, mais coisas casam — e uma
+     frase perdida na página ("Você pode comprar depois") casa junto com o
+     botão de verdade. Parar no primeiro entregaria quem aparecesse antes no
+     DOM; comparar entrega quem tem mais cara de botão. */
+  let melhor: { locator: import('playwright').Locator; label: string; match: BuyIntentMatch } | null = null
 
   for (let i = 0; i < total; i++) {
     const candidato = clicaveis.nth(i)
@@ -684,9 +826,14 @@ async function findByBuyIntent(
       (await candidato.getAttribute('aria-label').catch(() => null))
 
     const achado = matchBuyIntent(texto)
-    if (achado) return { locator: candidato, label: achado.label }
+    if (!achado) continue
+    if (melhor === null || melhorQue(achado, melhor.match)) {
+      melhor = { locator: candidato, label: achado.label, match: achado }
+    }
+    // Não dá para melhorar o melhor possível: para de procurar.
+    if (achado.rank === 0) break
   }
-  return null
+  return melhor === null ? null : { locator: melhor.locator, label: melhor.label }
 }
 
 /**
