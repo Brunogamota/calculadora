@@ -83,8 +83,11 @@ const server = createServer((req, res) => {
         publisher: bus,
         auditId,
         headed: process.env['AUDIT_HEADED'] === '1',
-        // §7.5: sem o atraso a execução termina antes de dar para ler.
-        stepDelayMs: Number(process.env['AUDIT_STEP_DELAY_MS'] ?? 800),
+        /* O atraso existia para dar tempo de ler quando a tela nao tinha
+           imagem. Agora o cursor da o ritmo e o screencast mostra o que esta
+           acontecendo, entao ele so tira 5,6s da auditoria sem entregar nada.
+           Continua ajustavel por variavel para quem quiser desacelerar. */
+        stepDelayMs: Number(process.env['AUDIT_STEP_DELAY_MS'] ?? 0),
         fromBrazil: process.env['AUDIT_FROM_BR'] === '1',
       })
         .catch(() => undefined)

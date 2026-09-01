@@ -10,6 +10,7 @@ import { chromium, type Browser, type BrowserContext, type Page, type Response }
 import { AuditError } from './errors.ts'
 import { normalizeUrl, assertUrlShapeIsSafe } from './guards.ts'
 import type { PageGlobals } from '../types.ts'
+import { installCursor } from '../journey/cursor.ts'
 
 export const DESKTOP_VIEWPORT = { width: 1440, height: 900 }
 
@@ -112,6 +113,11 @@ export async function launchBrowser(options: LaunchOptions): Promise<BrowserSess
   })
 
   const page = await context.newPage()
+
+  /* §7.2: o cursor entra ANTES da primeira navegação. `addInitScript` roda em
+     toda navegação, então ele sobrevive a mudar de página — que é onde um
+     elemento injetado à mão se perderia. */
+  await installCursor(page).catch(() => undefined)
 
   return {
     browser,

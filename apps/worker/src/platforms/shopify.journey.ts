@@ -32,6 +32,7 @@ import {
   collectPayment as collectPaymentImpl,
 } from './shopify.checkout.ts'
 import type { AddToCartResult, JourneyContext, JourneyDriver, ProductRef } from '../types.ts'
+import { idleCursor, moveCursorToElement } from '../journey/cursor.ts'
 
 interface ShopifyVariant {
   id: number
@@ -458,6 +459,11 @@ export const shopifyJourney: JourneyDriver = {
     }
 
     try {
+      /* §7.2: leva o cursor ate o botao antes de clicar. O caminho ate ele e o
+         que a pessoa assiste — e cada passo do trajeto repinta a tela, entao e
+         tambem o que faz o screencast ter frame para mandar. Falhar em mover
+         nunca impede o clique. */
+      await moveCursorToElement(ctx.page, button).catch(() => false)
       await button.click({ timeout: ctx.deadline.clamp(10_000) })
     } catch (e) {
       if (!overlay.present) throw e
