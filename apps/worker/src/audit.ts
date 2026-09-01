@@ -240,6 +240,10 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // sessão CDP já morta, e o erro esconderia o resultado da auditoria.
     await slot.cast?.stop().catch(() => undefined)
     await slot.browser?.close()
+    // Nenhuma auditoria acaba em silêncio. Cada caminho de saída já diz o seu
+    // motivo; isto pega o caminho que alguém esquecer de cobrir amanhã, porque
+    // o custo do esquecimento é uma tela girando para sempre.
+    reporter.garantirFim(null, null)
   }
 }
 
@@ -356,10 +360,10 @@ async function runAudit(
     reporter.done('open-product', product.title)
     await reporter.pace()
   } catch (e) {
-    reporter.fail('open-product', toAuditError(e).message)
     const shot = await recorder.capture(prepared.browser.page, 'falha-find-product')
     const err = toAuditError(e)
-    if (isProtectedSite(err.code)) reporter.aborted(err.code, err.message)
+    reporter.fail('open-product', err.message)
+    reporter.aborted(err.code, err.message)
     return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
   }
 
@@ -396,8 +400,8 @@ async function runAudit(
   } catch (e) {
     const shot = await recorder.capture(prepared.browser.page, 'falha-add-to-cart')
     const err = toAuditError(e)
-    if (isProtectedSite(err.code)) reporter.aborted(err.code, err.message)
-    else reporter.fail('add-to-cart', err.message)
+    reporter.fail('add-to-cart', err.message)
+    reporter.aborted(err.code, err.message)
     return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)
   }
 
@@ -458,7 +462,9 @@ async function runAudit(
       }
     } catch (e) {
       const shot = await recorder.capture(prepared.browser.page, 'falha-checkout')
-      reporter.fail('reach-checkout', toAuditError(e).message)
+      const err = toAuditError(e)
+      reporter.fail('reach-checkout', err.message)
+      reporter.aborted(err.code, err.message)
       return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot, checkoutStartedAt)
     }
   }

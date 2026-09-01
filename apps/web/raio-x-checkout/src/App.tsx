@@ -501,8 +501,13 @@ function useCronometro(rodando: boolean) {
   return seg;
 }
 
-function relogio(segundosReais: number): string {
-  const t = segundosReais / ESCALA;
+/* O relógio da demonstração corre acelerado porque a jornada inteira dela cabe
+   em poucos segundos. Com o motor ligado ele conta segundo de verdade: dividir
+   por .62 mostrava 03:13 numa auditoria de 2 minutos, e um relógio que corre
+   1,6x mais rápido que o mundo faz o orçamento de 120s parecer estourado
+   quando ele não estourou. */
+function relogio(segundos: number, acelerado: boolean): string {
+  const t = acelerado ? segundos / ESCALA : segundos;
   return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 }
 
@@ -635,6 +640,10 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
      Nos dois casos nada esta acontecendo, e a tela precisa parar de encenar. */
   const parou = Boolean(nossoProblema) || Boolean(vivo.falhaNossa);
+  /* "Não começou" e "parou no meio" são coisas diferentes, e dizer a primeira
+     quando foi a segunda é inventar resultado. Um prazo estourado aos 2
+     minutos tinha etapa andada e imagem na tela: aquilo começou. */
+  const comecou = vivo.stage > 0 || vivo.frame !== null;
   const [congelado, setCongelado] = useState<number | null>(null);
   useEffect(() => {
     if (parou) setCongelado((c) => c ?? (temServidor() ? vivo.segundos : simulado));
@@ -642,12 +651,15 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
   const e = congelado ?? (temServidor() ? vivo.segundos : simulado);
   const host = url || DEMO_STORE;
 
-  /* Três estados de imagem em janelas fixas: o primeiro frame ainda não chegou,
-     a imagem travou mas a leitura seguiu, e a faixa de reconexão contando
-     quantos segundos ficaram sem imagem. */
-  const esperando = e < 3.4;
-  const travado = e > 13.5 && e < 19.5;
-  const reconectado = e > 22 && e < 29;
+  /* Três estados de imagem. Na demonstração eles caem em janelas fixas de
+     relógio, que é como o desenho os mostra. Com o motor ligado, janela fixa
+     seria encenação: a faixa "você ficou 16 segundos sem imagem" apareceria
+     aos 22s de toda auditoria, tendo ou não havido queda. Aqui eles saem do
+     que de fato aconteceu — e a faixa de reconexão, que traz números fixos no
+     texto, simplesmente não aparece ao vivo. */
+  const esperando = temServidor() ? vivo.frame === null : e < 3.4;
+  const travado = temServidor() ? vivo.frame !== null && vivo.semImagem > 4 : e > 13.5 && e < 19.5;
+  const reconectado = temServidor() ? false : e > 22 && e < 29;
 
   /* Com servidor, a etapa vem do evento; sem ele, do relógio da demonstração.
      Os dois alimentam o mesmo `stage`, então a tela é uma só. */
@@ -682,7 +694,7 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
           <div className="exec-titulo">
             <span className={`pill-andamento ${parou ? "parada" : ""}`}>
               {parou ? <X size={15} aria-hidden="true" /> : <LoaderCircle className="gira" size={15} aria-hidden="true" />}
-              {parou ? "Análise não começou" : "Análise em andamento"}
+              {parou ? (comecou ? "Análise interrompida" : "Análise não começou") : "Análise em andamento"}
             </span>
             <div>
               <h1 className="texto-brilho">Analisando seu checkout</h1>
@@ -690,7 +702,7 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
             </div>
           </div>
           <div className="exec-acoes">
-            <span className="mono exec-relogio">{relogio(e)}</span>
+            <span className="mono exec-relogio">{relogio(e, !temServidor())}</span>
             <ShareButton />
           </div>
         </div>
@@ -732,7 +744,11 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
                 <div className="parou-aviso">
                   <X size={22} aria-hidden="true" />
                   <span className="parou-titulo">
-                    {nossoProblema ? "A auditoria não começou" : "Não conseguimos falar com o nosso servidor"}
+                    {nossoProblema
+                      ? comecou
+                        ? "A auditoria parou no meio"
+                        : "A auditoria não começou"
+                      : "Não conseguimos falar com o nosso servidor"}
                   </span>
                   <span className="parou-motivo">
                     {nossoProblema ?? "O motor não respondeu. A loja não tem nada a ver com isso."}

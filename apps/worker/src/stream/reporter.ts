@@ -20,6 +20,8 @@ export class Reporter {
   readonly #stepDelayMs: number
   /** Achados já anunciados, para não repetir o mesmo na tela. */
   readonly #announced = new Set<string>()
+  /** Já saiu `complete` ou `aborted`? Toda auditoria deve emitir exatamente um. */
+  #terminou = false
 
   constructor(publisher: Publisher, auditId: string, stepDelayMs = 0) {
     this.#publisher = publisher
@@ -77,12 +79,42 @@ export class Reporter {
     this.#emit({ type: 'finding', code, severity, title, at: new Date().toISOString() })
   }
 
+  /** Já saiu o evento que encerra a transmissão. */
+  get terminou(): boolean {
+    return this.#terminou
+  }
+
   complete(score: number | null, caveat: string | null): void {
+    if (this.#terminou) return
+    this.#terminou = true
     this.#emit({ type: 'complete', auditId: this.#auditId, score, caveat })
   }
 
-  /** Desafio antibot, deadline, intervalo: a tela precisa parar de girar. */
+  /**
+   * Desafio antibot, deadline, intervalo: a tela precisa parar de girar.
+   *
+   * O primeiro motivo é o que vale. Chamar de novo depois de encerrar não
+   * emite nada — assim quem quer garantir o fim pode chamar sem antes
+   * perguntar se alguém já chamou, e a tela nunca recebe dois motivos.
+   */
   aborted(code: string, reason: string): void {
+    if (this.#terminou) return
+    this.#terminou = true
     this.#emit({ type: 'aborted', auditId: this.#auditId, code, reason })
+  }
+
+  /**
+   * Rede de segurança: nenhuma auditoria pode acabar em silêncio.
+   *
+   * Uma etapa que falhava fora do antibot devolvia resultado sem emitir nada,
+   * e a tela ficava girando para sempre. Medido na loja falsa: derrubar a loja
+   * no meio da jornada encerrava a auditoria em 2,1s e o WebSocket ficava mudo
+   * pelos 75s seguintes, com a tela dizendo "análise em andamento" o tempo
+   * todo. Quem chama passa o motivo de verdade; se já houve `complete` ou
+   * `aborted`, isto não faz nada.
+   */
+  garantirFim(code: string | null, reason: string | null): void {
+    if (this.#terminou) return
+    this.aborted(code ?? 'AUDIT_ENDED_SILENTLY', reason ?? 'a auditoria terminou sem dizer por quê')
   }
 }

@@ -48,6 +48,9 @@ export type EstadoAoVivo = {
    *  de propósito. Mostrar isto como "a loja caiu" seria acusar a loja de um
    *  problema nosso — e o projeto inteiro existe para nao inventar resultado. */
   falhaNossa: null | { reason: string };
+  /** Há quantos segundos nenhuma imagem nova chega. Zero enquanto nem a
+   *  primeira chegou — aí quem manda é `frame === null`. */
+  semImagem: number;
   /** Segundos desde o início, para o cronômetro e as janelas de estado. */
   segundos: number;
   /** true quando existe servidor e a ligação está de pé. */
@@ -55,7 +58,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -88,9 +91,12 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
 
     let vivo = true;
     let ultimaSeq = 0;
+    let ultimoFrameEm = 0;
     const inicio = Date.now();
     const relogio = window.setInterval(() => {
-      if (vivo) setEstado((e) => ({ ...e, segundos: (Date.now() - inicio) / 1000 }));
+      if (!vivo) return;
+      const semImagem = ultimoFrameEm === 0 ? 0 : (Date.now() - ultimoFrameEm) / 1000;
+      setEstado((e) => ({ ...e, segundos: (Date.now() - inicio) / 1000, semImagem }));
     }, 100);
 
     const aplicar = (ev: AuditEvent) => {
@@ -104,6 +110,7 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
           case "frame": {
             const pulados = ev.seq > ultimaSeq + 1 ? ev.seq - ultimaSeq - 1 : 0;
             ultimaSeq = ev.seq;
+            ultimoFrameEm = Date.now();
             const uri = `data:image/jpeg;base64,${ev.data}`;
             return {
               ...e,
