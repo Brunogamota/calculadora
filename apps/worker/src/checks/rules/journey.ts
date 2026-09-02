@@ -2,7 +2,7 @@
  * Checagens sobre a jornada: passos, login, velocidade — e o botão coberto.
  */
 
-import { fail, notApplicable, pass, type CheckRule } from '../types.ts'
+import { fail, familiaDaAusencia, notApplicable, pass, razaoDoModo, type CheckRule } from '../types.ts'
 
 /** §8: STEP_COUNT, alta. Mais de 5 passos do produto ao pagamento. */
 export const stepCount: CheckRule = {
@@ -12,7 +12,10 @@ export const stepCount: CheckRule = {
 
   evaluate(input) {
     if (!input.checkout || !input.checkout.reachedPaymentScreen) {
-      return notApplicable('a tela de pagamento não foi alcançada, então não há como contar os passos')
+      return notApplicable(
+        razaoDoModo(input, ['checkout']) ?? 'a tela de pagamento não foi alcançada, então não há como contar os passos',
+        familiaDaAusencia(input, ['checkout']),
+      )
     }
     const passos = input.checkout.stepsFromProduct
     const cliques = input.checkout.clicksFromProduct
@@ -35,7 +38,10 @@ export const forcedLogin: CheckRule = {
 
   evaluate(input) {
     if (!input.checkout) {
-      return notApplicable('o checkout não foi alcançado')
+      return notApplicable(
+        razaoDoModo(input, ['checkout']) ?? 'o checkout não foi alcançado',
+        familiaDaAusencia(input, ['checkout']),
+      )
     }
     if (input.checkout.forcedLogin === null) {
       return notApplicable('não foi possível determinar com certeza se há parede de login')
@@ -61,7 +67,10 @@ export const checkoutSpeed: CheckRule = {
   evaluate(input) {
     const ms = input.checkout?.loadMs.checkout ?? null
     if (ms === null) {
-      return notApplicable('o tempo de carregamento do checkout não foi medido')
+      return notApplicable(
+        razaoDoModo(input, ['checkout']) ?? 'o tempo de carregamento do checkout não foi medido',
+        familiaDaAusencia(input, ['checkout']),
+      )
     }
     // Medir de fora do Brasil infla o número por latência de rede, e penalizar
     // a loja por isso seria acusá-la de um problema do nosso ponto de observação.
@@ -101,7 +110,10 @@ export const buyButtonObscured: CheckRule = {
   evaluate(input) {
     const overlay = input.cart?.overlay
     if (!overlay) {
-      return notApplicable('a etapa de carrinho não rodou')
+      return notApplicable(
+        razaoDoModo(input, ['cart']) ?? 'a etapa de carrinho não rodou',
+        familiaDaAusencia(input, ['cart']),
+      )
     }
     if (!overlay.present) {
       return pass(['nada cobria o botão de comprar'])

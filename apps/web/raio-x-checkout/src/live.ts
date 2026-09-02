@@ -17,6 +17,16 @@ export const STEP_IDS: StepId[] = ["identify", "open-product", "add-to-cart", "r
 
 type Severidade = "critica" | "alta" | "media" | "baixa";
 
+/* O que deu e o que não deu para verificar, do jeito que o motor manda. É o
+   que preenche o resumo e a lista de detalhe da tela de resultado — no lugar
+   da manchete do desenho, que afirmava a mesma coisa em toda auditoria. */
+export type Cobertura = {
+  checked: number;
+  unchecked: number;
+  summary: string;
+  rules: { id: string; title: string; status: "pass" | "fail" | "not_applicable"; reason: string | null }[];
+};
+
 type AuditEvent =
   | { type: "step:start"; id: StepId; label: string; at: string }
   | { type: "step:done"; id: StepId; detail?: string; at: string }
@@ -24,7 +34,7 @@ type AuditEvent =
   | { type: "step:skip"; id: StepId; reason: string; at: string }
   | { type: "frame"; data: string; seq: number; url?: string }
   | { type: "finding"; code: string; severity: Severidade; title: string; at: string }
-  | { type: "complete"; auditId: string; score: number | null; caveat: string | null }
+  | { type: "complete"; auditId: string; score: number | null; caveat: string | null; coverage?: Cobertura }
   | { type: "aborted"; auditId: string; code: string; reason: string }
   | { type: "state"; state: EstadoDoServidor };
 
@@ -38,6 +48,7 @@ type EstadoDoServidor = {
   finished?: boolean;
   score?: number | null;
   caveat?: string | null;
+  coverage?: Cobertura;
 };
 
 export type EstadoAoVivo = {
@@ -58,7 +69,7 @@ export type EstadoAoVivo = {
    *  mas dá para saber QUE se perdeu — é o que o campo `seq` existe para dizer. */
   perdidos: number;
   achados: { code: string; severity: Severidade; title: string }[];
-  fim: null | { score: number | null; caveat: string | null };
+  fim: null | { score: number | null; caveat: string | null; cobertura: Cobertura | null };
   /** A auditoria parou por algo da LOJA: antibot, sessao cortada, prazo. */
   abortado: null | { code: string; reason: string };
   /** NOSSO lado falhou: servidor fora, rede, resposta invalida. Fica separado
@@ -89,6 +100,25 @@ export function temServidor(): boolean {
   return API.length > 0;
 }
 
+/**
+ * O texto EXATO que o responsável lê antes de marcar o aceite.
+ *
+ * Mora aqui, e não na tela, porque é o mesmo texto que viaja no registro do
+ * aceite para o motor. Se a tela mostrasse um texto e o registro guardasse
+ * outro, o registro seria falso — e ele é justamente o que autoriza a
+ * auditoria a mexer no carrinho.
+ */
+export const TEXTO_DO_ACEITE =
+  "Sou responsável por esta loja e autorizo a auditoria a adicionar um produto ao carrinho e abrir o checkout. A auditoria não finaliza pedido nem envia pagamento.";
+
+/** O registro do aceite: quando, de qual loja, e o que foi lido. */
+export type Aceite = { em: string; url: string; texto: string };
+
+/** Monta o registro no instante do clique — antes da execução, como exigido. */
+export function registrarAceite(url: string): Aceite {
+  return { em: new Date().toISOString(), url, texto: TEXTO_DO_ACEITE };
+}
+
 /* Teto de frames na memória da aba. A 8 fps, 90s dão umas 720 imagens de ~9 KB,
    perto de 6 MB — muito para segurar sem limite. Ao estourar, eu ralo pela
    metade os mais antigos em vez de cortar o fim: a gravação perde suavidade no
@@ -103,7 +133,14 @@ function guardar(atual: { data: string; t: number }[], novo: { data: string; t: 
   return [...ralado, novo];
 }
 
-export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
+/**
+ * `aceite` decide o modo, e o modo decide o que a auditoria pode tocar.
+ *
+ * Com aceite registrado vai `consentido`: o robô adiciona ao carrinho e abre o
+ * checkout. Sem ele vai `leitura`: lê a página do produto e para ali. Não há
+ * padrão do lado do motor — auditoria sem modo declarado é recusada.
+ */
+export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = null): EstadoAoVivo {
   const [estado, setEstado] = useState<EstadoAoVivo>(VAZIO);
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -141,7 +178,10 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
       for (const f of st.findings ?? []) {
         if (!achados.some((a) => a.code === f.code)) achados.push({ code: f.code, severity: f.severity, title: f.title });
       }
-      const fim = st.finished && st.score !== undefined ? { score: st.score, caveat: st.caveat ?? null } : e.fim;
+      const fim =
+        st.finished && st.score !== undefined
+          ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null }
+          : e.fim;
       return { ...e, stage, duracoes, achados, fim };
     };
 
@@ -181,7 +221,11 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
             if (e.achados.some((a) => a.code === ev.code)) return e;
             return { ...e, achados: [...e.achados, { code: ev.code, severity: ev.severity, title: ev.title }] };
           case "complete":
-            return { ...e, fim: { score: ev.score, caveat: ev.caveat }, stage: STEP_IDS.length };
+            return {
+              ...e,
+              fim: { score: ev.score, caveat: ev.caveat, cobertura: ev.coverage ?? null },
+              stage: STEP_IDS.length,
+            };
           case "aborted":
             return { ...e, abortado: { code: ev.code, reason: ev.reason } };
           case "state":
@@ -198,7 +242,9 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
         const r = await fetch(`${API}/api/audit`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify(
+            aceite ? { url, modo: "consentido", aceite } : { url, modo: "leitura" },
+          ),
         });
         const corpo = (await r.json()) as { auditId?: string; error?: string };
         if (!r.ok || !corpo.auditId) throw new Error(corpo.error ?? `HTTP ${r.status}`);
@@ -233,6 +279,11 @@ export function useAuditoriaAoVivo(url: string | null): EstadoAoVivo {
       socketRef.current?.close();
       socketRef.current = null;
     };
+    /* `aceite` fica FORA das dependências de propósito: ele é montado uma vez,
+       no clique, e guardado em estado. Entrar aqui só criaria o risco de um
+       objeto novo a cada render reabrir a auditoria — e a auditoria é uma por
+       clique, não uma por render. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
   return estado;

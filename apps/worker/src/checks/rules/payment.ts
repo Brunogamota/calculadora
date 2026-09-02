@@ -8,12 +8,16 @@
 
 import {
   fail,
+  familiaDaAusencia,
   melhorFonte,
   notApplicable,
   pass,
+  razaoDoModo,
+  robotsSegurou,
   NOME_DA_FONTE,
   type CheckInput,
   type CheckRule,
+  type FamiliaDeCobertura,
 } from '../types.ts'
 import { findTerm, CARD_BRANDS, PAYMENT_METHODS } from '../../journey/vocabulary.ts'
 import type { PageObservation } from '../../types.ts'
@@ -47,6 +51,9 @@ function bloqueiosRelevantes(
   input: CheckInput,
   ordem: ReadonlyArray<PageObservation['source']>,
 ): string[] {
+  // `robotsSegurou` porque em consentido nada foi segurado por robots: o portão
+  // libera com o aceite. Ver a nota lá.
+  if (!robotsSegurou(input, ordem)) return []
   return input.robotsBlockedPaths.filter((caminho) =>
     ordem.some((fonte) => CAMINHO_DA_FONTE[fonte].test(caminho)),
   )
@@ -54,6 +61,8 @@ function bloqueiosRelevantes(
 
 function semFonte(input: CheckInput, ordem: ReadonlyArray<PageObservation['source']>): string | null {
   if (melhorFonte(input, ordem)) return null
+  const doModo = razaoDoModo(input, ordem)
+  if (doModo) return doModo
   if (input.blockedBySite) return 'a loja bloqueou a auditoria antes de qualquer página medível'
   // O motivo importa mais que o fato: "o robots proibiu" é decisão da loja e
   // não penaliza ninguém; "não foi observada" é limitação nossa. Sair com o
@@ -105,11 +114,13 @@ export const pixDiscountLate: CheckRule = {
     // A fonte de comparação vem primeiro porque é ela que o robots bloqueia: se
     // faltar, o motivo é da loja, não nosso, e precisa aparecer como tal.
     const razao = semFonte(input, ['checkout', 'cart'])
-    if (razao) return notApplicable(razao)
+    if (razao) return notApplicable(razao, familiaDaAusencia(input, ['checkout', 'cart']))
 
     const depois = melhorFonte(input, ['checkout', 'cart'])!
     const produto = input.observations.find((o) => o.source === 'product')
-    if (!produto) return notApplicable('a página de produto não foi observada')
+    if (!produto) {
+      return notApplicable('a página de produto não foi observada', familiaDaAusencia(input, ['product']))
+    }
 
     const pixDepois = depois.snapshot.pix
     if (!pixDepois.present) return notApplicable('a loja não oferece Pix')
@@ -140,7 +151,7 @@ export const installmentUnclear: CheckRule = {
     // que a falta de clareza custa a venda.
     const ordem = ['product', 'checkout', 'cart'] as const
     const razao = semFonte(input, ordem)
-    if (razao) return notApplicable(razao)
+    if (razao) return notApplicable(razao, familiaDaAusencia(input, ordem))
 
     const fonte = melhorFonte(input, ordem)!
     const p = fonte.snapshot.installments
@@ -181,7 +192,7 @@ export const noSavedCard: CheckRule = {
   evaluate(input) {
     // Só faz sentido no checkout: salvar cartão não existe antes dele.
     const razao = semFonte(input, ['checkout'])
-    if (razao) return notApplicable(razao)
+    if (razao) return notApplicable(razao, familiaDaAusencia(input, ['checkout']))
     const fonte = melhorFonte(input, ['checkout'])!
     if (fonte.snapshot.saveCard === null) return notApplicable('não foi possível verificar')
     if (fonte.snapshot.saveCard) return pass(['a loja oferece salvar o cartão'])
@@ -205,20 +216,25 @@ export const noSavedCard: CheckRule = {
 function presencaAntecipavel(
   input: CheckInput,
   ler: (o: PageObservation) => boolean | null,
-): { fonte: PageObservation; valor: boolean } | { razao: string } {
+):
+  | { fonte: PageObservation; valor: boolean }
+  | { razao: string; familia: FamiliaDeCobertura } {
   const checkout = melhorFonte(input, ['checkout'])
   if (checkout) {
     const valor = ler(checkout)
-    if (valor === null) return { razao: 'não foi possível verificar na tela de pagamento' }
+    if (valor === null) {
+      return { razao: 'não foi possível verificar na tela de pagamento', familia: 'dado-ilegivel' }
+    }
     return { fonte: checkout, valor }
   }
 
   const antes = melhorFonte(input, ['cart', 'product'])
   if (antes && ler(antes) === true) return { fonte: antes, valor: true }
 
+  const familia = familiaDaAusencia(input, ['checkout'])
   const razao = semFonte(input, ['checkout'])
-  if (razao) return { razao }
-  return { razao: 'a tela de pagamento não foi observada' }
+  if (razao) return { razao, familia }
+  return { razao: 'a tela de pagamento não foi observada', familia }
 }
 
 /** §8: NO_COUPON_FIELD, baixa. */
@@ -229,7 +245,7 @@ export const noCouponField: CheckRule = {
 
   evaluate(input) {
     const r = presencaAntecipavel(input, (o) => o.snapshot.couponField)
-    if ('razao' in r) return notApplicable(r.razao)
+    if ('razao' in r) return notApplicable(r.razao, r.familia)
     if (r.valor) return pass([`há campo de cupom na ${NOME_DA_FONTE[r.fonte.source]}`])
     return fail(
       [`nenhum campo de cupom na ${NOME_DA_FONTE[r.fonte.source]}`],
@@ -247,7 +263,7 @@ export const noTrustSignal: CheckRule = {
 
   evaluate(input) {
     const r = presencaAntecipavel(input, (o) => o.snapshot.trustSignals.present)
-    if ('razao' in r) return notApplicable(r.razao)
+    if ('razao' in r) return notApplicable(r.razao, r.familia)
     if (r.valor) return pass(r.fonte.snapshot.trustSignals.evidence.slice(0, 3))
     return fail(
       [`nenhuma menção a segurança na ${NOME_DA_FONTE[r.fonte.source]}`],

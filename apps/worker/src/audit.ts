@@ -14,6 +14,7 @@ import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
+import type { Coverage } from '@raio-x/types'
 import { observacaoDoCheckout } from './checks/types.ts'
 import { NullPublisher, type Publisher } from './stream/publisher.ts'
 import { Reporter } from './stream/reporter.ts'
@@ -22,19 +23,36 @@ import { normalizeUrl } from './lib/guards.ts'
 import { vantageContradiction } from './lib/environment.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import type {
+  Aceite,
   AddToCartResult,
   CheckoutContext,
   JourneyContext,
   JourneyStep,
+  ModoAuditoria,
   NavigationResult,
   PageObservation,
   PaymentSnapshot,
   ProductRef,
+  RobotsGate,
 } from './types.ts'
 import type { BrowserSession } from './lib/browser.ts'
 import { idleCursor } from './journey/cursor.ts'
 
 export interface AuditOptions extends PrepareOptions {
+  /**
+   * OBRIGATÓRIO. Sem modo declarado a auditoria não roda.
+   *
+   * Não tem padrão de propósito. Um padrão aqui seria decidir por omissão a
+   * pergunta mais importante que este motor faz — se alguém autorizou ou não —
+   * e quem esquecesse de passar ficaria com a resposta mais permissiva sem
+   * nunca ter escolhido.
+   */
+  modo: ModoAuditoria
+  /**
+   * O aceite do responsável, registrado ANTES da execução. Exigido no modo
+   * consentido; recusado no modo leitura, onde ninguém autorizou nada.
+   */
+  aceite?: Aceite
   outDir?: string
   /**
    * Preencher contato e entrega para alcançar a tela de meios de pagamento.
@@ -97,6 +115,10 @@ export interface AuditResult {
     timezone: string
     note: string | null
   }
+  /** Sob que autorização esta auditoria rodou. Vai no relatório e no log. */
+  modo: ModoAuditoria
+  /** O aceite que autorizou, quando houve. Null no modo leitura. */
+  aceite: Aceite | null
   errorCode: AuditErrorCode | null
   errorReason: string | null
   /** Contexto da falha: URL no momento, HTML salvo, seletores tentados. */
@@ -106,7 +128,31 @@ export interface AuditResult {
 
 const JOURNEY_PATHS = ['/products.json', '/cart', '/cart.js', '/checkout'] as const
 
-export async function audit(input: string, options: AuditOptions = {}): Promise<AuditResult> {
+/**
+ * O aceite precisa existir, ser do endereço auditado, e ter texto.
+ *
+ * Devolve o motivo da recusa, ou null quando está de pé. Um aceite genérico —
+ * sem URL, ou com a URL de outra loja — não é aceite: é um clique reaproveitado.
+ */
+function aceiteInvalido(aceite: Aceite | undefined, alvo: string): string | null {
+  if (!aceite) {
+    return 'modo consentido exige o aceite do responsável registrado antes da execução'
+  }
+  if (!aceite.texto || aceite.texto.trim().length === 0) {
+    return 'o aceite precisa trazer o texto exato que o responsável leu'
+  }
+  if (!Date.parse(aceite.em)) return 'o aceite precisa trazer quando foi dado, em ISO 8601'
+  try {
+    if (normalizeUrl(aceite.url).hostname !== normalizeUrl(alvo).hostname) {
+      return `o aceite é para ${normalizeUrl(aceite.url).hostname}, e a auditoria é de ${normalizeUrl(alvo).hostname}`
+    }
+  } catch {
+    return 'o endereço do aceite não é uma URL utilizável'
+  }
+  return null
+}
+
+export async function audit(input: string, options: AuditOptions): Promise<AuditResult> {
   const startedAt = Date.now()
   const deps = createDeps()
   const outDir = options.outDir ?? DEFAULT_OUT_DIR
@@ -142,7 +188,11 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     observations: [],
     steps: [],
     screenshotsDir: null,
-    robots: { ownerVerified: options.ownerVerified === true, blockedPaths: [], overridesUsed: [] },
+    /* Quem manda no portão é o MODO, não uma flag à parte. `consentido`
+       significa que o responsável autorizou, e é essa autorização — mais
+       específica e mais recente que o robots.txt — que libera o caminho.
+       `leitura` nunca libera: ninguém autorizou nada ali. */
+    robots: { ownerVerified: options.modo === 'consentido', blockedPaths: [], overridesUsed: [] },
     incompleteBecause: [],
     vantage: {
       auditedFromBrazil: options.fromBrazil ?? null,
@@ -155,6 +205,8 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
             'meios de pagamento visíveis podem não ser os que um comprador brasileiro vê ' +
             '(use --from-br quando a auditoria sair de IP brasileiro)',
     },
+    modo: options.modo,
+    aceite: options.aceite ?? null,
     errorCode: null,
     errorReason: null,
     errorDetail: null,
@@ -162,6 +214,48 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
   }
 
   try {
+    /* O modo é a primeira coisa verificada, antes de qualquer requisição — e
+       antes até do intervalo entre auditorias. Ele decide se esta execução tem
+       permissão para existir; tudo o mais vem depois disso. */
+    if (options.modo !== 'consentido' && options.modo !== 'leitura') {
+      return {
+        ...base,
+        errorCode: 'MODE_MISSING',
+        errorReason:
+          'a auditoria precisa declarar o modo: "consentido" (o responsável pela loja ' +
+          'autorizou) ou "leitura" (loja de terceiro, sem tocar carrinho nem checkout). ' +
+          'Não existe padrão: decidir isso por omissão seria responder por engano a ' +
+          'pergunta mais importante deste motor.',
+        errorDetail: { recebido: String(options.modo) },
+        timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+      }
+    }
+
+    if (options.modo === 'consentido') {
+      const recusa = aceiteInvalido(options.aceite, input)
+      if (recusa !== null) {
+        return {
+          ...base,
+          errorCode: 'CONSENT_MISSING',
+          errorReason: recusa,
+          errorDetail: { modo: options.modo },
+          timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+        }
+      }
+    } else if (options.aceite) {
+      /* Aceite em modo leitura é contradição: ou alguém autorizou, e então o
+         modo é consentido, ou não autorizou, e o aceite não existe. Aceitar os
+         dois deixaria passar um consentido disfarçado de leitura. */
+      return {
+        ...base,
+        errorCode: 'CONSENT_MISSING',
+        errorReason:
+          'modo leitura não aceita registro de aceite: se o responsável autorizou, ' +
+          'o modo é consentido.',
+        timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+      }
+    }
+
     // §2.2 / §12: intervalo mínimo entre auditorias do mesmo domínio, checado
     // ANTES de qualquer requisição sair. A regra que depende de alguém lembrar
     // dela não é regra: foi assim que a Insider Store levou oito rodadas
@@ -179,7 +273,7 @@ export async function audit(input: string, options: AuditOptions = {}): Promise<
     // e foi assim que uma segunda rodada minutos depois da primeira provocou
     // desafio antibot numa loja de terceiro -- exatamente o que a §2.2 proíbe.
     // Exigir a declaração de titularidade junto torna a intenção explícita.
-    if (options.force === true && options.ownerVerified !== true) {
+    if (options.force === true && options.modo !== 'consentido') {
       reporter.aborted('FORCE_WITHOUT_OWNERSHIP', '--force exige --owner-verified')
       return {
         ...base,
@@ -298,9 +392,17 @@ async function runAudit(
   reporter: Reporter,
 ): Promise<AuditResult> {
   reporter.start('identify')
-  const prepared = await prepare(input, options, deps, (b) => {
-    slot.browser = b
-  })
+  /* O `ownerVerified` que chega no portão sai do MODO, e não de uma opção
+     separada que alguém pudesse passar sozinha. Duas fontes para a mesma
+     decisão é como se abre a porta sem querer. */
+  const prepared = await prepare(
+    input,
+    { ...options, ownerVerified: options.modo === 'consentido' },
+    deps,
+    (b) => {
+      slot.browser = b
+    },
+  )
 
   // §7.1: a transmissão começa assim que há página, para o espectador ver a
   // loja abrindo — e não uma tela preta até o primeiro passo terminar.
@@ -316,9 +418,13 @@ async function runAudit(
   const recorder = createRecorder({ outDir, hostname })
   const incompleteBecause: string[] = []
 
-  const blockedPaths = JOURNEY_PATHS.filter(
-    (p) => !prepared.gate.check(new URL(p, prepared.probe.baseUrl).href).allowed,
-  )
+  /* O que o robots proíbe, nos DOIS modos. Em consentido a auditoria passa
+     assim mesmo, mas o relatório continua dizendo o que o arquivo pedia — e o
+     que passou por cima aparece em `overridesUsed`, com horário. Perguntar
+     aqui não consome a exceção: por isso `wouldBlock` e não `check`. */
+  const blockedPaths = JOURNEY_PATHS.map((p) =>
+    prepared.gate.wouldBlock(new URL(p, prepared.probe.baseUrl).href),
+  ).filter((p): p is string => p !== null)
 
   const result: AuditResult = {
     ...base,
@@ -371,6 +477,7 @@ async function runAudit(
       productText: null,
       blockedBySite: false,
       observations: [],
+      gate: prepared.gate,
     })
   }
 
@@ -405,6 +512,71 @@ async function runAudit(
     reporter.fail('open-product', err.message)
     reporter.aborted(err.code, err.message)
     return failStep(ctx, result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
+  }
+
+  /* MODO LEITURA: para aqui, e para por desenho.
+     
+     Abre a página do produto, observa o que ela mostra, e encerra. Nunca toca
+     carrinho nem checkout, porque ninguém autorizou. O relatório sai parcial —
+     e parcial aqui não é falha, é o formato correto para uma loja de terceiro.
+     
+     Repare que o código do carrinho não é PULADO com um `if` no meio: ele nem
+     é alcançado. `observeProduct` existe separado justamente para isto — para
+     que o caminho de leitura não passe por dentro do código que compra. */
+  if (options.modo === 'leitura') {
+    const produtoStartedAt = Date.now()
+    try {
+      const { screenshot } = await journey.observeProduct(ctx, product)
+      recorder.step(
+        makeStep({
+          id: 'observe-product',
+          label: 'lendo a página do produto',
+          url: product.url,
+          startedAt: produtoStartedAt,
+          screenshot,
+          outcome: { status: 'done' },
+        }),
+      )
+    } catch (e) {
+      const shot = await recorder.capture(prepared.browser.page, 'falha-observe-product')
+      const err = toAuditError(e)
+      reporter.fail('open-product', err.message)
+      reporter.aborted(err.code, err.message)
+      return failStep(ctx, result, recorder.steps, e, 'observe-product', 'lendo a página do produto', startedAt, shot, produtoStartedAt)
+    }
+
+    for (const passo of ['add-to-cart', 'reach-checkout', 'read-payment', 'mobile'] as const) {
+      reporter.skip(passo, 'modo leitura: a auditoria não toca carrinho nem checkout')
+    }
+    reporter.start('report')
+
+    /* Parcial POR DESENHO, e o relatório precisa dizer isso.
+       
+       Sem esta linha a leitura saía `done`: uma auditoria que não abriu
+       carrinho nem checkout se anunciava completa. O modo é uma escolha
+       legítima, mas o que ele deixa de ver não pode virar silêncio. */
+    incompleteBecause.push(
+      'modo leitura: a auditoria leu a página do produto e não abriu carrinho nem checkout, ' +
+        'porque ninguém pela loja autorizou. Para a jornada completa, o responsável precisa aceitar.',
+    )
+
+    const finalLeitura = finish(result, recorder.steps, incompleteBecause, startedAt, {
+      productText: (ctx.scratch.get('productText') as string | null) ?? null,
+      blockedBySite: false,
+      observations: colherObservacoes(ctx, result),
+      gate: prepared.gate,
+    })
+    for (const achado of finalLeitura.checks?.findings ?? []) {
+      reporter.finding(achado.id, achado.severity, achado.title)
+      await reporter.pace()
+    }
+    reporter.done('report', `${finalLeitura.checks?.findings.length ?? 0} achado(s)`)
+    reporter.complete(
+      finalLeitura.checks?.score ?? null,
+      finalLeitura.checks?.scoreCaveat ?? null,
+      paraCobertura(finalLeitura.checks),
+    )
+    return finalLeitura
   }
 
   // 2. adicionar ao carrinho
@@ -561,6 +733,7 @@ async function runAudit(
     productText: (ctx.scratch.get('productText') as string | null) ?? null,
     blockedBySite: false,
     observations: colherObservacoes(ctx, result),
+    gate: prepared.gate,
   })
 
   // Achados que só existem depois das checagens (§7.3: durante, não só no fim).
@@ -569,7 +742,11 @@ async function runAudit(
     await reporter.pace()
   }
   reporter.done('report', `${final.checks?.findings.length ?? 0} achado(s)`)
-  reporter.complete(final.checks?.score ?? null, final.checks?.scoreCaveat ?? null)
+  reporter.complete(
+    final.checks?.score ?? null,
+    final.checks?.scoreCaveat ?? null,
+    paraCobertura(final.checks),
+  )
   return final
 }
 
@@ -632,14 +809,53 @@ function makeJourneyContext(
   }
 }
 
+/**
+ * O relatório de checagens no formato que a tela fala.
+ *
+ * Tradução, não decisão: quem decide o que foi medido é o motor, e a tela só
+ * mostra. Antes disso a tela decidia sozinha o que dizer — e dizia a manchete
+ * do desenho.
+ */
+function paraCobertura(checks: ChecksReport | null | undefined): Coverage | undefined {
+  if (!checks) return undefined
+  return {
+    checked: checks.applicable,
+    unchecked: checks.notApplicable,
+    summary: checks.coverageSummary,
+    rules: checks.results.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      reason: r.notApplicableReason,
+    })),
+  }
+}
+
 function finish(
   result: AuditResult,
   steps: ReadonlyArray<JourneyStep>,
   incompleteBecause: string[],
   startedAt: number,
-  extra: { productText: string | null; blockedBySite: boolean; observations: PageObservation[] },
+  extra: {
+    productText: string | null
+    blockedBySite: boolean
+    observations: PageObservation[]
+    /* O portão VIVO, não a cópia do começo.
+       
+       `robots.overridesUsed` era congelado quando o resultado nascia, antes de
+       a jornada rodar — então ele nunca continha um único override de verdade.
+       Parecia preenchido só porque a lista de caminhos proibidos era montada
+       consultando o portão com `check`, e a consulta registrava override. Ou
+       seja: o relatório mostrava as perguntas e escondia as passagens. */
+    gate: RobotsGate
+  },
 ): AuditResult {
-  const withSteps = { ...result, steps: [...steps], observations: extra.observations }
+  const withSteps = {
+    ...result,
+    steps: [...steps],
+    observations: extra.observations,
+    robots: { ...result.robots, overridesUsed: [...extra.gate.overrides] },
+  }
   return {
     ...withSteps,
     ok: true,
@@ -658,6 +874,7 @@ function finish(
       auditedFromBrazil: withSteps.vantage.auditedFromBrazil,
       robotsBlockedPaths: withSteps.robots.blockedPaths,
       blockedBySite: extra.blockedBySite,
+      modo: withSteps.modo,
     }),
     timings: { ...withSteps.timings, totalMs: Date.now() - startedAt },
   }
@@ -729,6 +946,8 @@ function failStep(
     status: 'partial',
     steps: trail,
     observations: observacoes,
+    // Mesmo motivo do `finish`: os overrides de verdade só existem no portão.
+    robots: { ...result.robots, overridesUsed: [...ctx.gate.overrides] },
     incompleteBecause: [explanation],
     checks: runChecks({
       product: result.product,
@@ -743,6 +962,7 @@ function failStep(
       auditedFromBrazil: result.vantage.auditedFromBrazil,
       robotsBlockedPaths: result.robots.blockedPaths,
       blockedBySite: isProtectedSite(err.code),
+      modo: result.modo,
     }),
     errorCode: err.code,
     errorReason: err.message,

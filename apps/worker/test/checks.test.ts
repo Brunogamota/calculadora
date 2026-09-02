@@ -39,6 +39,10 @@ function entrada(over: Partial<CheckInput> = {}): CheckInput {
     auditedFromBrazil: null,
     robotsBlockedPaths: [],
     blockedBySite: false,
+    /* `consentido` é o padrão daqui porque estes exercícios medem a REGRA, não
+       o modo: em leitura metade deles sairia não aplicável pelo modo e o que
+       eles protegem deixaria de ser exercitado. O modo tem exercício próprio. */
+    modo: 'consentido',
     ...over,
   }
 }
@@ -225,16 +229,24 @@ describe('produto e carrinho medem o que o checkout mediria', () => {
   })
 
   test('cupom ausente no carrinho NÃO acusa a loja: na Shopify ele mora no checkout', () => {
+    /* Carrinho visto, checkout não. O que este exercício protege é que a
+       ausência no carrinho não vira acusação — a página onde o cupom mora não
+       foi vista, e concluir dela seria inventar.
+       
+       O motivo escrito mudou junto com o modo: antes este caso vinha com
+       `/checkout` proibido no robots, combinação que hoje não existe (em
+       leitura o carrinho não é aberto; em consentido o portão libera com o
+       aceite). O motivo pelo robots tem exercício próprio, em leitura. */
     const r = runChecks(
       entrada({
         steps: [passo()],
-        robotsBlockedPaths: ['/checkout'],
         observations: [observacao('cart', { couponField: false })],
       }),
     )
     const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
     assert.equal(c?.status, 'not_applicable')
-    assert.match(c?.notApplicableReason ?? '', /robots/)
+    assert.notEqual(c?.notApplicableReason, null, 'não aplicável sem motivo é buraco no relatório')
+    assert.notEqual(c?.coverageFamily, null)
   })
 
   test('selo de segurança ausente no carrinho também não acusa a loja', () => {
@@ -288,15 +300,85 @@ describe('produto e carrinho medem o que o checkout mediria', () => {
 })
 
 describe('robots proibindo /checkout não penaliza a loja', () => {
-  const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
+  /* Em `leitura`, que é o modo onde o robots de fato segura a auditoria. Em
+     `consentido` o portão libera com o aceite, e aí o motivo não pode ser o
+     robots — é o que o bloco seguinte cobra. */
+  const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'], modo: 'leitura' }))
 
   for (const id of ['PIX_DISCOUNT_LATE', 'INSTALLMENT_UNCLEAR', 'NO_SAVED_CARD', 'NO_COUPON_FIELD', 'NO_TRUST_SIGNAL']) {
     test(`${id} sai não aplicável, não como falha`, () => {
       const check = r.results.find((c) => c.id === id)
       assert.equal(check?.status, 'not_applicable')
-      assert.match(check?.notApplicableReason ?? '', /robots/)
+      assert.notEqual(check?.notApplicableReason, null)
+      assert.notEqual(check?.coverageFamily, null, 'não aplicável sem família não entra no resumo')
     })
   }
+})
+
+describe('o motivo aponta para a causa real, não para a que soa plausível', () => {
+  test('em leitura, carrinho e checkout faltam POR CAUSA DO MODO, não do robots', () => {
+    // Em leitura a requisição nem chega ao portão: nós é que não a fazemos.
+    // Dizer "o robots proíbe" devolveria ao lojista a culpa por uma escolha
+    // nossa — e ele iria mexer no arquivo errado.
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'], modo: 'leitura' }))
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.coverageFamily, 'modo-leitura')
+    assert.match(c?.notApplicableReason ?? '', /modo leitura/)
+  })
+
+  test('em consentido, robots proibido no arquivo não vira motivo de nada', () => {
+    /* A lista de caminhos proibidos continua no relatório mesmo em consentido:
+       é o registro do que a loja pedia. Mas com o aceite o portão libera, então
+       nada foi impedido — e uma checagem que ficou de fora ficou por outra
+       razão. */
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'], modo: 'consentido' }))
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.status, 'not_applicable')
+    assert.notEqual(c?.coverageFamily, 'robots', 'culpou o robots num modo em que ele não segura nada')
+    assert.doesNotMatch(c?.notApplicableReason ?? '', /robots/)
+  })
+
+  test('a loja que bloqueia a auditoria explica antes do robots', () => {
+    /* Em consentido, porque em leitura quem explica primeiro é o modo: lá a
+       requisição nem sai, então nem o WAF da loja chegou a ser encontrado. A
+       ordem dos motivos é a ordem em que as portas se fecham. */
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'], blockedBySite: true }))
+    assert.equal(r.results.find((x) => x.id === 'NO_SAVED_CARD')?.coverageFamily, 'loja-bloqueou')
+  })
+})
+
+describe('o resumo de cobertura diz o que foi medido, e por que o resto não foi', () => {
+  test('conta as verificadas e as não verificadas', () => {
+    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    assert.match(r.coverageSummary, new RegExp(`Verificamos ${r.applicable} das ${r.results.length} checagens`))
+    assert.match(r.coverageSummary, new RegExp(`${r.notApplicable} não deram para fazer`))
+  })
+
+  test('nomeia o motivo que dominou, em português de lojista', () => {
+    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    // Sem §, sem "not_applicable", sem nome de arquivo: quem lê é o lojista.
+    assert.match(r.coverageSummary, /não abriu carrinho nem checkout|não conseguiu chegar/)
+    assert.doesNotMatch(r.coverageSummary, /not_applicable|§/)
+  })
+
+  test('quando o motivo não é único, o resumo diz de quantas ele dá conta', () => {
+    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    const familias = new Set(
+      r.results.filter((x) => x.status === 'not_applicable').map((x) => x.coverageFamily),
+    )
+    if (familias.size > 1) {
+      assert.match(r.coverageSummary, /Na maior parte delas \(\d+ de \d+\)/)
+    } else {
+      assert.match(r.coverageSummary, /Em todas elas/)
+    }
+  })
+
+  test('sem nenhuma checagem de fora, o resumo não inventa motivo', () => {
+    const r = runChecks(entrada({ steps: [passo()] }), [
+      { id: 'X', title: 'x', severity: 'baixa', evaluate: () => ({ status: 'pass', evidence: ['ok'], notApplicableReason: null, coverageFamily: null, recommendation: '', screenshot: null }) },
+    ])
+    assert.equal(r.coverageSummary, 'Verificamos as 1 checagens desta auditoria.')
+  })
 })
 
 describe('desafio antibot não penaliza a loja', () => {
@@ -429,8 +511,10 @@ describe('o motivo do não aplicável cita só o que tem a ver com a checagem', 
      confiança não depende de carrinho, e citar `/cart.js` ali faz quem lê
      concluir que dependia. Motivo com informação a mais é motivo errado. */
 
+  /* Em `leitura`: é o modo onde o robots de fato segura a auditoria, e portanto
+     o único em que ele pode aparecer como motivo. */
   const comRobots = (blocked: string[]) =>
-    runChecks(entrada({ steps: [passo()], robotsBlockedPaths: blocked }))
+    runChecks(entrada({ steps: [passo()], robotsBlockedPaths: blocked, modo: 'leitura' }))
 
   test('checagem que precisava do checkout não cita o bloqueio do carrinho', () => {
     const r = comRobots(['/cart.js', '/checkout'])

@@ -33,7 +33,8 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { STEP_IDS, deQuemEAculpa, paraSeveridade, temServidor, useAuditoriaAoVivo } from "./live.ts";
+import { STEP_IDS, TEXTO_DO_ACEITE, deQuemEAculpa, paraSeveridade, registrarAceite, temServidor, useAuditoriaAoVivo } from "./live.ts";
+import type { Aceite, Cobertura } from "./live.ts";
 import type { StepId } from "./live.ts";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
@@ -203,10 +204,14 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
   );
 }
 
-function UrlForm({ onStart }: { onStart: (url: string) => void }) {
+function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) => void }) {
   const [url, setUrl] = useState("");
   const [tocado, setTocado] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  /* Sem marcar, a auditoria roda em leitura: abre a página do produto e para
+     ali, sem tocar carrinho nem checkout. Marcar é o que autoriza o resto — e
+     o aceite é registrado no instante do clique, antes de a auditoria começar. */
+  const [autorizado, setAutorizado] = useState(false);
   const ph = useRotacao(PLACEHOLDERS.length, 3000);
 
   const limpo = url.trim();
@@ -224,7 +229,8 @@ function UrlForm({ onStart }: { onStart: (url: string) => void }) {
     setTocado(true);
     if (!valido) return;
     setEnviando(true);
-    window.setTimeout(() => onStart(limpo), 700);
+    const aceite = autorizado ? registrarAceite(limpo) : null;
+    window.setTimeout(() => onStart(limpo, aceite), 700);
   };
 
   return (
@@ -268,6 +274,24 @@ function UrlForm({ onStart }: { onStart: (url: string) => void }) {
             : "Leva de 40 a 90 segundos. Sem cadastro, sem instalar nada."}
         </p>
       )}
+      {/* A autorização do responsável. É o único acréscimo visível desta
+          mudança, e existe porque só ela permite mexer no carrinho de uma loja
+          que não é nossa. O texto aqui é o MESMO que vai no registro enviado
+          ao motor — vem os dois da mesma constante, para não poderem divergir. */}
+      <label className="url-aceite">
+        <input
+          type="checkbox"
+          checked={autorizado}
+          onChange={(e) => setAutorizado(e.target.checked)}
+          disabled={enviando}
+        />
+        <span>{TEXTO_DO_ACEITE}</span>
+      </label>
+      <p className="url-aceite-nota">
+        {autorizado
+          ? "Vamos até a tela de pagamento."
+          : "Sem marcar, a auditoria só lê a página do produto — o relatório sai parcial."}
+      </p>
     </form>
   );
 }
@@ -385,7 +409,7 @@ function useRevelacao() {
   }, []);
 }
 
-function Landing({ onStart }: { onStart: (url: string) => void }) {
+function Landing({ onStart }: { onStart: (url: string, aceite: Aceite | null) => void }) {
   useBordaQueAcende();
   useRevelacao();
 
@@ -639,8 +663,8 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, gravacao: { data: string; t: number }[]) => void; url: string; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
-  const vivo = useAuditoriaAoVivo(temServidor() ? url : null);
+function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
+  const vivo = useAuditoriaAoVivo(temServidor() ? url : null, aceite);
   const simulado = useCronometro(!temServidor());
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
      Nos dois casos nada esta acontecendo, e a tela precisa parar de encenar. */
@@ -682,7 +706,9 @@ function Running({ onComplete, url, onAbortado, nossoProblema }: { onComplete: (
   }
 
   useEffect(() => {
-    if (stage >= steps.length) onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.gravacao);
+    if (stage >= steps.length) {
+      onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.gravacao);
+    }
   }, [stage, onComplete, vivo.fim, vivo.gravacao]);
 
   /* Só evento do motor muda de tela. Falha nossa fica aqui, dita na linha de
@@ -970,6 +996,23 @@ function Captura({ onAbrir }: { onAbrir: (email: string) => void }) {
 /* `nota` nula é auditoria que mediu pouco demais para pontuar. O anel fica
    vazio e o número não aparece — porque o campo vazio é a verdade, e qualquer
    número ali seria inventado. */
+/**
+ * O rótulo do anel, tirado da nota.
+ *
+ * Era fixo em "Mediano": uma loja com 92 e outra com 8 recebiam a mesma
+ * palavra. As faixas abaixo são escolha nossa — a §8 define a escala, não os
+ * rótulos — e ficam propositalmente sóbrias, porque a ressalva de cobertura ao
+ * lado é que diz quanto do checkout esse número cobre.
+ */
+function veredito(nota: number | null): string {
+  if (nota === null) return "sem nota";
+  if (nota >= 85) return "Bom";
+  if (nota >= 70) return "Aceitável";
+  if (nota >= 50) return "Mediano";
+  if (nota >= 30) return "Ruim";
+  return "Crítico";
+}
+
 function Anel({ nota }: { nota: number | null }) {
   const [mostrado, setMostrado] = useState(nota ?? 0);
   const ref = useRef<SVGCircleElement | null>(null);
@@ -1003,13 +1046,41 @@ function Anel({ nota }: { nota: number | null }) {
       </svg>
       <div className="anel-centro">
         <span className="mono anel-nota">{nota === null ? "—" : mostrado}</span>
-        <span className="anel-veredito">{nota === null ? "sem nota" : "Mediano"}</span>
+        <span className="anel-veredito">{veredito(nota)}</span>
       </div>
     </div>
   );
 }
 
-function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null }) {
+/**
+ * As treze checagens, com status e motivo. Fechada por padrão: aberta, é lista
+ * de auditoria no lugar onde o lojista precisa de uma frase.
+ */
+function ListaDeChecagens({ cobertura }: { cobertura: Cobertura }) {
+  const rotulo: Record<Cobertura["rules"][number]["status"], string> = {
+    pass: "passou",
+    fail: "falhou",
+    not_applicable: "não deu",
+  };
+  return (
+    <details className="checagens">
+      <summary>
+        Ver as {cobertura.rules.length} checagens, uma a uma
+      </summary>
+      <ul>
+        {cobertura.rules.map((r) => (
+          <li key={r.id} data-status={r.status}>
+            <span className="checagem-status mono">{rotulo[r.status]}</span>
+            <span className="checagem-titulo">{r.title}</span>
+            {r.reason && <span className="checagem-motivo">{r.reason}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null; cobertura: Cobertura | null }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("seu e-mail");
   const host = url || DEMO_STORE;
@@ -1032,9 +1103,14 @@ function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () 
                 seria promessa falsa. */}
             {ressalva && <span className="nota-ressalva">{ressalva}</span>}
           </div>
+          {/* A manchete era do desenho: afirmava "cinco pontos, três pesam" em
+              toda auditoria, medisse o que medisse. No lugar dela vai o resumo
+              que o motor monta a partir do que de fato foi verificado. Junto
+              saiu "Comparado a 340 lojas do mesmo porte": número inventado, e
+              não temos base para afirmar comparação nenhuma. */}
           <div className="nota-copy">
-            <h1>Seu checkout perde gente em cinco pontos antes do pagamento. Três deles pesam.</h1>
-            <p>Comparado a 340 lojas do mesmo porte, você está no meio da tabela. Nenhum dos cinco achados exige trocar de plataforma.</p>
+            <h1>{cobertura ? cobertura.summary : "Veja onde a venda está se perdendo antes do pagamento."}</h1>
+            {cobertura && <ListaDeChecagens cobertura={cobertura} />}
           </div>
         </section>
 
@@ -1324,10 +1400,12 @@ function Footer() {
 function App() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [storeUrl, setStoreUrl] = useState("");
+  /* O registro do aceite, montado no clique. null = auditoria em leitura. */
+  const [aceite, setAceite] = useState<Aceite | null>(null);
   /* A nota vem do motor quando ele responde. Sem servidor, a do desenho. */
-  const [resultado, setResultado] = useState<{ nota: number | null; ressalva: string | null }>({ nota: 61, ressalva: null });
+  const [resultado, setResultado] = useState<{ nota: number | null; ressalva: string | null; cobertura: Cobertura | null }>({ nota: 61, ressalva: null, cobertura: null });
 
-  const start = (url: string) => { setStoreUrl(url); setScreen("running"); window.scrollTo(0, 0); };
+  const start = (url: string, registro: Aceite | null) => { setStoreUrl(url); setAceite(registro); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
   const [gravacao, setGravacao] = useState<{ data: string; t: number }[]>([]);
   /* Quando quem barrou fomos nós — piso entre tentativas, prazo, blocklist —
@@ -1336,13 +1414,18 @@ function App() {
   /* Só existe quando o motor está ligado. Sem ele, as telas de exceção são as
      do desenho — que é o que o menu "Ver estados" precisa mostrar. */
   const [apurado, setApurado] = useState<Apurado | null>(null);
-  const concluir = (nota: number | null, ressalva: string | null, frames: { data: string; t: number }[]) => {
+  const concluir = (
+    nota: number | null,
+    ressalva: string | null,
+    cobertura: Cobertura | null,
+    frames: { data: string; t: number }[],
+  ) => {
     /* Com motor, o que o motor disse — INCLUSIVE nota nula, que é o caso de
        cobertura baixa demais para pontuar. Antes a nula era ignorada e o
        estado ficava no 61 do desenho: a tela mostrava a nota de uma loja
        fictícia como se fosse a da loja auditada. Sem motor, o desenho
        continua sendo o desenho. */
-    if (temServidor()) setResultado({ nota, ressalva });
+    if (temServidor()) setResultado({ nota, ressalva, cobertura });
     setGravacao(frames);
     navigate("result");
   };
@@ -1351,7 +1434,7 @@ function App() {
     <div className="app">
       <Header screen={screen} onNavigate={navigate} />
       {screen === "landing" && <><Landing onStart={start} /><Footer /></>}
-      {screen === "running" && <Running url={storeUrl} nossoProblema={nossoProblema} onComplete={concluir} onAbortado={(code, reason, ate) => {
+      {screen === "running" && <Running url={storeUrl} aceite={aceite} nossoProblema={nossoProblema} onComplete={concluir} onAbortado={(code, reason, ate) => {
         const culpa = deQuemEAculpa(code);
         setApurado(ate);
         if (culpa === "loja-bloqueou") return navigate("waf");
@@ -1359,7 +1442,7 @@ function App() {
         /* Nosso: fica na execução, com o motivo do motor dito por extenso. */
         setNossoProblema(reason);
       }} />}
-      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} />}
+      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} cobertura={resultado.cobertura} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}

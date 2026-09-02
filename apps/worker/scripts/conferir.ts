@@ -13,13 +13,27 @@ import { audit } from '../src/audit.ts'
 
 const alvo = process.argv.slice(2).find((a) => !a.startsWith('-'))
 if (!alvo) {
-  console.error('uso: npm run conferir -- minhaloja.com.br')
+  console.error('uso: npm run conferir -- minhaloja.com.br [--consentido] [--headed]')
   process.exit(2)
 }
 
 const headed = process.argv.includes('--headed')
+
+/* O modo é escolha explícita aqui também. O padrão é `leitura` porque é o
+   único seguro para loja que não é sua: se a conferência assumisse
+   `consentido` por conveniência, ela tocaria o carrinho de loja alheia sem
+   ninguém ter dito nada. */
+const consentido = process.argv.includes('--consentido')
+const TEXTO_DO_ACEITE =
+  'Sou responsável por esta loja e autorizo a auditoria, que vai navegar como ' +
+  'um comprador e pode colocar um item no carrinho.'
+
 const t0 = Date.now()
-const r = await audit(alvo, { headed })
+const r = await audit(alvo, {
+  headed,
+  modo: consentido ? 'consentido' : 'leitura',
+  ...(consentido ? { aceite: { em: new Date().toISOString(), url: alvo, texto: TEXTO_DO_ACEITE } } : {}),
+})
 const regras = r.checks?.results ?? []
 const comVeredito = regras.filter((c) => c.status === 'pass' || c.status === 'fail')
 
@@ -28,6 +42,18 @@ console.log(`  loja            ${alvo}`)
 console.log(`  duração         ${((Date.now() - t0) / 1000).toFixed(1)}s`)
 console.log(`  status          ${r.status}${r.errorCode ? `  (${r.errorCode})` : ''}`)
 if (r.errorReason) console.log(`  motivo          ${r.errorReason.slice(0, 100)}`)
+console.log('')
+console.log(`  modo            ${r.modo}${r.aceite ? `  (aceite de ${r.aceite.em})` : ''}`)
+if (r.robots.blockedPaths.length > 0) {
+  console.log(`  robots proíbe   ${r.robots.blockedPaths.join(', ')}`)
+}
+/* O que o consentimento de fato autorizou. Fica visível porque é o registro
+   que justifica ter passado por cima do arquivo da loja. */
+if (r.robots.overridesUsed.length > 0) {
+  console.log(`  passou por cima ${r.robots.overridesUsed.map((o) => o.path).join(', ')}`)
+}
+console.log('')
+console.log(`  resumo          ${r.checks?.coverageSummary ?? '-'}`)
 console.log('')
 console.log(`  FATIA 1 — a evidência sobrevive à falha:`)
 console.log(`  observações     ${r.observations.length}  [${r.observations.map((o) => o.source).join(', ')}]`)
@@ -42,8 +68,9 @@ if (r.checks?.scoreCaveat) console.log(`  ressalva        ${r.checks.scoreCaveat
 console.log(`  cobertura       ${Math.round((r.checks?.coverage.ratio ?? 0) * 100)}% da §8 em peso`)
 console.log('')
 for (const c of regras) {
-  const motivo = c.status === 'not_applicable' ? `  ${(c.notApplicableReason ?? '').slice(0, 60)}` : ''
-  console.log(`    ${c.status.padEnd(15)} ${c.id.padEnd(21)}${motivo}`)
+  const motivo = c.status === 'not_applicable' ? `  ${(c.notApplicableReason ?? '').slice(0, 70)}` : ''
+  const familia = c.coverageFamily ? `[${c.coverageFamily}] ` : ''
+  console.log(`    ${c.status.padEnd(15)} ${c.id.padEnd(21)}  ${familia}${motivo.trim()}`)
 }
 console.log('')
 console.log(`  achados         ${(r.checks?.findings ?? []).map((f) => f.id).join(', ') || '(nenhum)'}`)

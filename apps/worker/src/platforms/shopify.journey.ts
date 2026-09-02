@@ -434,9 +434,9 @@ export const shopifyJourney: JourneyDriver = {
     }
   },
 
-  async addToCart(ctx: JourneyContext, product: ProductRef): Promise<AddToCartResult> {
-    const startedAt = Date.now()
-
+  /* Abrir e olhar. Nada aqui toca carrinho, e é por isso que o modo `leitura`
+     pode chamar: ele para exatamente no fim deste método. */
+  async observeProduct(ctx: JourneyContext, product: ProductRef): Promise<{ screenshot: string | null }> {
     const permission = ctx.gate.check(product.url)
     if (!permission.allowed) {
       throw new AuditError('ROBOTS_DISALLOWED', 'robots.txt proíbe a página do produto', {
@@ -465,6 +465,14 @@ export const shopifyJourney: JourneyDriver = {
     const produtoObservado = await observePage(ctx, 'product')
     ctx.scratch.set('observation:product', produtoObservado)
     ctx.scratch.set('productText', produtoObservado.snapshot.rawTextSample)
+
+    return { screenshot: productShot }
+  },
+
+  async addToCart(ctx: JourneyContext, product: ProductRef): Promise<AddToCartResult> {
+    const startedAt = Date.now()
+
+    const { screenshot: productShot } = await this.observeProduct(ctx, product)
 
     const before = await readCart(ctx)
 

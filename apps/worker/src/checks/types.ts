@@ -12,6 +12,7 @@ import type {
   AddToCartResult,
   CheckoutContext,
   JourneyStep,
+  ModoAuditoria,
   PageObservation,
   PaymentSnapshot,
   ProductRef,
@@ -20,6 +21,32 @@ import type {
 export type Severity = 'critica' | 'alta' | 'media' | 'baixa'
 
 export type CheckStatus = 'pass' | 'fail' | 'not_applicable'
+
+/**
+ * Por que uma checagem não pôde ser feita, em família — não em prosa.
+ *
+ * O motivo escrito é para quem lê o relatório; a família é para o programa
+ * poder dizer qual motivo DOMINOU sem tentar interpretar o próprio texto. A
+ * alternativa era casar expressão regular contra a nossa própria prosa, que
+ * quebra na primeira vez que alguém melhora uma frase.
+ */
+export type FamiliaDeCobertura =
+  | 'robots'
+  | 'modo-leitura'
+  | 'loja-bloqueou'
+  | 'jornada-parou'
+  | 'fora-desta-fase'
+  | 'dado-ilegivel'
+
+/** A mesma família dita para o lojista, sem jargão nosso. */
+export const FRASE_DA_FAMILIA: Record<FamiliaDeCobertura, string> = {
+  robots: 'o arquivo robots.txt da loja pede que robôs não abram essas páginas',
+  'modo-leitura': 'a auditoria rodou sem autorização da loja, então não abriu carrinho nem checkout',
+  'loja-bloqueou': 'a loja bloqueou a auditoria antes de chegar nessas páginas',
+  'jornada-parou': 'a auditoria não conseguiu chegar até essas páginas',
+  'fora-desta-fase': 'essa parte ainda não é auditada nesta versão',
+  'dado-ilegivel': 'a página abriu, mas o dado não estava claro o bastante para afirmar',
+}
 
 /**
  * Pesos por severidade. O documento define a escala mas não os números, então
@@ -42,6 +69,8 @@ export interface CheckResult {
   evidence: string[]
   /** Por que não foi aplicável. Obrigatório quando status é not_applicable. */
   notApplicableReason: string | null
+  /** A mesma coisa em família, para contar qual motivo dominou. Ver o tipo. */
+  coverageFamily: FamiliaDeCobertura | null
   recommendation: string
   screenshot: string | null
 }
@@ -68,6 +97,70 @@ export interface CheckInput {
   robotsBlockedPaths: ReadonlyArray<string>
   /** Motor parou por desafio antibot, WAF ou similar. */
   blockedBySite: boolean
+  /**
+   * Sob que modo a auditoria rodou. Entra aqui por causa do motivo, não do
+   * veredito: em `leitura` o carrinho e o checkout não são abertos por decisão
+   * nossa, e dizer "o robots.txt proíbe" nesse caso culparia a loja por uma
+   * escolha que foi da auditoria.
+   */
+  modo: ModoAuditoria
+}
+
+/**
+ * Motivo de cobertura quando o próprio modo já fechou a porta, antes do robots.
+ *
+ * Devolve null quando o modo não explica nada — aí quem explica é o robots ou
+ * a jornada. A ordem importa: em `leitura` a requisição a carrinho e checkout
+ * nem chega ao portão de robots, então o motivo do modo vem primeiro.
+ */
+export function razaoDoModo(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): string | null {
+  if (input.modo !== 'leitura') return null
+  if (!ordem.every((f) => f === 'cart' || f === 'checkout')) return null
+  return 'modo leitura: a auditoria não abre carrinho nem checkout em loja de terceiro'
+}
+
+/**
+ * Em que família cai a ausência de uma fonte, na ordem em que as portas se
+ * fecham: primeiro o modo (a requisição nem sai), depois o bloqueio da loja,
+ * depois o robots, e só então a jornada que não chegou lá.
+ *
+ * A ordem é a mesma de `semFonte` em rules/payment.ts, e não por acaso: motivo
+ * escrito e família contada precisam apontar para a mesma causa, senão o
+ * resumo diz uma coisa e a linha da lista diz outra.
+ */
+/**
+ * O robots explica esta ausência?
+ *
+ * Só em `leitura`. Em `consentido` o portão libera todo caminho proibido, com
+ * o aceite registrado — então nada foi impedido por robots, e a lista de
+ * caminhos proibidos que o relatório continua mostrando é registro do que a
+ * loja pedia, não causa de nada. Culpar o robots ali seria devolver ao lojista
+ * um motivo que não foi o motivo.
+ */
+export function robotsSegurou(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): boolean {
+  if (input.modo !== 'leitura') return false
+  const caminhos: Record<PageObservation['source'], RegExp> = {
+    product: /^\/products?\b/,
+    cart: /^\/cart\b/,
+    checkout: /^\/checkouts?\b/,
+  }
+  return input.robotsBlockedPaths.some((c) => ordem.some((f) => caminhos[f].test(c)))
+}
+
+export function familiaDaAusencia(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): FamiliaDeCobertura {
+  if (razaoDoModo(input, ordem)) return 'modo-leitura'
+  if (input.blockedBySite) return 'loja-bloqueou'
+  if (robotsSegurou(input, ordem)) return 'robots'
+  return 'jornada-parou'
 }
 
 export interface CheckRule {
@@ -81,7 +174,14 @@ export interface CheckRule {
 
 /** Açúcar para as regras não repetirem a forma do retorno. */
 export function pass(evidence: string[], recommendation = ''): ReturnType<CheckRule['evaluate']> {
-  return { status: 'pass', evidence, notApplicableReason: null, recommendation, screenshot: null }
+  return {
+    status: 'pass',
+    evidence,
+    notApplicableReason: null,
+    coverageFamily: null,
+    recommendation,
+    screenshot: null,
+  }
 }
 
 export function fail(
@@ -89,14 +189,25 @@ export function fail(
   recommendation: string,
   screenshot: string | null = null,
 ): ReturnType<CheckRule['evaluate']> {
-  return { status: 'fail', evidence, notApplicableReason: null, recommendation, screenshot }
+  return {
+    status: 'fail',
+    evidence,
+    notApplicableReason: null,
+    coverageFamily: null,
+    recommendation,
+    screenshot,
+  }
 }
 
-export function notApplicable(reason: string): ReturnType<CheckRule['evaluate']> {
+export function notApplicable(
+  reason: string,
+  familia: FamiliaDeCobertura = 'dado-ilegivel',
+): ReturnType<CheckRule['evaluate']> {
   return {
     status: 'not_applicable',
     evidence: [],
     notApplicableReason: reason,
+    coverageFamily: familia,
     recommendation: '',
     screenshot: null,
   }

@@ -135,6 +135,40 @@ export interface ProductRef {
  * classificar nem overlay para observar. Quem lê o relatório precisa saber a
  * diferença entre "não tinha modal" e "não olhamos".
  */
+/**
+ * Os dois produtos que este motor atende, e que antes eram tratados como um.
+ *
+ * `consentido`: o lojista colou a URL da própria loja e marcou o aceite. Só
+ * aqui a jornada pode tocar carrinho e checkout. O aceite é uma instrução mais
+ * específica e mais recente que o robots.txt — que é convenção endereçada a
+ * rastreador anônimo, não a auditoria pedida pelo dono — então neste modo o
+ * robots não barra. Sem registro de aceite, não roda como consentido.
+ *
+ * `leitura`: loja de terceiro, para prospecção e conteúdo. Ninguém autorizou,
+ * então o robots vale sempre e sem exceção, e a jornada nunca toca carrinho
+ * nem checkout. O relatório sai parcial POR DESENHO, não por falha.
+ *
+ * O robô se identifica nos dois, e a janela por domínio vale nos dois:
+ * identificar-se nunca foi sobre permissão, é sobre não parecer o que não é.
+ */
+export type ModoAuditoria = 'consentido' | 'leitura'
+
+/**
+ * O aceite do responsável pela loja, registrado ANTES da execução.
+ *
+ * Sem isto o modo consentido não roda. Não é formalidade: é o que separa
+ * "auditoria pedida pelo dono" de "robô mexendo em loja alheia", e a diferença
+ * precisa estar gravada em algum lugar que não seja a memória de quem clicou.
+ */
+export interface Aceite {
+  /** Quando o aceite foi dado, ISO 8601. */
+  em: string
+  /** A URL que o responsável autorizou auditar. */
+  url: string
+  /** O texto exato que ele leu e aceitou — não uma paráfrase nossa. */
+  texto: string
+}
+
 export type AddToCartVia = 'api' | 'formulario' | 'atributo' | 'texto'
 
 /**
@@ -293,6 +327,15 @@ export interface PageObservation {
 
 export interface JourneyDriver {
   findProduct(ctx: JourneyContext): Promise<ProductRef>
+  /**
+   * Abre a página do produto e observa o que ela mostra, sem tocar em nada.
+   *
+   * Existe separado de `addToCart` porque o modo `leitura` precisa desta parte
+   * e não pode ter a outra. Estava dentro do `addToCart`, e enquanto estivesse
+   * lá qualquer auditoria que quisesse só olhar teria que passar por dentro do
+   * código que compra.
+   */
+  observeProduct(ctx: JourneyContext, product: ProductRef): Promise<{ screenshot: string | null }>
   addToCart(ctx: JourneyContext, product: ProductRef): Promise<AddToCartResult>
   /**
    * Ausentes enquanto o bloco 3b não existir — mesma regra do `journey?` do
@@ -309,6 +352,16 @@ export interface JourneyDriver {
 export interface RobotsGate {
   readonly ownerVerified: boolean
   check(url: string): StepPermission
+  /**
+   * Pergunta se o robots proíbe o caminho, SEM consumir a exceção. Devolve o
+   * caminho proibido ou null.
+   *
+   * Existe separado de `check` porque perguntar não é passar: o relatório
+   * precisa listar o que o robots proíbe mesmo no modo consentido, e usar
+   * `check` para montar essa lista registrava override em caminho que a
+   * auditoria nunca chegou a pedir.
+   */
+  wouldBlock(url: string): string | null
   /** Overrides efetivamente usados, para o relatório mostrar. */
   readonly overrides: ReadonlyArray<{ path: string; at: string }>
 }

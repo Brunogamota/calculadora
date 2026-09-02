@@ -25,7 +25,7 @@ function usage(): never {
       'Uso:',
       '  npm run preflight -- <url> [--pretty]',
       '  npm run detect    -- <url> [--pretty] [--headless] [--owner-verified]',
-      '  npm run audit     -- <url> [--pretty] [--headless] [--owner-verified] [--fill-checkout]',
+      '  npm run audit     -- <url> (--leitura | --consentido) [--pretty] [--headless] [--fill-checkout]',
       '',
       'preflight  valida URL, SSRF, blocklist e robots. Não abre browser.',
       'detect     identifica a plataforma. Abre o browser.',
@@ -34,6 +34,8 @@ function usage(): never {
       'Flags:',
       '  --pretty           JSON indentado',
       '  --summary          só o que interessa para conferir a rodada (audit)',
+      '  --leitura          loja de terceiro: lê a página do produto e para ali',
+      '  --consentido       loja de quem autorizou: pode ir até o carrinho',
       '  --headless         desliga o modo headed (padrão do projeto é headed)',
       '  --save-html        salva o HTML renderizado em out/ (automático quando',
       '                     a plataforma não é identificada)',
@@ -70,12 +72,47 @@ async function main(): Promise<void> {
     ownerVerified: flags.has('--owner-verified'),
   }
 
+  /* O TEXTO do aceite, exatamente como quem roda o comando o lê no `--help`.
+     Não é paráfrase: é a frase que fica gravada no relatório como aquilo que
+     a pessoa afirmou. Se ela mudar aqui, muda o que foi afirmado. */
+  const TEXTO_DO_ACEITE =
+    'Sou responsável por esta loja e autorizo a auditoria, que vai navegar como ' +
+    'um comprador e pode colocar um item no carrinho.'
+
+  const modo = flags.has('--consentido') ? 'consentido' : flags.has('--leitura') ? 'leitura' : null
+  if (command === 'audit' && modo === null) {
+    console.error(
+      [
+        'Falta o modo. Escolha um:',
+        '',
+        '  --leitura      loja de terceiro. Navega e lê a página do produto.',
+        '                 Nunca toca carrinho nem checkout. Respeita o robots.txt.',
+        '',
+        '  --consentido   loja própria, ou de quem autorizou. Pode ir até o carrinho,',
+        '                 e o robots.txt não barra — o aceite do responsável é uma',
+        '                 instrução mais específica que o arquivo. Ao passar esta flag',
+        '                 você afirma, e fica gravado no relatório:',
+        '',
+        `                 "${TEXTO_DO_ACEITE}"`,
+        '',
+        'Não existe padrão: decidir isto por omissão seria responder por engano a',
+        'pergunta mais importante deste motor.',
+      ].join('\n'),
+    )
+    process.exit(2)
+  }
+
   const result =
     command === 'preflight'
       ? await preflight(target, createDeps())
       : command === 'detect'
         ? await detect(target, { ...shared, saveHtml: flags.has('--save-html') })
-        : await audit(target, { ...shared, fillCheckout: flags.has('--fill-checkout'),
+        : await audit(target, { ...shared,
+            modo: modo ?? 'leitura',
+            ...(modo === 'consentido'
+              ? { aceite: { em: new Date().toISOString(), url: target, texto: TEXTO_DO_ACEITE } }
+              : {}),
+            fillCheckout: flags.has('--fill-checkout'),
             // undefined, não false: sem a flag NÃO se sabe de onde a auditoria
             // sai. `false` afirmaria "não é Brasil", que ninguém declarou.
             ...(flags.has('--from-br') ? { fromBrazil: true } : {}),

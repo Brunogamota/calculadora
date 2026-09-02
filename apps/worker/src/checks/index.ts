@@ -8,11 +8,13 @@
  */
 
 import {
+  FRASE_DA_FAMILIA,
   observacaoDoCheckout,
   SEVERITY_WEIGHT,
   type CheckInput,
   type CheckResult,
   type CheckRule,
+  type FamiliaDeCobertura,
 } from './types.ts'
 import { httpsIssue } from './rules/transport.ts'
 import { buyButtonObscured, checkoutSpeed, forcedLogin, stepCount } from './rules/journey.ts'
@@ -68,6 +70,16 @@ export interface Scoreboard {
   }
   /** Preenchido quando a nota se apoia em pouca coisa. */
   scoreCaveat: string | null
+  /**
+   * Uma ou duas frases de lojista: quantas checagens saíram, quantas não, e o
+   * motivo que dominou as que não saíram.
+   *
+   * Sai daqui, e não da tela, porque o motivo dominante depende de dado que só
+   * existe aqui — e porque a tela, o CLI e o JSON precisam contar a mesma
+   * história. A manchete que estava no lugar disto era do desenho: afirmava
+   * "cinco pontos, três pesam" em toda auditoria, medisse o que medisse.
+   */
+  coverageSummary: string
 }
 
 export interface ChecksReport extends Scoreboard {
@@ -124,6 +136,7 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
 
   return {
     score,
+    coverageSummary: resumoDeCobertura(results, applicable.length),
     applicable: applicable.length,
     passed: applicable.length - failed.length,
     failed: failed.length,
@@ -137,6 +150,35 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
       (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9),
     ),
   }
+}
+
+/**
+ * O resumo em linguagem de lojista.
+ *
+ * Regra de honestidade: o motivo citado é o que aparece em MAIS checagens não
+ * feitas, e o número de checagens vem junto — sem isso, "não deu para verificar
+ * por causa do robots" leria como se fosse o único motivo mesmo quando explica
+ * uma das sete.
+ */
+function resumoDeCobertura(results: CheckResult[], aplicaveis: number): string {
+  const naoFeitas = results.filter((r) => r.status === 'not_applicable')
+  if (naoFeitas.length === 0) {
+    return `Verificamos as ${results.length} checagens desta auditoria.`
+  }
+
+  const contagem = new Map<FamiliaDeCobertura, number>()
+  for (const r of naoFeitas) {
+    const f = r.coverageFamily ?? 'dado-ilegivel'
+    contagem.set(f, (contagem.get(f) ?? 0) + 1)
+  }
+  const [dominante, quantas] = [...contagem.entries()].sort((a, b) => b[1] - a[1])[0]!
+
+  const primeira = `Verificamos ${aplicaveis} das ${results.length} checagens; ${naoFeitas.length} não deram para fazer.`
+  const parte =
+    quantas === naoFeitas.length
+      ? 'Em todas elas'
+      : `Na maior parte delas (${quantas} de ${naoFeitas.length})`
+  return `${primeira} ${parte}, ${FRASE_DA_FAMILIA[dominante]}.`
 }
 
 /**

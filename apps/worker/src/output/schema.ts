@@ -20,6 +20,9 @@ const checkResult = z.object({
   status: z.enum(['pass', 'fail', 'not_applicable']),
   evidence: z.array(z.string()),
   notApplicableReason: z.string().nullable(),
+  coverageFamily: z
+    .enum(['robots', 'modo-leitura', 'loja-bloqueou', 'jornada-parou', 'fora-desta-fase', 'dado-ilegivel'])
+    .nullable(),
   recommendation: z.string(),
   screenshot: z.string().nullable(),
 })
@@ -38,6 +41,7 @@ const checksReport = z.object({
     checksTotal: z.number().int().nonnegative(),
   }),
   scoreCaveat: z.string().nullable(),
+  coverageSummary: z.string(),
   results: z.array(checkResult),
   findings: z.array(checkResult),
 })

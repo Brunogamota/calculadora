@@ -133,6 +133,7 @@ export class MemoryPublisher implements Publisher {
         state.finished = true
         state.score = event.score
         state.caveat = event.caveat
+        if (event.coverage) state.coverage = event.coverage
         break
       }
       case 'aborted':

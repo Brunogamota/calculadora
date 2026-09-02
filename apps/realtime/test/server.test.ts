@@ -20,11 +20,24 @@ process.env['RAIO_X_QUIET'] = '1'
 
 const base = `http://localhost:${PORT}`
 
-async function pedirAuditoria(url: string): Promise<{ status: number; body: Record<string, unknown> }> {
+/* `consentido` porque estes exercícios percorrem a jornada inteira, e a loja é
+   a falsa deste repositório: o aceite existe de verdade. O modo vai explícito
+   porque a API recusa sem ele — e essa recusa tem exercício próprio abaixo. */
+const ACEITE_DE_TESTE = {
+  em: '2026-09-01T00:00:00.000Z',
+  texto: 'Loja falsa deste repositório: a auditoria é autorizada por quem a escreveu.',
+}
+
+async function pedirAuditoria(
+  url: string,
+  extra: Record<string, unknown> | null = null,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const corpo =
+    extra ?? { url, modo: 'consentido', aceite: { ...ACEITE_DE_TESTE, url } }
   const res = await fetch(`${base}/api/audit`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(corpo),
   })
   return { status: res.status, body: (await res.json()) as Record<string, unknown> }
 }
@@ -126,6 +139,22 @@ describe('servidor de tempo real', { concurrency: false }, () => {
   test('POST sem url é recusado', async () => {
     const pedido = await pedirAuditoria('')
     assert.equal(pedido.status, 400)
+  })
+
+  /* A API não tem modo padrão, e isso é decisão de produto: um padrão silencioso
+     escolheria por quem pede se a auditoria pode ou não mexer no carrinho de uma
+     loja de terceiro. Sem declaração, não roda. */
+  test('POST sem modo é recusado, e o erro diz quais existem', async () => {
+    const pedido = await pedirAuditoria('', { url: 'https://loja.com.br' })
+    assert.equal(pedido.status, 400)
+    assert.match(String(pedido.body['error']), /consentido/)
+    assert.match(String(pedido.body['error']), /leitura/)
+  })
+
+  test('POST consentido sem aceite é recusado', async () => {
+    const pedido = await pedirAuditoria('', { url: 'https://loja.com.br', modo: 'consentido' })
+    assert.equal(pedido.status, 400)
+    assert.match(String(pedido.body['error']), /aceite/)
   })
 
   test('GET / entrega a tela de execução', async () => {

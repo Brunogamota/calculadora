@@ -43,6 +43,13 @@ export type AuditErrorCode =
   | 'CATALOG_EMPTY'
   | 'BUY_FORM_NOT_FOUND'
   | 'BUY_BUTTON_NOT_FOUND'
+  // modo e consentimento
+  //
+  // O modo decide se a execução tem permissão para existir, e por isso e
+  // verificado antes de tudo. Nao ha padrao: sem modo declarado a auditoria
+  // recusa, em vez de escolher sozinha a resposta mais permissiva.
+  | 'MODE_MISSING'
+  | 'CONSENT_MISSING'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

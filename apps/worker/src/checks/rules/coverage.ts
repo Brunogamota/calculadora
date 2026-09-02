@@ -16,10 +16,10 @@ export const mobileParity: CheckRule = {
 
   evaluate(input) {
     if (!input.mobile) {
-      return notApplicable('a jornada em mobile (§6.7) não roda nesta fase')
+      return notApplicable('a jornada em mobile (§6.7) não roda nesta fase', 'fora-desta-fase')
     }
     if (!input.checkout?.reachedPaymentScreen || !input.payment) {
-      return notApplicable('sem a jornada desktop completa não há com o que comparar')
+      return notApplicable('sem a jornada desktop completa não há com o que comparar', 'jornada-parou')
     }
     const desktopMeios = input.payment.methods.length
     const desktopPassos = input.checkout.stepsFromProduct
@@ -51,6 +51,7 @@ export const descriptorUnclear: CheckRule = {
     return notApplicable(
       'o descritor de fatura (§6.8) não é coletado nesta fase; ele raramente aparece no site e ' +
         'exige leitura de rodapé e termos',
+      'fora-desta-fase',
     )
   },
 }

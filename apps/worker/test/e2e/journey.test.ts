@@ -29,7 +29,17 @@ const OUT = 'out/.test'
 // Sem `force`: o intervalo é zerado por variável de ambiente, então não há o
 // que forçar. Usar --force aqui exigiria declarar titularidade, e isso ligaria
 // a exceção de robots — quebrando justamente o cenário que testa robots.
-const BASE = { headed: false, outDir: OUT } as const
+/* `consentido` porque estes exercícios vão até o carrinho, e a loja falsa é
+   nossa: o aceite existe de verdade, não é formalidade contornada. O modo é
+   declarado aqui uma vez em vez de em cada teste — mas é declarado, porque
+   `audit()` recusa sem ele. */
+const ACEITE_DE_TESTE = {
+  em: '2026-09-01T00:00:00.000Z',
+  url: 'http://127.0.0.1',
+  texto: 'Loja falsa deste repositório: a auditoria é autorizada por quem a escreveu.',
+} as const
+
+const BASE = { headed: false, outDir: OUT, modo: 'consentido' } as const
 
 /** Uma loja, uma auditoria, muitas asserções. */
 async function auditFake(
@@ -37,7 +47,11 @@ async function auditFake(
   auditOptions: Record<string, unknown> = {},
 ): Promise<{ result: AuditResult; store: FakeStore }> {
   const store = await startFakeStore(storeOptions)
-  const result = await audit(store.url, { ...BASE, ...auditOptions })
+  const result = await audit(store.url, {
+    ...BASE,
+    aceite: { ...ACEITE_DE_TESTE, url: store.url },
+    ...auditOptions,
+  })
   return { result, store }
 }
 
@@ -133,7 +147,13 @@ describe('loja servindo desafio antibot', { concurrency: false }, () => {
   })
 })
 
-describe('robots proibindo /checkout', { concurrency: false }, () => {
+/* Este bloco era um só, e testava o mundo em que robots sempre valia. Agora o
+   modo governa o portão, então a mesma loja tem DOIS comportamentos corretos, e
+   cada um precisa do seu exercício. O que os dois preservam do teste antigo é a
+   regra que nunca muda: checagem que não pôde ser feita sai não aplicável com
+   motivo, jamais como falha da loja. */
+
+describe('robots proibindo /checkout — modo consentido passa por cima, e registra', { concurrency: false }, () => {
   let result: AuditResult
   let store: FakeStore
 
@@ -144,25 +164,63 @@ describe('robots proibindo /checkout', { concurrency: false }, () => {
   })
   after(async () => store.close())
 
-  test('sai partial com a etapa marcada, não como erro', () => {
-    assert.equal(result.status, 'partial')
+  test('o relatório continua dizendo o que o robots proibia', () => {
+    // Passar por cima não apaga o pedido da loja do relatório: quem lê precisa
+    // saber sob que autorização a etapa rodou.
     assert.deepEqual(result.robots.blockedPaths, ['/checkout'])
-    assert.equal(result.steps.at(-1)?.outcome.status, 'not_permitted_by_robots')
-    assert.equal(result.errorCode, null, 'etapa não permitida não é erro')
+    assert.equal(result.robots.ownerVerified, true)
   })
 
-  test('o carrinho ainda foi auditado', () => {
-    assert.equal(result.cart?.ok, true)
+  test('cada override fica registrado com caminho e horário', () => {
+    const caminhos = result.robots.overridesUsed.map((o) => o.path)
+    assert.ok(caminhos.some((c) => c.startsWith('/checkout')), `nenhum override de checkout em ${JSON.stringify(caminhos)}`)
+    for (const o of result.robots.overridesUsed) {
+      assert.ok(!Number.isNaN(Date.parse(o.at)), `override sem horário utilizável: ${o.at}`)
+    }
   })
 
-  test('produto e carrinho foram observados mesmo sem checkout', () => {
-    const fontes = result.observations.map((o) => o.source)
-    assert.deepEqual([...fontes].sort(), ['cart', 'product'])
-    assert.equal(
-      result.observations.some((o) => o.source === 'checkout'),
-      false,
-      'checkout proibido não pode virar observação',
+  test('perguntar ao portão não conta como override', () => {
+    // A lista de proibidos é montada consultando o portão para cada caminho da
+    // jornada. Consulta que registrasse override faria o relatório afirmar que
+    // passamos por cima de caminho que a auditoria nunca chegou a pedir.
+    const daHome = result.robots.overridesUsed.filter((o) => o.path === '/')
+    assert.deepEqual(daHome, [], 'override registrado para caminho não proibido')
+    assert.ok(
+      result.robots.overridesUsed.length <= result.steps.length,
+      'mais overrides do que passos executados: alguém está registrando consulta como passagem',
     )
+  })
+
+  test('o checkout é alcançado e observado', () => {
+    assert.equal(result.cart?.ok, true)
+    const fontes = result.observations.map((o) => o.source)
+    assert.ok(fontes.includes('checkout'), `checkout não observado; fontes: ${fontes.join(', ')}`)
+  })
+})
+
+describe('robots proibindo /checkout — modo leitura respeita, e diz por quê', { concurrency: false }, () => {
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    const run = await auditFake({ blockCheckout: true }, { modo: 'leitura', aceite: undefined })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('sai partial por desenho, não como erro', () => {
+    assert.equal(result.status, 'partial')
+    assert.equal(result.errorCode, null, 'leitura incompleta por desenho não é erro')
+    assert.equal(result.robots.ownerVerified, false)
+    assert.deepEqual(result.robots.overridesUsed, [], 'leitura não passa por cima de robots')
+  })
+
+  test('nem o carrinho é tocado — e o robots proibido continua listado', () => {
+    assert.equal(result.cart, null)
+    assert.deepEqual(result.robots.blockedPaths, ['/checkout'])
+    const fontes = result.observations.map((o) => o.source)
+    assert.deepEqual([...fontes].sort(), ['product'])
   })
 
   test('o parcelamento é julgado pela página do produto, sem chegar ao checkout', () => {
@@ -179,7 +237,9 @@ describe('robots proibindo /checkout', { concurrency: false }, () => {
     for (const id of ['NO_COUPON_FIELD', 'NO_TRUST_SIGNAL']) {
       const c = result.checks?.results.find((x) => x.id === id)
       assert.equal(c?.status, 'not_applicable', `${id} acusou a loja sem ver o checkout`)
-      assert.match(c?.notApplicableReason ?? '', /robots/)
+      // O motivo é o modo, não o robots: quem não abriu o carrinho fomos nós.
+      // Dizer "o robots.txt proíbe" aqui culparia a loja pela nossa escolha.
+      assert.match(c?.notApplicableReason ?? '', /modo leitura/)
     }
   })
 })
@@ -536,7 +596,12 @@ describe('a evidência do carrinho vai para o disco em todo desfecho', { concurr
       const dir = await mkdtemp(path.join(tmpdir(), 'raiox-'))
       const store = await startFakeStore(opcoes)
       try {
-        const r = await audit(store.url, { headed: false, outDir: dir })
+        const r = await audit(store.url, {
+          headed: false,
+          outDir: dir,
+          modo: 'consentido',
+          aceite: { ...ACEITE_DE_TESTE, url: store.url },
+        })
         const host = new URL(store.url).hostname
         const arquivo = path.join(dir, host, 'carrinho.json')
         const bruto = await readFile(arquivo, 'utf8')
@@ -614,6 +679,120 @@ describe('jornada que falha ainda entrega o que observou', { concurrency: false 
       const c = (result.checks?.results ?? []).find((x) => x.id === id)
       assert.equal(c?.status, 'not_applicable', `${id} não pode ter veredito sem checkout`)
       assert.ok(c?.notApplicableReason, `${id} precisa dizer POR QUE não se aplica`)
+    }
+  })
+})
+
+describe('os dois modos, e o que cada um tem permissão de tocar', { concurrency: false }, () => {
+  /* O motor atendia dois produtos como se fossem um: a loja de quem pediu a
+     auditoria e a loja de terceiro que ninguém consultou. Fazia a mesma coisa
+     nos dois casos — inclusive mexer no carrinho de loja alheia.
+
+     Agora o modo é obrigatório e governa duas coisas: se a jornada pode tocar
+     carrinho, e se o robots.txt barra. No consentido o aceite do responsável é
+     instrução mais específica e mais recente que o arquivo, e vale mais. No
+     leitura ninguém autorizou, então o robots vale sempre. */
+
+  const aceiteDe = (url: string) => ({
+    em: new Date().toISOString(),
+    url,
+    texto: 'Sou responsável por esta loja e autorizo a auditoria.',
+  })
+
+  test('sem modo declarado, a auditoria não roda', async () => {
+    const store = await startFakeStore({})
+    try {
+      // @ts-expect-error: o compilador já barra; o teste garante que a EXECUÇÃO
+      // também barre, para quem chamar de JavaScript ou de JSON pela API.
+      const r = await audit(store.url, { headed: false, outDir: OUT })
+      assert.equal(r.errorCode, 'MODE_MISSING')
+      assert.equal(r.cart, null, 'não pode ter tocado o carrinho')
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('consentido sem aceite registrado não roda', async () => {
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, { headed: false, outDir: OUT, modo: 'consentido' })
+      assert.equal(r.errorCode, 'CONSENT_MISSING')
+      assert.equal(r.cart, null)
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('aceite de outra loja não vale para esta', async () => {
+    // Aceite genérico é clique reaproveitado, não autorização.
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, {
+        headed: false,
+        outDir: OUT,
+        modo: 'consentido',
+        aceite: aceiteDe('https://outraloja.com.br'),
+      })
+      assert.equal(r.errorCode, 'CONSENT_MISSING')
+      assert.match(r.errorReason ?? '', /outraloja\.com\.br/)
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('leitura com aceite é contradição e não roda', async () => {
+    // Ou alguém autorizou, e o modo é consentido, ou não autorizou e o aceite
+    // não existe. Aceitar os dois deixaria passar consentido disfarçado.
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, {
+        headed: false,
+        outDir: OUT,
+        modo: 'leitura',
+        aceite: aceiteDe('http://127.0.0.1'),
+      })
+      assert.equal(r.errorCode, 'CONSENT_MISSING')
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('leitura vai até a página do produto e para ali, por desenho', async () => {
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, { headed: false, outDir: OUT, modo: 'leitura' })
+      assert.equal(r.errorCode, null, r.errorReason ?? '')
+      assert.equal(r.cart, null, 'leitura não pode ter carrinho')
+      assert.equal(r.checkout, null, 'leitura não pode ter checkout')
+      assert.ok(
+        r.observations.some((o) => o.source === 'product'),
+        'e mesmo assim tem que trazer a página de produto observada',
+      )
+      assert.ok(r.steps.some((s) => s.id === 'observe-product' && s.outcome.status === 'done'))
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('leitura nunca libera o robots; consentido libera e registra', async () => {
+    const store = await startFakeStore({})
+    try {
+      const leitura = await audit(store.url, { headed: false, outDir: OUT, modo: 'leitura' })
+      assert.equal(leitura.robots.ownerVerified, false)
+
+      const consentido = await audit(store.url, {
+        headed: false,
+        outDir: OUT,
+        modo: 'consentido',
+        aceite: aceiteDe(store.url),
+        force: true,
+      })
+      assert.equal(consentido.robots.ownerVerified, true)
+      assert.ok(consentido.aceite, 'o aceite tem que viajar no relatório')
+      assert.equal(consentido.aceite?.url, store.url)
+      assert.ok(consentido.aceite?.texto.length, 'com o texto exato que foi aceito')
+    } finally {
+      await store.close()
     }
   })
 })

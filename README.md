@@ -12,6 +12,7 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 |---|---|---|
 | 1 | Guards, normalização de URL, SSRF, robots.txt, rate limit, blocklist | **pronto** |
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
+| — | Modos `consentido` e `leitura` (fatia 2) | **validado contra loja falsa; aguardando loja real** |
 | 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **nunca funcionou fora da loja falsa** |
 | 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
 | 4 | Checagens (§8), nota e saída JSON validada | **pronto** |
@@ -183,24 +184,72 @@ Estes limites são arquitetura, não aviso legal:
 - SSRF barrado: IP direto, localhost, faixas privadas, e redirect que caia nelas
 - checagem que não pôde ser feita com certeza sai como não aplicável, nunca como suposição
 
-## robots.txt e a exceção por titularidade
+## Os dois modos, e o que cada um pode tocar
 
-Por padrão robots é respeitado. Quando ele proíbe um caminho que a jornada
-precisaria — `/checkout` e `/cart` costumam estar proibidos —, a auditoria roda
-até onde é permitido e:
+**Toda auditoria declara um modo. Não existe padrão** — sem modo declarado,
+`audit()` recusa antes de abrir o navegador, e a API responde 400.
+
+| | `consentido` | `leitura` |
+|---|---|---|
+| quem autorizou | o responsável pela loja, com aceite registrado | ninguém |
+| carrinho e checkout | abre | **nunca toca** |
+| robots.txt | ignora, e registra cada passagem | respeita, sem exceção |
+| relatório | completo quando a jornada vai até o fim | **parcial por desenho** |
+
+O aceite não é uma flag. Ele é um registro que precisa existir **antes** da
+execução, com data em ISO 8601, a URL auditada e o **texto exato** que a pessoa
+leu — e o hostname do aceite tem que bater com o da auditoria. Aceite faltando,
+incompleto ou de outra loja recusa a auditoria com `CONSENT_MISSING`. Aceite
+enviado em modo `leitura` também recusa: é contradição, não descuido.
+
+O robô continua identificado nos dois modos, e a janela de uma auditoria por
+domínio vale nos dois.
+
+### Por que o modo governa o robots
+
+Um `robots.txt` é uma instrução geral do site para robôs em geral. O aceite do
+responsável pela loja é uma instrução **mais específica e mais recente**, dada
+por quem tem autoridade sobre aquele site, para aquele robô, naquela URL. Em
+`consentido` ela prevalece — e é por isso que o aceite precisa ser um registro,
+não uma caixinha marcada em silêncio.
+
+Em `leitura` nada disso existe. Ninguém autorizou, então robots vale integral:
 
 - a etapa sai como `not_permitted_by_robots`
 - as checagens que dependem dela saem como **não aplicáveis**, nunca como falha
   da loja
 - o relatório fica `partial`, com o motivo explícito
 
-A exceção é titularidade confirmada: quando o dono pede a auditoria da própria
-loja e comprova que é dono, o checkout é auditado mesmo com robots bloqueando.
+### Dois defeitos que a fatia 2 desenterrou
 
-Na Fase 1 isso é só a flag `--owner-verified`, **sem verificação nenhuma** — a
-titularidade é declarada, não provada. A prova por meta tag ou DNS entra na
-Fase 3. Todo override usado fica registrado com caminho e horário, para o
-relatório mostrar sob qual autorização a etapa rodou.
+Os dois estavam no relatório desde sempre, e os dois eram do mesmo tipo: o
+relatório afirmando coisa que não aconteceu.
+
+**`overridesUsed` nunca teve um override de verdade.** A lista era congelada
+quando o resultado nascia, antes de a jornada rodar. Parecia preenchida porque
+a lista de caminhos proibidos era montada *consultando o portão*, e a consulta
+registrava override. Ou seja: o relatório mostrava as perguntas e escondia as
+passagens. Consultar virou operação pura (`wouldBlock`), e os overrides passaram
+a ser recontados do portão vivo no fim da auditoria.
+
+**`leitura` se anunciava completa.** Uma auditoria que não abriu carrinho nem
+checkout saía com status `done`. Agora ela sai `partial` com o motivo escrito,
+que é o que ela é: parcial por desenho.
+
+### O motivo tem que apontar para a causa certa
+
+Uma checagem que não pôde ser feita sai com motivo escrito **e** com uma
+família (`robots`, `modo-leitura`, `loja-bloqueou`, `jornada-parou`,
+`fora-desta-fase`, `dado-ilegivel`). A família existe para o programa saber
+qual motivo dominou sem interpretar a própria prosa.
+
+A ordem em que as portas se fecham é a ordem dos motivos: primeiro o modo (em
+`leitura` a requisição nem sai), depois o bloqueio da loja, depois o robots,
+depois a jornada. E **o robots só explica ausência em `leitura`** — em
+`consentido` o portão libera tudo, então nada foi impedido por ele. Os caminhos
+proibidos continuam no relatório como registro do que a loja pedia, mas nunca
+como causa. Devolver ao lojista "o robots proibiu" quando o robots não segurou
+nada faria ele mexer no arquivo errado.
 
 ## Bloco 2 — detecção de plataforma
 
@@ -744,6 +793,28 @@ ressalva explícita:
 
 Na Fase 3, essa ressalva precisa aparecer **ao lado do número grande** no
 relatório, não num rodapé.
+
+E abaixo de 40% de cobertura **a nota não sai**: `score` vem `null`. O caso que
+decidiu isso foi um "100" com 36% de cobertura — honesto dentro do que foi
+medido, e é o número que o lojista tira print e manda para o sócio. Ressalva ao
+lado não segura isso: número grande gruda, texto pequeno não.
+
+### O que ocupa o lugar da nota quando ela não sai
+
+O lead não pode ficar sem gancho, então no lugar do número vai o que foi
+verificado e o que não deu, com o motivo de cada um. O motor monta uma frase de
+lojista (`coverageSummary`) e manda a lista inteira junto do `complete`:
+
+> Verificamos 5 das 13 checagens; 8 não deram para fazer. Na maior parte delas
+> (6 de 8), a auditoria rodou sem autorização da loja, então não abriu carrinho
+> nem checkout.
+
+Essa frase substituiu, na tela de resultado, uma manchete do desenho que
+afirmava "seu checkout perde gente em cinco pontos, três deles pesam" em **toda
+auditoria**, medisse o que medisse. Saiu junto "Comparado a 340 lojas do mesmo
+porte": número inventado, sem base nenhuma. As treze checagens com status e
+motivo continuam existindo, em detalhe expansível fechado por padrão — treze
+linhas com motivo é lista de auditoria, não texto de lead.
 
 ### Cada checagem mede onde a decisão acontece, não só no checkout
 

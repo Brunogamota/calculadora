@@ -930,6 +930,22 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .url-invalid { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--accent); }
 .url-invalid-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 
+/* O aceite do responsável. Sóbrio de propósito: é autorização, não chamada
+   para ação — e enfeitá-lo empurraria a pessoa a marcar sem ler. */
+.url-aceite {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 560px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  cursor: pointer;
+}
+.url-aceite input { margin-top: 2px; accent-color: var(--accent); flex: none; }
+.url-aceite-nota { margin: 0; font-size: 12px; color: var(--muted); }
+
 .scroll-cue {
   position: absolute;
   left: 50%;
@@ -1807,6 +1823,32 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
    slot para a troca não mexer no layout. */
 .frame-vivo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #eceae7; }
 .nota-ressalva { max-width: 220px; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+
+/* As treze checagens. Fechada por padrão — a frase de cima é o que o lojista
+   lê; isto aqui é para quem quiser conferir linha por linha. */
+.checagens { margin-top: 16px; font-size: 13px; }
+.checagens > summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 6px 0;
+  list-style: none;
+}
+.checagens > summary::marker, .checagens > summary::-webkit-details-marker { display: none; }
+.checagens > summary::before { content: "▸ "; color: var(--muted); }
+.checagens[open] > summary::before { content: "▾ "; }
+.checagens > summary:hover { color: var(--ink); }
+.checagens ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.checagens li {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.checagem-status { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.checagens li[data-status="fail"] .checagem-status { color: var(--accent); }
+.checagem-titulo { color: var(--ink); }
+.checagem-motivo { grid-column: 2; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
 /* ==========================================================================
    GRAVAÇÃO — desenho v3

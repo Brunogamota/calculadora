@@ -55,9 +55,36 @@ export type AuditEvent =
       score: number | null
       /** A ressalva de cobertura viaja junto: o número nunca chega sozinho. */
       caveat: string | null
+      /**
+       * O que deu e o que não deu para verificar. Opcional só para não quebrar
+       * quem já fala este contrato; o motor sempre manda.
+       *
+       * Existe porque a tela precisava dizer algo verdadeiro no lugar da
+       * manchete do desenho — que afirmava "cinco pontos, três pesam" em toda
+       * auditoria. Sem estes dados a tela não tem como saber o que foi medido.
+       */
+      coverage?: Coverage
     }
   /** Desafio antibot, deadline, intervalo. Sem isto a tela giraria para sempre. */
   | { type: 'aborted'; auditId: string; code: string; reason: string }
+
+/** O que foi verificado e o que não foi, com o motivo de cada um. */
+export interface Coverage {
+  /** Quantas checagens saíram com veredito (passou ou falhou). */
+  checked: number
+  /** Quantas não deram para fazer. */
+  unchecked: number
+  /** Uma ou duas frases de lojista, montadas pelo motor. */
+  summary: string
+  /** A lista inteira, na ordem da §8. */
+  rules: Array<{
+    id: string
+    title: string
+    status: 'pass' | 'fail' | 'not_applicable'
+    /** Preenchido quando `status` é `not_applicable`. */
+    reason: string | null
+  }>
+}
 
 export type AuditEventType = AuditEvent['type']
 
@@ -80,6 +107,10 @@ export interface LiveState {
   finished: boolean
   score: number | null
   caveat: string | null
+  /* Vai no ESTADO, e não só no evento, porque quem reconecta depois do fim
+     recebe o estado — e sem isto a tela voltaria sem o resumo, que é agora o
+     que ela mostra no lugar da manchete. */
+  coverage?: Coverage
 }
 
 export function isAuditEvent(value: unknown): value is AuditEvent {

@@ -10,7 +10,7 @@
  * a linguagem do documento; o motor fala a dele.
  */
 
-import type { AuditEvent, Severity, StepId } from '@raio-x/types'
+import type { AuditEvent, Coverage, Severity, StepId } from '@raio-x/types'
 import { STEP_LABELS } from '@raio-x/types'
 import type { Publisher } from './publisher.ts'
 
@@ -84,10 +84,10 @@ export class Reporter {
     return this.#terminou
   }
 
-  complete(score: number | null, caveat: string | null): void {
+  complete(score: number | null, caveat: string | null, coverage?: Coverage): void {
     if (this.#terminou) return
     this.#terminou = true
-    this.#emit({ type: 'complete', auditId: this.#auditId, score, caveat })
+    this.#emit({ type: 'complete', auditId: this.#auditId, score, caveat, ...(coverage ? { coverage } : {}) })
   }
 
   /**

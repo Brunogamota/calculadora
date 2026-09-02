@@ -74,12 +74,46 @@ const server = createServer((req, res) => {
       const target = typeof body['url'] === 'string' ? body['url'] : ''
       if (!target) return json(res, 400, { error: 'informe { "url": "..." }' })
 
+      /* O modo é obrigatório na entrada, e a API recusa antes de abrir
+         navegador. Sem isto, quem chamasse a API sem declarar nada cairia no
+         comportamento mais permissivo por omissão — que é exatamente o que o
+         modo existe para impedir. */
+      const modo = body['modo']
+      if (modo !== 'consentido' && modo !== 'leitura') {
+        return json(res, 400, {
+          error:
+            'informe { "modo": "consentido" } quando o responsável pela loja autorizou, ' +
+            'ou { "modo": "leitura" } para loja de terceiro. Não há padrão.',
+        })
+      }
+
+      const aceiteBruto = body['aceite']
+      const aceite =
+        aceiteBruto !== null && typeof aceiteBruto === 'object'
+          ? (aceiteBruto as { em?: unknown; url?: unknown; texto?: unknown })
+          : null
+      if (modo === 'consentido' && aceite === null) {
+        return json(res, 400, {
+          error: 'modo consentido exige { "aceite": { "em", "url", "texto" } } registrado antes da execução',
+        })
+      }
+
       const auditId = newAuditId()
       json(res, 202, { auditId })
 
       // A auditoria roda em background; o acompanhamento é pelo WebSocket.
       running.add(auditId)
       audit(target, {
+        modo,
+        ...(aceite
+          ? {
+              aceite: {
+                em: typeof aceite.em === 'string' ? aceite.em : new Date().toISOString(),
+                url: typeof aceite.url === 'string' ? aceite.url : target,
+                texto: typeof aceite.texto === 'string' ? aceite.texto : '',
+              },
+            }
+          : {}),
         publisher: bus,
         auditId,
         headed: process.env['AUDIT_HEADED'] === '1',
@@ -157,7 +191,7 @@ server.listen(PORT, () => {
   // Silencioso quando importado por teste: o ruído esconde o que importa.
   if (process.env['RAIO_X_QUIET'] === '1') return
   console.log(`realtime em http://localhost:${PORT}`)
-  console.log(`  POST /api/audit      { "url": "loja.com.br" } -> { auditId }`)
+  console.log(`  POST /api/audit      { "url", "modo", "aceite"? } -> { auditId }`)
   console.log(`  GET  /api/audit/:id  estado atual`)
   console.log(`  WS   /live?auditId=  transmissão`)
 })

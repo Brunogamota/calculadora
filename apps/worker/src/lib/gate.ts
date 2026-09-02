@@ -27,17 +27,25 @@ export function createRobotsGate(policy: RobotsPolicy, options: RobotsGateOption
   const ownerVerified = options.ownerVerified === true
   const overrides: Array<{ path: string; at: string }> = []
 
+  function caminhoDe(url: string): string {
+    try {
+      const parsed = new URL(url)
+      return parsed.pathname + parsed.search
+    } catch {
+      return url
+    }
+  }
+
   return {
     ownerVerified,
     overrides,
+    /* Consulta pura: não registra override. Ver a nota em RobotsGate. */
+    wouldBlock(url: string): string | null {
+      const path = caminhoDe(url)
+      return policy.isAllowed(path) ? null : path
+    },
     check(url: string): StepPermission {
-      let path: string
-      try {
-        const parsed = new URL(url)
-        path = parsed.pathname + parsed.search
-      } catch {
-        path = url
-      }
+      const path = caminhoDe(url)
 
       if (policy.isAllowed(path)) {
         return { allowed: true, reason: 'robots-allowed' }

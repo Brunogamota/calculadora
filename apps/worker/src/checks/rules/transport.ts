@@ -9,7 +9,7 @@ export const httpsIssue: CheckRule = {
 
   evaluate(input) {
     if (input.steps.length === 0) {
-      return notApplicable('nenhuma etapa foi percorrida')
+      return notApplicable('nenhuma etapa foi percorrida', 'jornada-parou')
     }
     const inseguras = input.steps.filter((s) => !s.httpsOk && s.outcome.status !== 'not_permitted_by_robots')
     if (inseguras.length === 0) {
