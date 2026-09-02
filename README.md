@@ -30,6 +30,37 @@ Não há regressão para caçar. Há funcionalidade que nunca ficou pronta e foi
 declarada pronta. A regra que fica: **nada volta a ser marcado como pronto sem
 execução contra loja real.**
 
+### Headed e headless não são o mesmo navegador
+
+O projeto roda headed por padrão (§19). A suíte inteira roda headless. São dois
+caminhos, e **nenhum teste exercita o headed** — `journey.test.ts:32` define
+`BASE = { headed: false }`, e todos os 16 exercícios da jornada herdam dali.
+
+No NOSSO código a diferença é só a flag: `headed` chega em
+`chromium.launch({ headless: !headed })` (`browser.ts:40`) e na guarda de
+DISPLAY (`browser.ts:71`). Contexto, user agent, viewport, locale, fuso, rota
+de SSRF e timeouts são idênticos.
+
+Mas o Chromium diverge sozinho, e uma loja consegue ver. Medido aqui, mesma
+página, mesmo user agent, Chromium 141.0.7390.37 nos dois:
+
+| o que a página lê | headless | headed |
+|---|---|---|
+| `navigator.plugins.length` | **0** | **5** |
+| `window.outerWidth` | 1280 | 1288 |
+| `navigator.webdriver` | true | true |
+| WebGL renderer | SwiftShader | SwiftShader *(só porque o teste rodou sob Xvfb, sem GPU; numa máquina de verdade o headed reporta a GPU real e a diferença é maior)* |
+
+`plugins.length === 0` é assinatura clássica de headless em detecção de bot. Ou
+seja: **uma loja pode servir desafio ao caminho que a suíte testa e não servir
+ao caminho que roda em produção — ou o contrário.** É a mesma armadilha da
+fixture com outra roupa: cada lado exercita um caminho, e a divergência só
+aparece quando quebra na frente de alguém.
+
+Não resolvido. A correção mais barata seria a suíte rodar a jornada uma vez em
+headed (sob `xvfb-run` no Linux, nativo no Mac), o que custa tempo de execução
+e ainda não existe.
+
 ### Perguntas abertas do projeto
 
 | pergunta | quem responde | por que importa |
