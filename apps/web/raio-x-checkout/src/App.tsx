@@ -436,10 +436,17 @@ function useBordaQueAcende() {
    funcionando. */
 function useRevelacao() {
   useEffect(() => {
+    /* Marca as seções como animadas SÓ agora, com o script vivo. O CSS esconde
+       os cards atrás deste atributo — se o script não subir, nada some. */
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"))) {
+      el.setAttribute("data-anima", "");
+    }
     const revelar = () => {
       const vh = window.innerHeight || 800;
       for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"))) {
         const p = Math.max(0, Math.min(1, (vh - el.getBoundingClientRect().top) / (vh * 0.72)));
+        /* Entrou no campo de visão: a cascata dos cards dispara, uma vez só. */
+        if (p > 0.12) el.setAttribute("data-visto", "");
         const e = 1 - (1 - p) ** 3;
         if (e > 0.995) {
           el.style.transform = "";
