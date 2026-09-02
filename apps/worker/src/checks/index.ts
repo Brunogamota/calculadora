@@ -95,19 +95,32 @@ export function runChecks(input: CheckInput, rules: CheckRule[] = RULES): Checks
   const weightTotal = results.reduce((sum, r) => sum + SEVERITY_WEIGHT[r.severity], 0)
   const ratio = weightTotal === 0 ? 0 : weightApplicable / weightTotal
 
-  // Sem nenhuma checagem aplicável não existe nota. Devolver 100 diria "loja
-  // impecável" para uma auditoria que não mediu nada.
-  const score =
-    weightApplicable === 0 ? null : Math.round(100 * (1 - weightFailed / weightApplicable))
+  /* Nota e cobertura andam juntas, e o piso é sobre o PAR — não sobre a
+     cobertura sozinha.
+     
+     O caso que decide: "100" com 36% de cobertura. É um número honesto dentro
+     do que foi medido, e é o número que o lojista tira print e manda para o
+     sócio. A ressalva ao lado não segura isso: número grande gruda, texto
+     pequeno não. Abaixo do piso a nota não sai — no lugar dela vai o que foi
+     verificado e o que não deu, com o motivo de cada um, que é conteúdo
+     suficiente para responder e mais honesto que um número inflado. */
+  const PISO_SEM_NOTA = 0.4
+  const PISO_COM_RESSALVA = 0.6
 
-  // A nota é honesta dentro do que foi medido, mas apresentada sozinha ela
-  // engana quando pouco foi medido. O aviso viaja junto com o número.
+  const medido = weightApplicable > 0 && ratio >= PISO_SEM_NOTA
+  const score = medido ? Math.round(100 * (1 - weightFailed / weightApplicable)) : null
+
+  const cobertura = `${Math.round(ratio * 100)}% da §8 em peso (${applicable.length} de ${results.length} checagens aplicáveis)`
+
   const scoreCaveat =
-    score === null || ratio >= 0.6
-      ? null
-      : `esta nota cobre apenas ${Math.round(ratio * 100)}% da §8 em peso ` +
-        `(${applicable.length} de ${results.length} checagens aplicáveis). ` +
-        'Ela diz que nada falhou no que foi possível medir, não que a loja está impecável.'
+    score === null
+      ? `a auditoria cobriu ${cobertura}. Abaixo de ${Math.round(PISO_SEM_NOTA * 100)}% não sai ` +
+        'nota: com tão pouco medido, qualquer número diria mais do que a auditoria sabe. ' +
+        'O que foi verificado, e o que não deu para verificar, está na lista abaixo.'
+      : ratio >= PISO_COM_RESSALVA
+        ? null
+        : `esta nota cobre apenas ${cobertura}. ` +
+          'Ela diz que nada falhou no que foi possível medir, não que a loja está impecável.'
 
   return {
     score,

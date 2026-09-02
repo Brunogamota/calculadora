@@ -111,21 +111,41 @@ describe('nota — normalizada pelas checagens aplicáveis', () => {
     const semPagamento = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
 
     assert.equal(comTudo.score, 100)
-    assert.equal(semPagamento.score, 100, 'não medir não pode custar nota')
+    /* A regra que este teste protege é "não medir não pode CUSTAR nota" — e
+       ela continua valendo: nada saiu como falha ali. O que mudou é que, com
+       cobertura abaixo do piso, não sai nota nenhuma em vez de sair 100.
+       Nenhuma checagem foi reprovada, e é isso que se verifica. */
+    assert.equal(semPagamento.failed, 0, 'não medir não pode custar nota')
+    assert.equal(semPagamento.score, null, 'cobertura abaixo do piso não pontua')
     assert.ok(semPagamento.weightApplicable < comTudo.weightApplicable)
   })
 })
 
 describe('cobertura — nota 100 medindo pouco não pode ler igual a nota 100 medindo tudo', () => {
-  // Aconteceu numa auditoria real: a loja proibia /checkout no robots, dez
-  // checagens saíram não aplicáveis, e a nota saiu 100. Verdadeira dentro do
-  // que foi medido, e quase uma promessa falsa apresentada sozinha.
-  test('nota apoiada em pouca coisa vem com ressalva', () => {
+  /* Aconteceu duas vezes numa auditoria real: a loja proibia /checkout no
+     robots, quase tudo saiu não aplicável, e a nota saiu 100. Verdadeira
+     dentro do que foi medido, e quase uma promessa falsa apresentada sozinha.
+
+     A primeira tentativa foi colar uma ressalva no número. Não bastou: "100"
+     é o que o lojista printa e manda para o sócio, e texto pequeno ao lado não
+     segura número grande. Agora o piso é sobre o PAR nota-cobertura. */
+  test('cobertura abaixo de 40% não produz nota nenhuma', () => {
     const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
-    assert.equal(r.score, 100)
-    assert.ok(r.coverage.ratio < 0.6, `cobertura foi ${r.coverage.ratio}`)
-    assert.ok(r.scoreCaveat, 'faltou a ressalva')
-    assert.match(r.scoreCaveat!, /não que a loja está impecável/)
+    assert.ok(r.coverage.ratio < 0.4, `cobertura foi ${r.coverage.ratio}`)
+    assert.equal(r.score, null, 'com tão pouco medido, qualquer número diz mais do que se sabe')
+    assert.ok(r.scoreCaveat, 'sem nota, o motivo é obrigatório')
+    assert.match(r.scoreCaveat!, /não sai/)
+  })
+
+  test('e no lugar da nota fica o que foi verificado e o que não deu, com motivo', () => {
+    // Sem nota o lead não pode ficar sem gancho: a lista é o conteúdo que
+    // sobra, e cada não aplicável tem que dizer por quê.
+    const r = runChecks(entrada({ steps: [passo()], robotsBlockedPaths: ['/checkout'] }))
+    const naoAplicaveis = r.results.filter((c) => c.status === 'not_applicable')
+    assert.ok(naoAplicaveis.length > 0)
+    for (const c of naoAplicaveis) {
+      assert.ok(c.notApplicableReason, `${c.id} sem motivo: a lista fica sem conteúdo`)
+    }
   })
 
   test('nota apoiada em quase tudo não tem ressalva', () => {
@@ -149,10 +169,14 @@ describe('cobertura — nota 100 medindo pouco não pode ler igual a nota 100 me
     assert.equal(r.coverage.checksTotal, r.applicable + r.notApplicable)
   })
 
-  test('sem nota não há ressalva a dar', () => {
+  test('sem nota, o motivo é obrigatório — silêncio ali é pior que número', () => {
+    /* Antes: sem nota, sem ressalva. O campo ficava vazio e ninguém sabia se
+       a auditoria falhou, se a loja é perfeita, ou se algo quebrou. Agora a
+       ausência de nota é uma afirmação, e afirmação sem motivo não vale. */
     const r = runChecks(entrada())
     assert.equal(r.score, null)
-    assert.equal(r.scoreCaveat, null)
+    assert.ok(r.scoreCaveat, 'nota ausente sem explicação deixa o leitor no escuro')
+    assert.match(r.scoreCaveat!, /não sai/)
   })
 })
 

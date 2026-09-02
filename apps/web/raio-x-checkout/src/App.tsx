@@ -967,12 +967,16 @@ function Captura({ onAbrir }: { onAbrir: (email: string) => void }) {
 /* O anel conta de zero até a nota quando entra na tela. O valor final fica na
    marcação: se a animação não rodar, a nota certa continua lá em vez de
    aparecer zero. */
-function Anel({ nota }: { nota: number }) {
-  const [mostrado, setMostrado] = useState(nota);
+/* `nota` nula é auditoria que mediu pouco demais para pontuar. O anel fica
+   vazio e o número não aparece — porque o campo vazio é a verdade, e qualquer
+   número ali seria inventado. */
+function Anel({ nota }: { nota: number | null }) {
+  const [mostrado, setMostrado] = useState(nota ?? 0);
   const ref = useRef<SVGCircleElement | null>(null);
   const C = 2 * Math.PI * 86;
 
   useEffect(() => {
+    if (nota === null) return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const anel = ref.current;
     if (!anel) return;
@@ -993,19 +997,19 @@ function Anel({ nota }: { nota: number }) {
 
   return (
     <div className="anel">
-      <svg viewBox="0 0 184 184" role="img" aria-label={`Nota ${nota} de 100`}>
+      <svg viewBox="0 0 184 184" role="img" aria-label={nota === null ? "Sem nota: a auditoria mediu pouco" : `Nota ${nota} de 100`}>
         <circle className="anel-trilho" cx="92" cy="92" r="86" />
-        <circle ref={ref} className="anel-valor" cx="92" cy="92" r="86" strokeDasharray={C} strokeDashoffset={C - (C * nota) / 100} />
+        <circle ref={ref} className="anel-valor" cx="92" cy="92" r="86" strokeDasharray={C} strokeDashoffset={nota === null ? C : C - (C * nota) / 100} />
       </svg>
       <div className="anel-centro">
-        <span className="mono anel-nota">{mostrado}</span>
-        <span className="anel-veredito">Mediano</span>
+        <span className="mono anel-nota">{nota === null ? "—" : mostrado}</span>
+        <span className="anel-veredito">{nota === null ? "sem nota" : "Mediano"}</span>
       </div>
     </div>
   );
 }
 
-function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number; ressalva: string | null }) {
+function Result({ onRestart, onGravacao, url, nota, ressalva }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("seu e-mail");
   const host = url || DEMO_STORE;
@@ -1321,7 +1325,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [storeUrl, setStoreUrl] = useState("");
   /* A nota vem do motor quando ele responde. Sem servidor, a do desenho. */
-  const [resultado, setResultado] = useState<{ nota: number; ressalva: string | null }>({ nota: 61, ressalva: null });
+  const [resultado, setResultado] = useState<{ nota: number | null; ressalva: string | null }>({ nota: 61, ressalva: null });
 
   const start = (url: string) => { setStoreUrl(url); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
@@ -1333,7 +1337,12 @@ function App() {
      do desenho — que é o que o menu "Ver estados" precisa mostrar. */
   const [apurado, setApurado] = useState<Apurado | null>(null);
   const concluir = (nota: number | null, ressalva: string | null, frames: { data: string; t: number }[]) => {
-    if (nota !== null) setResultado({ nota, ressalva });
+    /* Com motor, o que o motor disse — INCLUSIVE nota nula, que é o caso de
+       cobertura baixa demais para pontuar. Antes a nula era ignorada e o
+       estado ficava no 61 do desenho: a tela mostrava a nota de uma loja
+       fictícia como se fosse a da loja auditada. Sem motor, o desenho
+       continua sendo o desenho. */
+    if (temServidor()) setResultado({ nota, ressalva });
     setGravacao(frames);
     navigate("result");
   };
