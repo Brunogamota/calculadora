@@ -841,7 +841,14 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-weight: 700;
   letter-spacing: -.035em;
   color: var(--ink);
-  transition: transform .8s cubic-bezier(.2, .8, .2, 1), opacity .5s ease;
+  /* A curva passa de 1 antes de assentar: a palavra sobe, ultrapassa um
+     pouco e volta. É a mola do componente do v0 (framer-motion, stiffness
+     50) aproximada em CSS — o mesmo movimento sem trazer a biblioteca, que
+     custaria mais em rede do que todo o resto da página junto.
+     
+     A opacidade termina antes do transform de propósito: a palavra que sai
+     some enquanto ainda desliza, então o overshoot só é visto na que entra. */
+  transition: transform .78s cubic-bezier(.2, 1.62, .34, 1), opacity .42s ease;
 }
 .hero-copy {
   max-width: 620px;
