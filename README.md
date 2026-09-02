@@ -59,13 +59,26 @@ aparece quando quebra na frente de alguém.
 
 Não resolvido. A correção mais barata seria a suíte rodar a jornada uma vez em
 headed (sob `xvfb-run` no Linux, nativo no Mac), o que custa tempo de execução
-e ainda não existe.
+e ainda não existe: [issue #1](https://github.com/Brunogamota/calculadora/issues/1).
+
+Na fatia 4, quando a auditoria passar a rodar em background, isto deixa de ser
+questão de teste e vira decisão de produção — headless ou headed sob Xvfb no
+servidor, com custo de máquina, de bloqueio e de infraestrutura medidos antes
+de escolher: [issue #2](https://github.com/Brunogamota/calculadora/issues/2).
 
 ### Perguntas abertas do projeto
 
 | pergunta | quem responde | por que importa |
 |---|---|---|
 | O que o `/cart/add.js` de uma loja Shopify real responde — status e corpo? | Bruno, manualmente pelo DevTools | É a única evidência que decidiria a etapa de carrinho, e ninguém neste projeto jamais a observou. Todas as hipóteses sobre o carrinho seguem sem base até ela chegar. |
+
+**Cuidado ao ler essa resposta quando ela chegar.** O DevTools é um terceiro
+caminho, diferente dos dois medidos acima: navegador normal, com sessão de
+pessoa, sem `navigator.webdriver`, com o user agent do Chrome ou do Safari — e
+não o nosso. Se o `/cart/add.js` funcionar lá e não funcionar no robô, **isso
+não prova que o endpoint está fechado.** Prova que a loja trata os dois de
+forma diferente, o que é uma afirmação bem menor e aponta para outro lugar:
+para o que distingue os dois clientes, não para o endpoint.
 | `/cart` e `/checkout` estão no robots.txt padrão do Shopify, ou só nessa loja? | quem tiver internet: abrir `loja.com.br/robots.txt` em 3 lojas | Decide se o carrinho é inviável em muitas lojas ou em poucas. Medido em 1 loja (carnan.com.br, que proíbe `/cart.js` e `/checkout`); 1 caso não é regra. |
 
 ### O robots bloqueou o carrinho antes de a jornada começar
