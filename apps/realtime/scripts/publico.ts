@@ -13,9 +13,15 @@
  * O túnel é do Cloudflare, na modalidade rápida: sem conta, sem cadastro, URL
  * sorteada a cada vez. Enquanto este terminal estiver aberto, o link vive.
  * Ctrl+C aqui derruba tudo.
+ *
+ * E não precisa instalar nada. A instrução era `brew install cloudflared`, que
+ * pressupõe Homebrew — e quem não tem esbarra em `command not found: brew`
+ * antes de chegar perto do produto. O pacote npm `cloudflared` baixa o binário
+ * sozinho na primeira vez. Se o binário já estiver no PATH, ele ganha, porque
+ * aí não há download nenhum.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -68,6 +74,23 @@ function parar(): void {
 process.on('SIGINT', parar)
 process.on('SIGTERM', parar)
 
+/** Versão fixada: túnel que muda de versão sozinho quebra sem aviso. */
+const PACOTE_TUNEL = 'cloudflared@0.7.3'
+
+/**
+ * O binário instalado ganha do npm — não há download quando ele já existe.
+ * `npx --yes` evita a pergunta de confirmação na primeira vez.
+ */
+function comandoDoTunel(): { comando: string; prefixo: string[] } {
+  /* `timeout` porque `spawnSync` sem ele espera para sempre. Um binário
+     chamado cloudflared que não responde a `--version` — outro programa com o
+     mesmo nome, um script pela metade — travaria o comando inteiro antes de
+     imprimir qualquer coisa, e sem nada na tela para explicar. */
+  const existe = spawnSync('cloudflared', ['--version'], { stdio: 'ignore', timeout: 4000 })
+  if (existe.status === 0) return { comando: 'cloudflared', prefixo: [] }
+  return { comando: 'npx', prefixo: ['--yes', PACOTE_TUNEL] }
+}
+
 /**
  * Abre um túnel e devolve a URL pública.
  *
@@ -75,7 +98,8 @@ process.on('SIGTERM', parar)
  * caracteres de caixa — por isso a busca é por regex e não por linha.
  */
 async function abrirTunel(nome: string, porta: number): Promise<string> {
-  const filho = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${porta}`], {
+  const { comando, prefixo } = comandoDoTunel()
+  const filho = spawn(comando, [...prefixo, 'tunnel', '--url', `http://localhost:${porta}`], {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   })
@@ -83,9 +107,11 @@ async function abrirTunel(nome: string, porta: number): Promise<string> {
 
   return new Promise((resolve, reject) => {
     let achou = false
+    /* 120s porque a PRIMEIRA vez inclui baixar o binário do cloudflared. As
+       seguintes levam segundos. */
     const limite = setTimeout(() => {
-      if (!achou) reject(new Error(`o túnel de ${nome} não respondeu em 45s`))
-    }, 45_000)
+      if (!achou) reject(new Error(`o túnel de ${nome} não respondeu em 120s`))
+    }, 120_000)
 
     const olhar = (d: Buffer): void => {
       const texto = d.toString()
@@ -150,14 +176,19 @@ async function main(): Promise<void> {
   console.log('\n  Subindo o motor…')
   subir('motor', 'npx', ['tsx', 'apps/realtime/src/server.ts'], raiz)
 
-  console.log('  Abrindo o túnel do motor…')
+  const { comando } = comandoDoTunel()
+  console.log(
+    comando === 'cloudflared'
+      ? '  Abrindo o túnel do motor…'
+      : '  Abrindo o túnel do motor… (na primeira vez, baixa o cloudflared; pode demorar)',
+  )
   let motorPublico: string
   try {
     motorPublico = await abrirTunel('motor', PORTA_MOTOR)
   } catch (e) {
     console.error(`\n  Não consegui abrir o túnel: ${e instanceof Error ? e.message : String(e)}`)
-    console.error('\n  Se faltar o cloudflared, instale com:')
-    console.error('    brew install cloudflared\n')
+    console.error('\n  Na primeira vez ele baixa o binário do cloudflared, o que pede')
+    console.error('  internet liberada. Se a sua rede bloqueia, tente de outra.\n')
     return parar()
   }
   console.log(`  motor público: ${motorPublico}`)
