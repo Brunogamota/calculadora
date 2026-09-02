@@ -847,8 +847,11 @@ function paraCobertura(checks: ChecksReport | null | undefined): Coverage | unde
     rules: checks.results.map((r) => ({
       id: r.id,
       title: r.title,
+      severity: r.severity,
       status: r.status,
       reason: r.notApplicableReason,
+      evidence: r.evidence,
+      recommendation: r.recommendation,
     })),
   }
 }

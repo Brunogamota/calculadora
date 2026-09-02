@@ -24,7 +24,15 @@ export type Cobertura = {
   checked: number;
   unchecked: number;
   summary: string;
-  rules: { id: string; title: string; status: "pass" | "fail" | "not_applicable"; reason: string | null }[];
+  rules: {
+    id: string;
+    title: string;
+    severity: Severidade;
+    status: "pass" | "fail" | "not_applicable";
+    reason: string | null;
+    evidence: string[];
+    recommendation: string;
+  }[];
 };
 
 type AuditEvent =

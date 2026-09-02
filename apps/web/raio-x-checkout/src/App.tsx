@@ -1196,10 +1196,121 @@ function ListaDeChecagens({ cobertura }: { cobertura: Cobertura }) {
   );
 }
 
+/** Uma regra que falhou, do jeito que o motor a devolveu. */
+type AchadoReal = Cobertura["rules"][number];
+
+/* Ordem de leitura: o que pesa mais primeiro. A §8 tem sua própria ordem de
+   tabela, que não é a de gravidade. */
+const PESO: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3 };
+function acharFalhas(cobertura: Cobertura | null): AchadoReal[] {
+  if (!cobertura) return [];
+  return cobertura.rules
+    .filter((r) => r.status === "fail")
+    .sort((a, b) => (PESO[a.severity] ?? 9) - (PESO[b.severity] ?? 9));
+}
+
+/**
+ * Um achado medido: o que foi visto, e o que dá para fazer.
+ *
+ * Coluna única, e não as duas do desenho. As duas existiam para parear "o que
+ * o robô viu" — um print — com a leitura ao lado. Sem print servido, as duas
+ * colunas repetiam o mesmo texto.
+ *
+ * O que saiu daqui foi um desenho de carrinho com "Sérum de vitamina C 30ml" e
+ * "R$ 149,00", exibido com o endereço da loja auditada em cima, em auditorias
+ * que nem abriram o carrinho. Print inventado sobre endereço real é a pior das
+ * invenções: parece prova.
+ */
+function AchadoAberto({ achado, posicao, total }: { achado: AchadoReal; posicao: number; total: number }) {
+  return (
+    <section className="achado-aberto">
+      <div className="achado-meta">
+        <Severidade sev={paraSeveridade(achado.severity)} />
+        <span>achado {posicao} de {total}</span>
+      </div>
+      <h2>{achado.title}.</h2>
+      {achado.evidence.length > 0 && (
+        <div className="achado-visto">
+          <span className="mono evidencia-rotulo">o que o robô viu</span>
+          <ul className="evidencia-linhas">
+            {achado.evidence.map((linha) => (
+              <li key={linha}>{linha}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {achado.recommendation && (
+        <div className="achado-fazer">
+          <span className="achado-fazer-titulo">O que dá para fazer nesta semana</span>
+          <span>{achado.recommendation}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* Sem falha nenhuma no que deu para medir. Não é "loja impecável", e a tela
+   não pode sugerir isso: o que a auditoria não mediu continua na lista. */
+function NadaFalhou({ cobertura }: { cobertura: Cobertura }) {
+  return (
+    <section className="achado-aberto">
+      <div className="achado-meta">
+        <span className="severity atencao">Sem achados</span>
+      </div>
+      <h2>Nada falhou nas {cobertura.checked} checagens que deram para fazer.</h2>
+      <p className="fraco">
+        Isso não quer dizer que o checkout esteja impecável — quer dizer que, no que a auditoria
+        conseguiu medir, nada saiu errado. O que não deu para verificar está na lista acima, com o
+        motivo de cada um.
+      </p>
+    </section>
+  );
+}
+
+/** "2 críticos · 1 de atenção", contado do que existe — não do desenho. */
+function contarPorGravidade(achados: AchadoReal[]): string {
+  const criticos = achados.filter((a) => paraSeveridade(a.severity) === "crítico").length;
+  const atencao = achados.length - criticos;
+  const partes: string[] = [];
+  if (criticos > 0) partes.push(`${criticos} ${criticos === 1 ? "crítico" : "críticos"}`);
+  if (atencao > 0) partes.push(`${atencao} de atenção`);
+  return partes.join(" · ");
+}
+
+/* A tarja borrada do achado ainda fechado. Usa as palavras do título real para
+   o borrão ter o tamanho do que está escondido, e não o de um texto do
+   desenho. */
+function TarjaReal({ a }: { a: AchadoReal }) {
+  const sev = paraSeveridade(a.severity);
+  return (
+    <div className="tarja-linha">
+      <div className="tarja-tag">
+        <Severidade sev={sev} />
+      </div>
+      <div className="tarja-palavras" aria-label="Achado ainda coberto">
+        {a.title.split(" ").map((palavra, i) => (
+          <span
+            key={`${a.id}-${i}`}
+            className={sev === "crítico" ? "" : "clara"}
+            style={{ width: Math.max(16, Math.round(palavra.length * 8.2)) }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null; cobertura: Cobertura | null }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("seu e-mail");
   const host = url || DEMO_STORE;
+  /* Com motor, os achados são os que o motor mediu. Sem motor, são os do
+     desenho — e a tela inteira está marcada como demonstração.
+     
+     Antes não havia essa bifurcação: os cinco achados do desenho apareciam
+     sempre, com print de carrinho inventado, mesmo numa auditoria que não
+     abriu carrinho nenhum. */
+  const reais = acharFalhas(cobertura);
   const primeiro = findings[0]!;
 
   return (
@@ -1231,52 +1342,83 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onR
           </div>
         </section>
 
-        <section className="achado-aberto">
-          <div className="achado-meta">
-            <Severidade sev={primeiro.severity} />
-            <span>{primeiro.category} · achado 1 de {findings.length}</span>
-          </div>
-          <h2>{primeiro.title}.</h2>
-          <div className="achado-grid">
-            <div className="achado-texto">
-              <p>As formas de pagamento só aparecem na quarta tela, depois que o cliente já preencheu nome, CPF, endereço e escolheu o frete. Até ali, ninguém sabe se dá para pagar no Pix, em quantas vezes, ou se o cartão dele é aceito.</p>
-              <p className="fraco">Quem paga no Pix normalmente decide isso antes de digitar o CPF. Sem essa informação no carrinho, uma parte dessas pessoas fecha a aba achando que a loja só aceita cartão.</p>
-              <div className="achado-fazer">
-                <span className="achado-fazer-titulo">O que dá para fazer nesta semana</span>
-                <span>{primeiro.fix} É mudança de vitrine, não de gateway.</span>
-              </div>
-            </div>
-            <Evidencia host={host} />
-          </div>
-        </section>
-
-        {aberto ? (
-          <section className="abertos">
-            <div className="abertos-aviso">
-              <span className="abertos-ponto" />
-              <span>Mandamos o relatório completo para {email}. Chega em um minuto.</span>
-            </div>
-            {findings.slice(1).map((f) => (
-              <article className="achado-aberto" key={f.title}>
-                <div className="achado-meta">
-                  <Severidade sev={f.severity} />
-                  <span>{f.category}</span>
-                </div>
-                <h3>{f.title}</h3>
-                <p className="fraco">{f.body}</p>
-                <div className="achado-fix">{f.fix}</div>
-              </article>
-            ))}
-          </section>
+        {cobertura ? (
+          <>
+            {reais.length === 0 ? (
+              <NadaFalhou cobertura={cobertura} />
+            ) : (
+              <AchadoAberto achado={reais[0]!} posicao={1} total={reais.length} />
+            )}
+            {reais.length > 1 &&
+              (aberto ? (
+                <section className="abertos">
+                  <div className="abertos-aviso">
+                    <span className="abertos-ponto" />
+                    <span>Mandamos o relatório completo para {email}. Chega em um minuto.</span>
+                  </div>
+                  {reais.slice(1).map((a, i) => (
+                    <AchadoAberto key={a.id} achado={a} posicao={i + 2} total={reais.length} />
+                  ))}
+                </section>
+              ) : (
+                <section className="cobertos">
+                  <div className="cobertos-topo">
+                    <span>{reais.length - 1 === 1 ? "Falta um achado" : `Faltam ${reais.length - 1} achados`}</span>
+                    <span className="mono">{contarPorGravidade(reais.slice(1))}</span>
+                  </div>
+                  {reais.slice(1).map((a) => <TarjaReal a={a} key={a.id} />)}
+                  <Captura onAbrir={(e) => { setEmail(e); setAberto(true); }} />
+                </section>
+              ))}
+          </>
         ) : (
-          <section className="cobertos">
-            <div className="cobertos-topo">
-              <span>Faltam quatro achados</span>
-              <span className="mono">2 críticos · 2 de atenção</span>
-            </div>
-            {findings.slice(1).map((f) => <Tarja f={f} key={f.title} />)}
-            <Captura onAbrir={(e) => { setEmail(e); setAberto(true); }} />
-          </section>
+          <>
+            <section className="achado-aberto">
+              <div className="achado-meta">
+                <Severidade sev={primeiro.severity} />
+                <span>{primeiro.category} · achado 1 de {findings.length}</span>
+              </div>
+              <h2>{primeiro.title}.</h2>
+              <div className="achado-grid">
+                <div className="achado-texto">
+                  <p>{primeiro.body}</p>
+                  <div className="achado-fazer">
+                    <span className="achado-fazer-titulo">O que dá para fazer nesta semana</span>
+                    <span>{primeiro.fix}</span>
+                  </div>
+                </div>
+                <Evidencia host={host} />
+              </div>
+            </section>
+            {aberto ? (
+              <section className="abertos">
+                <div className="abertos-aviso">
+                  <span className="abertos-ponto" />
+                  <span>Mandamos o relatório completo para {email}. Chega em um minuto.</span>
+                </div>
+                {findings.slice(1).map((f) => (
+                  <article className="achado-aberto" key={f.title}>
+                    <div className="achado-meta">
+                      <Severidade sev={f.severity} />
+                      <span>{f.category}</span>
+                    </div>
+                    <h3>{f.title}</h3>
+                    <p className="fraco">{f.body}</p>
+                    <div className="achado-fix">{f.fix}</div>
+                  </article>
+                ))}
+              </section>
+            ) : (
+              <section className="cobertos">
+                <div className="cobertos-topo">
+                  <span>Faltam quatro achados</span>
+                  <span className="mono">2 críticos · 2 de atenção</span>
+                </div>
+                {findings.slice(1).map((f) => <Tarja f={f} key={f.title} />)}
+                <Captura onAbrir={(e) => { setEmail(e); setAberto(true); }} />
+              </section>
+            )}
+          </>
         )}
 
         <div className="resultado-rodape">

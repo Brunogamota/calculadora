@@ -80,9 +80,14 @@ export interface Coverage {
   rules: Array<{
     id: string
     title: string
+    severity: Severity
     status: 'pass' | 'fail' | 'not_applicable'
     /** Preenchido quando `status` é `not_applicable`. */
     reason: string | null
+    /** O que foi observado. É isto que a tela mostra como prova do achado. */
+    evidence: string[]
+    /** O que dá para fazer. Vazio quando a checagem não falhou. */
+    recommendation: string
   }>
 }
 

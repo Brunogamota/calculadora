@@ -1846,6 +1846,14 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   font-size: 11px;
   color: var(--accent);
 }
+/* O bloco de evidência do achado medido: uma coluna, sem moldura de
+   navegador, porque não há print servido para colocar dentro dela. */
+.achado-visto { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+/* As linhas de evidência que o motor escreveu, no lugar do desenho de
+   carrinho que existia aqui. */
+.evidencia-linhas { list-style: none; margin: 0; padding: 14px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--ground); display: flex; flex-direction: column; gap: 10px; }
+.evidencia-linhas li { position: relative; padding-left: 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.evidencia-linhas li::before { content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .evidencia-legenda { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
 
 /* ---- os quatro sob tarja ---- */
