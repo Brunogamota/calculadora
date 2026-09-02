@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
+  Minus,
   MoveRight,
   ChevronLeft,
   ChevronRight,
@@ -697,7 +698,7 @@ function EsperandoPrimeiroFrame() {
    desenho. Com o motor ligado é o tempo que a etapa levou de verdade: mostrar
    "4.1s" numa etapa que levou 90 segundos escondia exatamente o lugar onde a
    pessoa precisava olhar. */
-function PainelEtapas({ stage, parou, duracoes }: { stage: number; parou?: boolean; duracoes?: Partial<Record<StepId, number>> }) {
+function PainelEtapas({ stage, parou, duracoes, pulados }: { stage: number; parou?: boolean; duracoes?: Partial<Record<StepId, number>>; pulados?: StepId[] }) {
   return (
     <div className="painel">
       <div className="painel-topo">
@@ -711,19 +712,31 @@ function PainelEtapas({ stage, parou, duracoes }: { stage: number; parou?: boole
       </div>
       <div className="painel-etapas">
         {steps.map((s, i) => {
-          const feito = i < stage;
+          const id = STEP_IDS[i] as StepId;
+          const andou = i < stage;
+          const pulado = pulados?.includes(id) ?? false;
+          /* Pulada NÃO é feita. Numa loja de plataforma que esta fase não
+             cobre, o robô pula carrinho e checkout — e o painel marcava as
+             duas com o certinho, como se tivesse comprado. */
+          const feito = andou && !pulado;
           const agora = i === stage;
+          const medido = duracoes?.[id];
           return (
             <div className="etapa" key={s.label}>
               <div className="etapa-marca">
-                <div className={`etapa-ponto ${feito ? "feito" : agora && !parou ? "agora" : "fila"}`}>
-                  {feito ? <Check size={13} strokeWidth={3} /> : agora && !parou ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
+                <div className={`etapa-ponto ${feito ? "feito" : pulado ? "pulado" : agora && !parou ? "agora" : "fila"}`}>
+                  {feito ? <Check size={13} strokeWidth={3} /> : pulado ? <Minus size={13} strokeWidth={3} /> : agora && !parou ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
                 </div>
                 {i < steps.length - 1 && <div className={`etapa-traco ${feito ? "feito" : ""}`} />}
               </div>
-              <div className={`etapa-texto ${feito || agora ? "" : "fila"}`}>
+              <div className={`etapa-texto ${andou || agora ? "" : "fila"}`}>
                 <h3>{s.label}</h3>
-                <span className="mono">{feito ? `${(duracoes?.[STEP_IDS[i] as StepId] ?? s.seconds).toFixed(1)}s` : ""}</span>
+                {/* Só o que o motor MEDIU aparece. Antes havia um `?? s.seconds`
+                    aqui, e uma etapa sem medição exibia o segundo do desenho:
+                    numa auditoria que durou 9s, o painel somava 32,6s. */}
+                <span className="mono">
+                  {pulado ? "pulada" : medido !== undefined ? `${medido.toFixed(1)}s` : ""}
+                </span>
               </div>
             </div>
           );
@@ -946,7 +959,7 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
           </section>
 
           <aside className="exec-side">
-            <PainelEtapas stage={stage} parou={parou} duracoes={vivo.duracoes} />
+            <PainelEtapas stage={stage} parou={parou} duracoes={vivo.duracoes} pulados={vivo.pulados} />
             <PainelAchados stage={stage} doMotor={vivo.achados} />
           </aside>
         </div>

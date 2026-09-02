@@ -633,6 +633,31 @@ Se o projeto no Vercel tiver Root Directory apontando para a pasta do front em
 vez da raiz do repo, este arquivo é ignorado — aí o Vercel detecta Vite sozinho
 e só falta a reescrita de SPA.
 
+### Loja de plataforma sem jornada: a auditoria voltava sem dizer nada
+
+Encontrado numa VTEX real (insider.com.br). O motor identifica a plataforma,
+vê que não existe jornada para ela nesta fase, pula as etapas e **retornava sem
+emitir evento de encerramento**. A rede de segurança do `finally` disparava
+`AUDIT_ENDED_SILENTLY`, e o lojista lia *"a auditoria terminou sem dizer por
+quê — isso é limitação nossa"*. Estava certa a tela; faltava o motor dizer o
+que tinha acontecido.
+
+Agora esse caminho encerra como os outros: `complete`, com relatório parcial e
+o motivo. É `complete` e não `aborted` de propósito — a loja não falhou em
+nada, quem não cobre a plataforma dela somos nós.
+
+O mesmo print mostrou dois defeitos de tela pendurados nesse:
+
+**Etapa pulada ganhava o certinho de concluída.** Numa loja onde o robô não
+abriu carrinho nem checkout, o painel exibia as duas com ✓. Pulada agora tem
+marca própria e a palavra "pulada" no lugar do tempo.
+
+**Etapa sem medição exibia o segundo do desenho.** Havia um `?? s.seconds` no
+painel: sem duração medida, caía no mock. O resultado era aritmética
+impossível — relógio em 00:09 e etapas somando 32,6s, com quatro dos cinco
+números vindos direto do desenho (3.8, 4.1, 6.4, 8.7). Agora só aparece o que
+foi medido.
+
 ### O motor não roda no Vercel, e a tela precisa dizer isso
 
 O motor é WebSocket persistente mais Chromium mais corrida de 40 a 90 segundos:

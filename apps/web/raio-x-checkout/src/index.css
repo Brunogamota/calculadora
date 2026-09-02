@@ -1703,6 +1703,9 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .etapa-ponto { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--surface); }
 .etapa-ponto.feito { background: var(--ink); }
 .etapa-ponto.agora { background: var(--accent); }
+/* Pulada tem marca própria: nem o preto de feita, nem o cinza de quem ainda
+   não chegou. O traço diz "passou por aqui e não aconteceu". */
+.etapa-ponto.pulado { background: #f0efec; color: #6E6B75; }
 .etapa-ponto.fila { background: #f0efec; color: #969499; font-size: 10px; }
 .etapa-anel {
   display: block;

@@ -79,6 +79,11 @@ export type EstadoAoVivo = {
   /** Há quantos segundos nenhuma imagem nova chega. Zero enquanto nem a
    *  primeira chegou — aí quem manda é `frame === null`. */
   semImagem: number;
+  /** Etapas que a loja ou a fase PULARAM. Não são etapas feitas, e a tela não
+   *  pode marcá-las como feitas: numa loja VTEX o robô pulou carrinho e
+   *  checkout, e o painel exibiu as duas com o certinho verde, como se
+   *  tivessem acontecido. */
+  pulados: StepId[];
   /** Quanto cada etapa levou DE VERDADE, do relógio do motor. A tela trazia os
    *  segundos do desenho aqui, então uma etapa que levou 90s aparecia como
    *  "4.1s" — e era justamente onde a pessoa precisava olhar. */
@@ -90,7 +95,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, urlAtual: null, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, pulados: [], urlAtual: null, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -174,6 +179,10 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         if (p.finishedAt && inicio !== undefined) duracoes[p.id] = (Date.parse(p.finishedAt) - inicio) / 1000;
         if (p.status === "done" || p.status === "skipped") stage = Math.max(stage, STEP_IDS.indexOf(p.id) + 1);
       }
+      const pulados = [...e.pulados];
+      for (const p of st.steps ?? []) {
+        if (p.status === "skipped" && !pulados.includes(p.id)) pulados.push(p.id);
+      }
       const achados = [...e.achados];
       for (const f of st.findings ?? []) {
         if (!achados.some((a) => a.code === f.code)) achados.push({ code: f.code, severity: f.severity, title: f.title });
@@ -182,7 +191,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         st.finished && st.score !== undefined
           ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null }
           : e.fim;
-      return { ...e, stage, duracoes, achados, fim };
+      return { ...e, stage, duracoes, achados, pulados, fim };
     };
 
     const aplicar = (ev: AuditEvent) => {
@@ -197,12 +206,15 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
           case "step:done":
           case "step:skip":
           {
-            /* Pulada conta como andada: a etapa não vai acontecer, e travar a
-               barra nela deixaria a tela parecendo pendurada. */
+            /* Pulada conta como ANDADA, para a barra não ficar pendurada numa
+               etapa que não vai acontecer — mas não conta como FEITA: fica
+               registrada em `pulados`, e a tela a desenha diferente. */
             const inicio = comecouEm.get(ev.id);
             const duracoes =
               inicio === undefined ? e.duracoes : { ...e.duracoes, [ev.id]: (Date.parse(ev.at) - inicio) / 1000 };
-            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1), duracoes };
+            const pulados =
+              ev.type === "step:skip" && !e.pulados.includes(ev.id) ? [...e.pulados, ev.id] : e.pulados;
+            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1), duracoes, pulados };
           }
           case "frame": {
             const pulados = ev.seq > ultimaSeq + 1 ? ev.seq - ultimaSeq - 1 : 0;

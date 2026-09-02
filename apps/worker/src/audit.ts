@@ -467,18 +467,40 @@ async function runAudit(
     incompleteBecause.push(
       `jornada não implementada para ${prepared.decision.evidence.platform} nesta fase`,
     )
-    for (const id of ['open-product', 'add-to-cart', 'reach-checkout', 'read-payment'] as const) {
+    for (const id of ['open-product', 'add-to-cart', 'reach-checkout', 'read-payment', 'mobile'] as const) {
       reporter.skip(id, `jornada de ${prepared.decision.evidence.platform} é de outra fase`)
     }
     // Sem jornada para esta plataforma: o HTML fica salvo para quem for
     // implementar o adapter depois.
     await saveHtml(outDir, hostname, 'home', prepared.opened.html)
-    return finish(result, recorder.steps, incompleteBecause, startedAt, {
+
+    reporter.start('report')
+    const semJornada = finish(result, recorder.steps, incompleteBecause, startedAt, {
       productText: null,
       blockedBySite: false,
       observations: [],
       gate: prepared.gate,
     })
+    for (const achado of semJornada.checks?.findings ?? []) {
+      reporter.finding(achado.id, achado.severity, achado.title)
+      await reporter.pace()
+    }
+    reporter.done('report', `${semJornada.checks?.findings.length ?? 0} achado(s)`)
+    /* ESTE `complete` faltava, e o buraco aparecia na tela do jeito mais
+       confuso possível: a auditoria voltava sem dizer nada, a rede de
+       segurança do `finally` disparava AUDIT_ENDED_SILENTLY, e o lojista lia
+       "a auditoria terminou sem dizer por quê" — culpa nossa, dizia a tela,
+       com razão. Encontrado numa loja VTEX real.
+       
+       E é `complete`, não `aborted`: a loja não falhou em nada. Quem não
+       cobre a plataforma dela ainda somos nós, e isso é relatório parcial com
+       motivo, não erro. */
+    reporter.complete(
+      semJornada.checks?.score ?? null,
+      semJornada.checks?.scoreCaveat ?? null,
+      paraCobertura(semJornada.checks),
+    )
+    return semJornada
   }
 
   let identity: AuditIdentity | null = null
