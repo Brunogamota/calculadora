@@ -97,12 +97,69 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   gap: 30px;
   margin-left: auto;
 }
-.desktop-nav a, .back-link {
+.back-link {
   color: #525056;
   font-size: 13px;
   font-weight: 600;
 }
-.desktop-nav a:hover, .back-link:hover { color: var(--ink); }
+.back-link:hover { color: var(--ink); }
+
+/* A pílula da navegação. `isolation: isolate` não é enfeite: sem ela o
+   `mix-blend-difference` dos rótulos misturaria com o fundo da PÁGINA, e não
+   com a pílula — o texto sumiria fora dela. */
+.nav-pilula {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+}
+/* A mistura mora no MESMO elemento que carrega o z-index, e isso não é
+   detalhe: `z-index` num elemento posicionado cria contexto de empilhamento, e
+   um filho que misture dentro dele mistura com o interior do pai — que é
+   vazio. Com a mistura no `<a>` e o z-index no `<li>`, dois dos três rótulos
+   ficavam invisíveis. */
+.nav-pilula li {
+  position: relative;
+  z-index: 1;
+  mix-blend-mode: difference;
+}
+/* Um texto só, branco: a mistura o resolve preto sobre a pílula branca e
+   branco sobre o cursor preto. */
+.nav-pilula a {
+  display: block;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+/* Onde a mistura não vale, o truque cobra o preço: texto branco sobre pílula
+   branca vira texto invisível. O modo de alto contraste do Windows desliga
+   blend, e é exatamente quem mais precisa enxergar. Ali a pílula volta a ser
+   texto escuro sobre fundo claro, e o cursor some. */
+@media (forced-colors: active) {
+  .nav-pilula li { mix-blend-mode: normal; }
+  .nav-pilula a { color: CanvasText; }
+  .nav-cursor { display: none; }
+}
+
+.nav-cursor {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  z-index: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: left .3s cubic-bezier(.2, .8, .2, 1), width .3s cubic-bezier(.2, .8, .2, 1), opacity .2s;
+  pointer-events: none;
+}
 .back-link {
   display: flex;
   align-items: center;
@@ -1341,6 +1398,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   [data-glow]::after { display: none; }
   .hero-title-fixa { animation: none; background: none; color: var(--ink); }
   .hero-title-rot span { transition: none; }
+  .nav-cursor { transition: opacity .2s; }
   [data-anima] .check-card { opacity: 1; }
   [data-anima][data-visto] .check-card { animation: none; }
   .pill-button:active, .botao-fino:active, .send-button:active,

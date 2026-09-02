@@ -188,6 +188,48 @@ function Spinner() {
   return <LoaderCircle className="spinner" size={18} aria-hidden="true" />;
 }
 
+/**
+ * Navegação em pílula, com o cursor preto seguindo o item sob o mouse.
+ *
+ * O truque é o `mix-blend-difference` do CSS: existe UM texto, branco, e ele
+ * aparece preto sobre a pílula branca e branco sobre o cursor preto. Sem isso
+ * seria preciso duplicar os rótulos ou trocar cor no meio da animação, e os
+ * dois deixam rastro quando o cursor passa.
+ *
+ * O cursor é um `span` posicionado por `left` e `width` medidos do item sob o
+ * mouse; a suavidade é transição de CSS. O componente original usa
+ * framer-motion, que aqui animaria três números.
+ */
+function NavPilula() {
+  const [cursor, setCursor] = useState({ left: 0, width: 0, visivel: false });
+  const itens = [
+    { href: "#verifica", texto: "O que verificamos" },
+    { href: "#quem", texto: "Quem faz" },
+    { href: "#topo", texto: "Entrar" },
+  ];
+
+  return (
+    <ul className="nav-pilula" onMouseLeave={() => setCursor((c) => ({ ...c, visivel: false }))}>
+      {itens.map((item) => (
+        <li
+          key={item.href}
+          onMouseEnter={(e) => {
+            const alvo = e.currentTarget;
+            setCursor({ left: alvo.offsetLeft, width: alvo.offsetWidth, visivel: true });
+          }}
+        >
+          <a href={item.href}>{item.texto}</a>
+        </li>
+      ))}
+      <span
+        className="nav-cursor"
+        aria-hidden="true"
+        style={{ left: cursor.left, width: cursor.width, opacity: cursor.visivel ? 1 : 0 }}
+      />
+    </ul>
+  );
+}
+
 function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: Screen) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -197,11 +239,7 @@ function Header({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: S
         <Logo />
         <nav className="desktop-nav" aria-label="Navegação principal">
           {screen === "landing" ? (
-            <>
-              <a href="#verifica">O que verificamos</a>
-              <a href="#quem">Quem faz</a>
-              <a href="#topo" className="nav-forte">Entrar</a>
-            </>
+            <NavPilula />
           ) : (
             <button className="back-link" onClick={() => onNavigate("landing")}><ArrowLeft size={15} /> Nova análise</button>
           )}

@@ -93,12 +93,26 @@ for (const tam of TAMANHOS) {
         }
         return "rgb(255, 255, 255)";
       };
+      /* Elemento sob mistura NAO pode ser julgado por cor declarada: com
+         `mix-blend-mode: difference`, branco sobre branco aparece preto. A
+         nav em pilula usa isso, e sem esta excecao o arnes acusava os tres
+         rotulos que os prints mostram legiveis. O modo de alto contraste, que
+         desliga blend, tem tratamento proprio no CSS. */
+      const sobMistura = (el) => {
+        let n = el;
+        while (n && n !== doc) {
+          if (getComputedStyle(n).mixBlendMode !== "normal") return true;
+          n = n.parentElement;
+        }
+        return false;
+      };
       for (const el of document.querySelectorAll("span, h1, h2, h3, h4, p, button, a")) {
         const t = (el.textContent || "").trim();
         if (!t || el.children.length) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility === "hidden" || cs.display === "none" || cs.opacity === "0") continue;
         if (!el.getClientRects().length) continue;
+        if (sobMistura(el)) continue;
         if (cs.color === cor(el)) out.push(`texto invisivel: "${t.slice(0, 42)}"`);
       }
       return out;
