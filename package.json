@@ -27,6 +27,7 @@
     "ui:shot": "tsx apps/realtime/scripts/screenshot-ui.ts",
     "live:fake": "tsx apps/realtime/scripts/live-fake.ts",
     "tudo": "tsx apps/realtime/scripts/tudo.ts",
+    "publico": "tsx apps/realtime/scripts/publico.ts",
     "dev": "npm --prefix apps/web/raio-x-checkout run dev",
     "diagnostico": "tsx apps/worker/scripts/diagnostico.ts"
   },
