@@ -58,9 +58,24 @@ robots.txt é instrução dirigida a rastreador automático sobre o que indexar,
 não tranca contra o dono da loja que pediu a auditoria. No modo **leitura**,
 sem consentimento, ele é absoluto e sem exceção.
 
-A consequência prática, e ela é grande: **a etapa de carrinho nunca foi tentada
-de verdade numa loja cujo robots a proíbe.** Sem `--owner-verified`, ela não
-chegou a começar.
+### O achado principal desta investigação
+
+**A etapa de carrinho nunca foi tentada de verdade numa loja cujo robots.txt a
+proíbe.** Sem `--owner-verified`, o portão barra `POST /cart/add.js` antes de a
+requisição sair, e `/cart.js` — a confirmação de que o item entrou — também
+fica fechado. A jornada não falhou naquelas lojas: ela não chegou a começar.
+
+**As quatro correções da etapa de carrinho estavam ajustando seletor num
+caminho que nunca abriu.** `a09585d` (léxico por texto), `b87d155` (formulário
+deixa de ser pré-requisito), `80ffbd6` (cadeia de quatro caminhos) e `93d0408`
+(três formas de sucesso) discutiam, cada uma, como encontrar ou acionar o botão
+— enquanto o bloqueio estava uma camada abaixo, decidido antes de qualquer
+seletor ser avaliado. Cada uma pareceu certa na hora, e cada uma foi validada
+contra uma loja falsa que não tem robots.txt restritivo.
+
+É o que a investigação por causa raiz chama de investigar onde o sintoma
+aparece em vez de onde a causa mora. O sintoma era "não acho o botão". A causa
+era "o portão fechou a porta antes".
 
 ## Rodando
 
