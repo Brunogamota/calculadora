@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   MoveRight,
   ChevronLeft,
@@ -273,17 +274,11 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
 
   return (
     <form className="url-form" onSubmit={enviar} noValidate>
-      <svg aria-hidden="true" className="goo-defs">
-        <defs>
-          <filter id="rbGoo">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -15" result="goo" />
-            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-          </filter>
-        </defs>
-      </svg>
-      <div className="url-row">
-        <div className="url-pill">
+      {/* Uma caixa só, com a barra por dentro — no lugar da pílula mais o botão
+          redondo fundidos pelo filtro goo. O botão de enviar mora dentro da
+          caixa e só ganha cor quando há o que enviar. */}
+      <div className={`url-caixa ${invalido ? "invalida" : ""}`}>
+        <div className="url-campo">
           <input
             type="text"
             aria-label="endereço da sua loja"
@@ -296,9 +291,23 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
             <div className="url-placeholder" aria-hidden="true" key={ph}>{PLACEHOLDERS[ph]}</div>
           )}
         </div>
-        <button type="submit" className={`send-button ${digitando ? "pronto" : ""}`} aria-label="Auditar meu checkout" disabled={enviando}>
-          {enviando ? <span className="send-spinner" /> : <MoveRight size={20} aria-hidden="true" />}
-        </button>
+        <div className="url-barra">
+          {/* O que ocupa a esquerda da barra é ESTADO, não enfeite: diz até
+              onde esta auditoria vai, e muda com o aceite. Não é clicável de
+              propósito — quem autoriza é a caixa de aceite, depois de ler. */}
+          <span className="url-modo">
+            <span className={`url-modo-ponto ${autorizado ? "ligado" : ""}`} />
+            {autorizado ? "vai até a tela de pagamento" : "só leitura: lê a página do produto"}
+          </span>
+          <button
+            type="submit"
+            className={`send-button ${digitando ? "pronto" : ""}`}
+            aria-label="Auditar meu checkout"
+            disabled={enviando}
+          >
+            {enviando ? <span className="send-spinner" /> : <ArrowUp size={18} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
       {invalido ? (
         <p className="url-invalid">
@@ -327,11 +336,6 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
         />
         <span>{TEXTO_DO_ACEITE}</span>
       </label>
-      <p className="url-aceite-nota">
-        {autorizado
-          ? "Vamos até a tela de pagamento."
-          : "Sem marcar, a auditoria só lê a página do produto — o relatório sai parcial."}
-      </p>
       {semMotor && (
         <div className="sem-motor">
           <p className="sem-motor-titulo">O robô ainda não está ligado nesta página.</p>

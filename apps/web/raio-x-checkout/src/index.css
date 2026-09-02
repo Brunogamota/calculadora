@@ -863,27 +863,26 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   max-width: 660px;
   margin-top: 8px;
 }
-.goo-defs { position: absolute; width: 0; height: 0; pointer-events: none; }
-
-/* Os dois corpos precisam ser da mesma cor para a fusão funcionar — por isso a
-   única cor do conjunto é a seta. */
-.url-row { display: flex; align-items: center; gap: 14px; width: 100%; filter: url(#rbGoo); }
-
-.url-pill {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  height: 66px;
-  border-radius: 999px;
+/* Uma caixa só: campo em cima, barra embaixo, botão de enviar por dentro.
+   Substituiu a pílula mais o botão redondo fundidos pelo filtro goo — o goo
+   dependia de os dois corpos terem a mesma cor, e com um corpo só ele perdeu
+   a função. */
+.url-caixa {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 22px;
   background: var(--ink);
-  overflow: hidden;
+  transition: border-color .2s;
 }
-.url-pill input {
+.url-caixa:focus-within { border-color: rgba(232, 56, 106, .45); }
+.url-caixa.invalida { border-color: var(--accent); }
+
+.url-campo { position: relative; }
+.url-campo input {
   position: relative;
   z-index: 5;
   width: 100%;
-  height: 100%;
-  padding: 0 26px;
+  padding: 20px 22px 8px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -892,10 +891,9 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 }
 .url-placeholder {
   position: absolute;
-  inset: 0;
+  inset: 20px 22px 8px;
   display: flex;
   align-items: center;
-  padding-left: 26px;
   overflow: hidden;
   font-size: 16px;
   color: var(--muted);
@@ -903,20 +901,47 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   pointer-events: none;
   animation: rbPhIn .3s linear;
 }
+
+.url-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 10px 22px;
+}
+/* Estado, não botão: diz até onde a auditoria vai. */
+.url-modo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.url-modo-ponto {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background .2s;
+}
+.url-modo-ponto.ligado { background: var(--accent); }
+
 .send-button {
   display: flex;
-  flex-shrink: 0;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 62px;
-  height: 62px;
+  width: 38px;
+  height: 38px;
   border: 0;
-  border-radius: 50%;
-  background: var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .08);
   color: var(--muted);
-  transition: color .25s;
+  transition: background .25s, color .25s;
 }
-.send-button.pronto { color: var(--accent); }
+.send-button.pronto { background: var(--accent); color: #fff; }
 .send-spinner {
   display: inline-block;
   width: 15px;
@@ -1217,9 +1242,10 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
     grid-template-columns: 1fr;
     grid-template-areas: 'loja' 'produto' 'carrinho' 'checkout' 'meios' 'celular' 'fatura';
   }
-  .url-row { filter: none; flex-direction: column; gap: 10px; }
-  .url-pill { width: 100%; height: 58px; }
-  .send-button { width: 100%; height: 54px; border-radius: 999px; background: var(--ink); color: var(--surface); }
+  /* No celular a caixa só encolhe: ela já é uma coluna, e o botão continua
+     dentro dela. Antes aqui o botão virava uma barra de largura inteira,
+     porque ele era um corpo separado. */
+  .url-campo input, .url-placeholder { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-glow]::after { display: none; }
