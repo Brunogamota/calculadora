@@ -946,6 +946,45 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .url-aceite input { margin-top: 2px; accent-color: var(--accent); flex: none; }
 .url-aceite-nota { margin: 0; font-size: 12px; color: var(--muted); }
 
+/* A trava de demonstração: a página publicada sem motor não encena auditoria
+   de loja real, e diz por quê aqui mesmo, embaixo do campo. */
+.sem-motor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  max-width: 520px;
+  margin: 8px auto 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.sem-motor p { margin: 0; }
+.sem-motor-titulo { color: var(--ink); font-weight: 600; }
+
+/* O selo fica junto do que a pessoa está lendo, e sóbrio: ele informa, não
+   pede desculpa nem vira enfeite. */
+.selo-demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.selo-demo-ponto {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .scroll-cue {
   position: absolute;
   left: 50%;

@@ -618,6 +618,43 @@ apps/worker/          o motor
   test/                 offline, sem rede
 ```
 
+## Publicar a tela (Vercel)
+
+O `vercel.json` da raiz aponta para `apps/web/raio-x-checkout`, que fica fora
+dos workspaces e instala com `bun` (é o lockfile que ele tem):
+
+```
+installCommand   cd apps/web/raio-x-checkout && bun install --frozen-lockfile
+buildCommand     cd apps/web/raio-x-checkout && bun run build
+outputDirectory  apps/web/raio-x-checkout/dist
+```
+
+Se o projeto no Vercel tiver Root Directory apontando para a pasta do front em
+vez da raiz do repo, este arquivo é ignorado — aí o Vercel detecta Vite sozinho
+e só falta a reescrita de SPA.
+
+### O motor não roda no Vercel, e a tela precisa dizer isso
+
+O motor é WebSocket persistente mais Chromium mais corrida de 40 a 90 segundos:
+não cabe em função serverless. Publicada sem `VITE_API` a tela ficava em
+demonstração — e demonstração, com o endereço de uma loja real digitado no
+campo, é encenação. Medido antes de subir: ela rodava os tempos do desenho e
+terminava com nota 61 e cinco achados inventados sobre uma loja que nunca foi
+aberta.
+
+A trava: **sem motor, o campo não inicia auditoria de loja real.** Ele explica
+que o robô não está ligado e oferece a demonstração — que roda sobre a loja de
+exemplo, nunca sobre o endereço digitado, porque é justamente isso que faria a
+encenação passar por auditoria de quem digitou. As telas de execução e de
+resultado saem com um selo dizendo que nada ali foi medido.
+
+Em desenvolvimento e com `?estados=1` nada disso aparece: são os contextos de
+revisão de layout, onde a demonstração é o assunto e quem olha sabe. É também o
+que mantém `npm run telas` medindo as mesmas seis telas.
+
+Ligar o motor depois é só definir `VITE_API` no projeto do Vercel apontando
+para onde ele estiver rodando. A trava sai sozinha.
+
 ## Bloco 9 — a tela de execução (§13)
 
 ```bash

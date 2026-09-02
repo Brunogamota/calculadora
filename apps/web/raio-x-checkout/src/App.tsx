@@ -147,6 +147,33 @@ function mostrarEstados(): boolean {
   }
 }
 
+/**
+ * A página está no ar SEM motor.
+ *
+ * Aqui nenhuma loja é aberta e nenhum número foi medido — a tela roda com os
+ * tempos e os achados do desenho. Publicada assim, ela encenaria uma auditoria
+ * da loja de quem digitou o endereço e entregaria uma nota inventada. Então
+ * quando isto é verdade a tela para de aceitar loja real e diz o que é.
+ *
+ * Em desenvolvimento e com `?estados=1` o selo não aparece: são os contextos
+ * de revisão de layout, onde a demonstração é o assunto e quem olha sabe disso.
+ */
+function emDemonstracao(): boolean {
+  return !temServidor() && !mostrarEstados();
+}
+
+/* Dito onde a pessoa está olhando, não num rodapé. Um número grande numa tela
+   bonita vira print, e o print sai sem o contexto. */
+function SeloDemonstracao() {
+  if (!emDemonstracao()) return null;
+  return (
+    <p className="selo-demo">
+      <span className="selo-demo-ponto" />
+      Demonstração: nenhuma loja foi aberta, e nenhum número desta tela foi medido.
+    </p>
+  );
+}
+
 function Logo() {
   return (
     <button className="logo" onClick={() => window.location.reload()} aria-label="Voltar ao início">
@@ -212,6 +239,8 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
      ali, sem tocar carrinho nem checkout. Marcar é o que autoriza o resto — e
      o aceite é registrado no instante do clique, antes de a auditoria começar. */
   const [autorizado, setAutorizado] = useState(false);
+  /* Pediu auditoria numa página sem motor. Ver `emDemonstracao`. */
+  const [semMotor, setSemMotor] = useState(false);
   const ph = useRotacao(PLACEHOLDERS.length, 3000);
 
   const limpo = url.trim();
@@ -224,10 +253,19 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
   const invalido = tocado && limpo.length > 0 && !valido;
   const digitando = limpo.length > 0;
 
+  /* Sem motor, a auditoria não existe: o que a tela faria é encenar uma, com
+     os tempos do desenho, e terminar com uma nota que ninguém mediu. Então ela
+     não começa. Quem quiser ver o formato vê a demonstração, e a demonstração
+     roda sobre a loja de exemplo — nunca sobre o endereço que a pessoa
+     digitou, que é o que faria a encenação passar por auditoria dela. */
   const enviar = (event: FormEvent) => {
     event.preventDefault();
     setTocado(true);
     if (!valido) return;
+    if (emDemonstracao()) {
+      setSemMotor(true);
+      return;
+    }
     setEnviando(true);
     const aceite = autorizado ? registrarAceite(limpo) : null;
     window.setTimeout(() => onStart(limpo, aceite), 700);
@@ -269,7 +307,9 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
         </p>
       ) : (
         <p className="url-helper">
-          {digitando
+          {/* "Vamos abrir esse endereço agora" é promessa, e sem motor a página
+              não pode cumpri-la — então em demonstração ela não é feita. */}
+          {digitando && !emDemonstracao()
             ? "Vamos abrir esse endereço agora. Você acompanha cada passo."
             : "Leva de 40 a 90 segundos. Sem cadastro, sem instalar nada."}
         </p>
@@ -292,6 +332,19 @@ function UrlForm({ onStart }: { onStart: (url: string, aceite: Aceite | null) =>
           ? "Vamos até a tela de pagamento."
           : "Sem marcar, a auditoria só lê a página do produto — o relatório sai parcial."}
       </p>
+      {semMotor && (
+        <div className="sem-motor">
+          <p className="sem-motor-titulo">O robô ainda não está ligado nesta página.</p>
+          <p>
+            Ela está no ar para você ver o que a auditoria entrega. Nenhuma loja é aberta aqui, e
+            nenhum número da demonstração foi medido — inclusive a nota. Quando o robô estiver
+            ligado, é este mesmo campo que roda a auditoria de verdade.
+          </p>
+          <button type="button" className="botao-fino" onClick={() => onStart("", null)}>
+            Ver a demonstração
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -742,6 +795,7 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
             <div>
               <h1 className="texto-brilho">Analisando seu checkout</h1>
               <p className="mono exec-host">{host}</p>
+              <SeloDemonstracao />
             </div>
           </div>
           <div className="exec-acoes">
@@ -1093,6 +1147,7 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onR
           <span className="mono">{host} · auditoria de 1 de setembro</span>
           <ShareButton />
         </div>
+        <SeloDemonstracao />
 
         <section className="nota-card">
           <div className="nota-bloco">
