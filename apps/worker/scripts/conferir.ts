@@ -1,0 +1,44 @@
+/**
+ * Confere uma fatia contra LOJA REAL, e imprime só o que decide.
+ *
+ *   npm run conferir -- minhaloja.com.br
+ *
+ * Existe porque a verificação de cada fatia precisa ser uma linha que alguém
+ * roda e cola de volta — não um JSON de trezentas linhas para garimpar. E
+ * porque o container onde este código é escrito não alcança loja nenhuma: a
+ * única verificação que vale acontece na máquina de quem tem internet.
+ */
+
+import { audit } from '../src/audit.ts'
+
+const alvo = process.argv.slice(2).find((a) => !a.startsWith('-'))
+if (!alvo) {
+  console.error('uso: npm run conferir -- minhaloja.com.br')
+  process.exit(2)
+}
+
+const headed = process.argv.includes('--headed')
+const t0 = Date.now()
+const r = await audit(alvo, { headed })
+const regras = r.checks?.results ?? []
+const comVeredito = regras.filter((c) => c.status === 'pass' || c.status === 'fail')
+
+console.log('')
+console.log(`  loja            ${alvo}`)
+console.log(`  duração         ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+console.log(`  status          ${r.status}${r.errorCode ? `  (${r.errorCode})` : ''}`)
+if (r.errorReason) console.log(`  motivo          ${r.errorReason.slice(0, 100)}`)
+console.log('')
+console.log(`  FATIA 1 — a evidência sobrevive à falha:`)
+console.log(`  observações     ${r.observations.length}  [${r.observations.map((o) => o.source).join(', ')}]`)
+console.log(`  com veredito    ${comVeredito.length} de ${regras.length} regras`)
+console.log(`  nota            ${r.checks?.score ?? '-'}`)
+console.log('')
+for (const c of regras) {
+  const motivo = c.status === 'not_applicable' ? `  ${(c.notApplicableReason ?? '').slice(0, 60)}` : ''
+  console.log(`    ${c.status.padEnd(15)} ${c.id.padEnd(21)}${motivo}`)
+}
+console.log('')
+console.log(`  achados         ${(r.checks?.findings ?? []).map((f) => f.id).join(', ') || '(nenhum)'}`)
+console.log('')
+process.exit(0)

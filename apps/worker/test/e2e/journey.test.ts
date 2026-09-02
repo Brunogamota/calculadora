@@ -555,3 +555,65 @@ describe('a evidência do carrinho vai para o disco em todo desfecho', { concurr
     })
   }
 })
+
+describe('jornada que falha ainda entrega o que observou', { concurrency: false }, () => {
+  /* Este NÃO é um teste de carrinho. O que ele prova é propriedade do nosso
+     código: o dado coletado até o ponto de falha chega ao relatório. Nada aqui
+     afirma como uma loja real se comporta.
+
+     O defeito: as observações ficam em `ctx.scratch` durante a jornada e só
+     eram recolhidas no caminho de sucesso (audit.ts, `colherObservacoes`). As
+     três saídas de falha passavam `result.observations` — campo que nunca
+     recebe atribuição em lugar nenhum, e portanto é sempre `[]`. A página de
+     produto era observada e jogada fora no mesmo segundo.
+
+     Medido antes da correção: 0 observações, 1 de 13 regras com veredito,
+     nota 0. Depois: 1 observação, 3 de 13, nota 50. */
+
+  let result: AuditResult
+  let store: FakeStore
+
+  before(async () => {
+    /* `semCompra` derruba a jornada DEPOIS da página de produto ter sido
+       observada — que é o ponto exato onde havia dado para perder. O cenário
+       foi escrito por mim a partir de hipótese, não de loja observada: serve
+       para acionar o caminho de falha, e para mais nada. */
+    const run = await auditFake({ semCompra: true })
+    result = run.result
+    store = run.store
+  })
+  after(async () => store.close())
+
+  test('a auditoria para no carrinho e mesmo assim é parcial, não vazia', () => {
+    assert.equal(result.status, 'partial')
+    assert.equal(result.errorCode, 'BUY_BUTTON_NOT_FOUND')
+  })
+
+  test('a observação da página de produto chega ao resultado', () => {
+    assert.ok(
+      result.observations.some((o) => o.source === 'product'),
+      `observações perdidas: [${result.observations.map((o) => o.source).join(', ')}]`,
+    )
+  })
+
+  test('e vira veredito de verdade, não uma tela de não aplicável', () => {
+    const comVeredito = (result.checks?.results ?? []).filter(
+      (c) => c.status === 'pass' || c.status === 'fail',
+    )
+    assert.ok(
+      comVeredito.length > 1,
+      `só ${comVeredito.length} regra(s) com veredito: o relatório voltou a sair vazio`,
+    )
+  })
+
+  test('as regras que dependem do checkout continuam não aplicáveis, com motivo', () => {
+    // O oposto do defeito também é defeito: inventar veredito sobre etapa que
+    // não aconteceu seria pior do que perder o dado.
+    const semCheckout = ['CHECKOUT_SPEED', 'NO_COUPON_FIELD', 'FORCED_LOGIN']
+    for (const id of semCheckout) {
+      const c = (result.checks?.results ?? []).find((x) => x.id === id)
+      assert.equal(c?.status, 'not_applicable', `${id} não pode ter veredito sem checkout`)
+      assert.ok(c?.notApplicableReason, `${id} precisa dizer POR QUE não se aplica`)
+    }
+  })
+})

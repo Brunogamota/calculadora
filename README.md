@@ -12,9 +12,29 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 |---|---|---|
 | 1 | Guards, normalização de URL, SSRF, robots.txt, rate limit, blocklist | **pronto** |
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
-| 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **pronto** |
+| 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **nunca funcionou fora da loja falsa** |
 | 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
 | 4 | Checagens (§8), nota e saída JSON validada | **pronto** |
+
+### Por que o 3a deixou de ser "pronto"
+
+Ele esteve marcado como pronto desde `a774174`, sobre uma base que não
+sustentava a palavra: a única testemunha era a loja falsa deste repositório.
+Uma investigação por causa raiz mediu o que havia embaixo — **zero dos testes
+tocam sistema real**, e as quatro correções da etapa de carrinho vieram, cada
+uma, com a fixture ajustada no mesmo commit para concordar com a hipótese
+daquela rodada. Suíte verde com produto quebrado não é acidente; é o resultado
+esperado quando quem escreve o juiz é quem está sendo julgado.
+
+Não há regressão para caçar. Há funcionalidade que nunca ficou pronta e foi
+declarada pronta. A regra que fica: **nada volta a ser marcado como pronto sem
+execução contra loja real.**
+
+### Perguntas abertas do projeto
+
+| pergunta | quem responde | por que importa |
+|---|---|---|
+| O que o `/cart/add.js` de uma loja Shopify real responde — status e corpo? | Bruno, manualmente pelo DevTools | É a única evidência que decidiria a etapa de carrinho, e ninguém neste projeto jamais a observou. Todas as hipóteses sobre o carrinho seguem sem base até ela chegar. |
 
 ## Rodando
 

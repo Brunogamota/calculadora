@@ -404,7 +404,7 @@ async function runAudit(
     const err = toAuditError(e)
     reporter.fail('open-product', err.message)
     reporter.aborted(err.code, err.message)
-    return failStep(result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
+    return failStep(ctx, result, recorder.steps, e, 'find-product', 'encontrando um produto', startedAt, shot, findStartedAt)
   }
 
   // 2. adicionar ao carrinho
@@ -486,7 +486,7 @@ async function runAudit(
     }
     reporter.fail('add-to-cart', err.message)
     reporter.aborted(err.code, err.message)
-    return failStep(result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)
+    return failStep(ctx, result, recorder.steps, e, 'add-to-cart', 'adicionando ao carrinho', startedAt, shot, cartStartedAt)
   }
 
   // 3. checkout (§6.5) e coleta na tela de pagamento (§6.6)
@@ -549,7 +549,7 @@ async function runAudit(
       const err = toAuditError(e)
       reporter.fail('reach-checkout', err.message)
       reporter.aborted(err.code, err.message)
-      return failStep(result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot, checkoutStartedAt)
+      return failStep(ctx, result, recorder.steps, e, 'reach-checkout', 'indo para o checkout', startedAt, shot, checkoutStartedAt)
     }
   }
 
@@ -672,7 +672,22 @@ function isProtectedSite(code: AuditErrorCode): boolean {
   return code === 'BOT_CHALLENGE' || code === 'HOME_NOT_OK'
 }
 
+/**
+ * A jornada parou antes do fim. O relatório sai mesmo assim, com TUDO que deu
+ * tempo de observar até ali.
+ *
+ * Antes ele saía vazio. As observações ficam em `ctx.scratch` durante a
+ * jornada, e só eram recolhidas no caminho de sucesso — as três saídas de
+ * falha passavam `result.observations`, que nunca recebe atribuição em lugar
+ * nenhum e portanto é sempre `[]`. Medido na loja falsa: carrinho fechando dá
+ * 10 de 13 regras com veredito; carrinho falhando dava 1 de 13, com o dado da
+ * página de produto coletado e jogado fora no mesmo segundo.
+ *
+ * Por isso o `ctx` entra aqui: quem falha precisa alcançar o que foi colhido,
+ * e o colhedor mora nele.
+ */
 function failStep(
+  ctx: JourneyContext,
   result: AuditResult,
   steps: ReadonlyArray<JourneyStep>,
   error: unknown,
@@ -706,11 +721,14 @@ function failStep(
       'não tenta contornar (§2.2).'
     : `${label}: ${err.message}`
 
+  const observacoes = colherObservacoes(ctx, result)
+
   return {
     ...result,
     ok: true,
     status: 'partial',
     steps: trail,
+    observations: observacoes,
     incompleteBecause: [explanation],
     checks: runChecks({
       product: result.product,
@@ -718,8 +736,8 @@ function failStep(
       checkout: result.checkout,
       payment: result.payment,
       steps: trail,
-      productText: null,
-      observations: result.observations,
+      productText: (ctx.scratch.get('productText') as string | null) ?? null,
+      observations: observacoes,
       homeLoadMs: result.timings.homeLoadMs,
       mobile: null,
       auditedFromBrazil: result.vantage.auditedFromBrazil,
