@@ -655,6 +655,39 @@ que mantém `npm run telas` medindo as mesmas seis telas.
 Ligar o motor depois é só definir `VITE_API` no projeto do Vercel apontando
 para onde ele estiver rodando. A trava sai sozinha.
 
+### A armadilha que custou meia sessão: Branch Tracking apontando para o nada
+
+O site ficou horas devolvendo `404: NOT_FOUND` numa produção verde, enquanto
+cada push construía sem erro. A causa não estava no build:
+
+| | |
+|---|---|
+| Settings → Environments → Production → Branch Tracking | `main` |
+| branches que existem no repositório | só `claude/shopify-checkout-auditor-phase1-j4bftz` |
+
+O Vercel esperava push num branch que nunca existiu. Nenhum push virava
+produção — todos caíam como **Preview**, verdes e corretos, e a produção
+continuava servindo o **primeiro commit do repositório**, de quando só existia
+o motor: sem `apps/web`, sem `index.html`. Um build correto de um commit que
+não tinha site. Daí o 404.
+
+Três coisas que valem lembrar disso:
+
+- **Deploy verde não quer dizer site no ar.** Quer dizer que aquele commit
+  construiu. Qual commit, e em qual ambiente, são outras duas perguntas.
+- **Redeploy republica o mesmo deploy**, não o commit mais novo. Clicar em
+  Redeploy num deploy velho recria o mesmo resultado velho, em 2 segundos —
+  enquanto um build de verdade leva 10. O tempo na lista denuncia qual é qual.
+- **Salvar o Branch Tracking também dispara um redeploy do que já estava em
+  produção**, não um build da cabeça do branch. Depois de corrigir a
+  configuração, é preciso um push novo para a produção finalmente andar.
+
+Junto disso havia uma segunda trava: `Deployment Protection → Vercel
+Authentication` vinha ligada em `all_except_custom_domains`, exigindo login na
+conta do dono em todo endereço `.vercel.app`. Quem criou o projeto não vê,
+porque está logado. Todo mundo mais vê tela de login. Numa página de captação,
+isso é o produto inteiro fechado.
+
 ## Bloco 9 — a tela de execução (§13)
 
 ```bash
