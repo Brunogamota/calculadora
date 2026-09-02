@@ -26,6 +26,32 @@ import type { PageObservation } from '../../types.ts'
  * saíam não aplicáveis em quase toda loja. Produto e carrinho medem boa parte
  * disso e quase nunca são proibidos.
  */
+/** Que caminho do robots teria sido preciso para observar cada página. */
+const CAMINHO_DA_FONTE: Record<PageObservation['source'], RegExp> = {
+  product: /^\/products?\b/,
+  cart: /^\/cart\b/,
+  checkout: /^\/checkouts?\b/,
+}
+
+/**
+ * Só os caminhos bloqueados que têm a ver com as páginas que ESTA checagem
+ * procurava.
+ *
+ * O motivo saía com a lista inteira de bloqueios da auditoria. Numa loja que
+ * proíbe `/cart.js` e `/checkout`, uma checagem que só precisava do checkout
+ * dizia "o robots.txt proíbe /cart.js, /checkout" — citando um caminho que não
+ * tinha nada com ela. Motivo com informação a mais é motivo errado: quem lê
+ * conclui que a checagem dependia do carrinho, e ela não dependia.
+ */
+function bloqueiosRelevantes(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): string[] {
+  return input.robotsBlockedPaths.filter((caminho) =>
+    ordem.some((fonte) => CAMINHO_DA_FONTE[fonte].test(caminho)),
+  )
+}
+
 function semFonte(input: CheckInput, ordem: ReadonlyArray<PageObservation['source']>): string | null {
   if (melhorFonte(input, ordem)) return null
   if (input.blockedBySite) return 'a loja bloqueou a auditoria antes de qualquer página medível'
@@ -33,11 +59,12 @@ function semFonte(input: CheckInput, ordem: ReadonlyArray<PageObservation['sourc
   // não penaliza ninguém; "não foi observada" é limitação nossa. Sair com o
   // texto genérico nos dois casos apagaria a diferença no relatório.
   const nomes = ordem.map((f) => NOME_DA_FONTE[f]).join(', ')
-  if (ordem.includes('checkout') && input.robotsBlockedPaths.length > 0) {
+  const bloqueios = bloqueiosRelevantes(input, ordem)
+  if (bloqueios.length > 0) {
     const outras = ordem.filter((f) => f !== 'checkout')
-    if (outras.length === 0) return `o robots.txt da loja proíbe ${input.robotsBlockedPaths.join(', ')}`
+    if (outras.length === 0) return `o robots.txt da loja proíbe ${bloqueios.join(', ')}`
     return (
-      `o robots.txt da loja proíbe ${input.robotsBlockedPaths.join(', ')} e nenhuma outra ` +
+      `o robots.txt da loja proíbe ${bloqueios.join(', ')} e nenhuma outra ` +
       `página observada serve (procurado em: ${nomes})`
     )
   }

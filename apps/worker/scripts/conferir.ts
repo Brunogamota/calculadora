@@ -33,6 +33,13 @@ console.log(`  FATIA 1 — a evidência sobrevive à falha:`)
 console.log(`  observações     ${r.observations.length}  [${r.observations.map((o) => o.source).join(', ')}]`)
 console.log(`  com veredito    ${comVeredito.length} de ${regras.length} regras`)
 console.log(`  nota            ${r.checks?.score ?? '-'}`)
+/* A ressalva de cobertura SEMPRE junto do número. Ela já existe no motor e já
+   aparece na tela do lojista; era este script que imprimia a nota nua, e foi
+   assim que um "nota 100" com 2 de 13 regras chegou até a conversa parecendo
+   defeito do produto. Ferramenta de conferência que esconde a ressalva ensina
+   a ler errado. */
+if (r.checks?.scoreCaveat) console.log(`  ressalva        ${r.checks.scoreCaveat}`)
+console.log(`  cobertura       ${Math.round((r.checks?.coverage.ratio ?? 0) * 100)}% da §8 em peso`)
 console.log('')
 for (const c of regras) {
   const motivo = c.status === 'not_applicable' ? `  ${(c.notApplicableReason ?? '').slice(0, 60)}` : ''

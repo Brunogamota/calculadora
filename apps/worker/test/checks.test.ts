@@ -398,3 +398,28 @@ describe('cobertura da tabela da §8', () => {
     }
   })
 })
+
+describe('o motivo do não aplicável cita só o que tem a ver com a checagem', () => {
+  /* Numa loja que proíbe `/cart.js` e `/checkout` no robots, o NO_TRUST_SIGNAL
+     saía dizendo "o robots.txt da loja proíbe /cart.js, /checkout". Sinal de
+     confiança não depende de carrinho, e citar `/cart.js` ali faz quem lê
+     concluir que dependia. Motivo com informação a mais é motivo errado. */
+
+  const comRobots = (blocked: string[]) =>
+    runChecks(entrada({ steps: [passo()], robotsBlockedPaths: blocked }))
+
+  test('checagem que precisava do checkout não cita o bloqueio do carrinho', () => {
+    const r = comRobots(['/cart.js', '/checkout'])
+    const c = r.results.find((x) => x.id === 'NO_TRUST_SIGNAL')
+    assert.equal(c?.status, 'not_applicable')
+    assert.doesNotMatch(c?.notApplicableReason ?? '', /cart/, c?.notApplicableReason ?? '')
+    assert.match(c?.notApplicableReason ?? '', /checkout/)
+  })
+
+  test('bloqueio que não tem a ver com nenhuma fonte não vira motivo de robots', () => {
+    // `/admin` é proibido em toda Shopify e não explica checagem nenhuma.
+    const c = comRobots(['/admin']).results.find((x) => x.id === 'NO_TRUST_SIGNAL')
+    assert.equal(c?.status, 'not_applicable')
+    assert.doesNotMatch(c?.notApplicableReason ?? '', /robots/, c?.notApplicableReason ?? '')
+  })
+})

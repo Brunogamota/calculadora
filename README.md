@@ -35,6 +35,32 @@ execução contra loja real.**
 | pergunta | quem responde | por que importa |
 |---|---|---|
 | O que o `/cart/add.js` de uma loja Shopify real responde — status e corpo? | Bruno, manualmente pelo DevTools | É a única evidência que decidiria a etapa de carrinho, e ninguém neste projeto jamais a observou. Todas as hipóteses sobre o carrinho seguem sem base até ela chegar. |
+| `/cart` e `/checkout` estão no robots.txt padrão do Shopify, ou só nessa loja? | quem tiver internet: abrir `loja.com.br/robots.txt` em 3 lojas | Decide se o carrinho é inviável em muitas lojas ou em poucas. Medido em 1 loja (carnan.com.br, que proíbe `/cart.js` e `/checkout`); 1 caso não é regra. |
+
+### O robots bloqueou o carrinho antes de a jornada começar
+
+Observado na carnan.com.br: o robots.txt dela proíbe `/cart.js` e `/checkout`.
+O portão de robots (`lib/gate.ts`) barra qualquer requisição a caminho
+proibido, e o primeiro dos quatro caminhos até o carrinho é justamente
+`POST /cart/add.js`. Naquela auditoria o caminho de API **nunca chegou a
+sair**: respondeu "robots.txt proíbe /cart/add.js" antes de tocar a loja. E
+`/cart.js`, que é como a jornada confirma que o item entrou, também estava
+fechado.
+
+Isso reenquadra as quatro correções da etapa de carrinho. Elas discutiam qual
+seletor usar, num caso em que o portão já havia decidido antes de a discussão
+começar.
+
+**O que NÃO se conclui daqui:** que o carrinho seja inviável por desenho. O
+portão já tem a chave — `ownerVerified` libera caminho proibido e registra cada
+liberação com horário (`gate.ts:45`). É o que o modo **consentido** significa:
+robots.txt é instrução dirigida a rastreador automático sobre o que indexar,
+não tranca contra o dono da loja que pediu a auditoria. No modo **leitura**,
+sem consentimento, ele é absoluto e sem exceção.
+
+A consequência prática, e ela é grande: **a etapa de carrinho nunca foi tentada
+de verdade numa loja cujo robots a proíbe.** Sem `--owner-verified`, ela não
+chegou a começar.
 
 ## Rodando
 
