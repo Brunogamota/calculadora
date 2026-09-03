@@ -39,6 +39,19 @@ export interface FakeStoreOptions {
    */
   carrinhoIlegivel?: boolean
   /**
+   * A home pinta rápido e só termina de carregar depois de N ms, por causa de
+   * um script no fim do corpo — que é o que toda loja real tem (pixel, chat,
+   * analytics).
+   *
+   * Existe porque o defeito da captura tardia só DÓI quando existe essa
+   * janela. Contra uma loja local que responde em milissegundos, a primeira
+   * pintura e o fim do `identify` acontecem quase juntos, e qual vem primeiro
+   * depende da velocidade da máquina — foi assim que um teste meu passou aqui
+   * e falhou no Mac do Bruno. Modelar a janela é o que torna a verificação
+   * determinística em vez de sorte.
+   */
+  homeScriptDelayMs?: number
+  /**
    * Loja SEM etapa de carrinho: o botão leva direto para o checkout, e
    * /cart.js nunca conta nada. É o formato que reprovava a compra por
    * procurar uma confirmação que naquela loja jamais apareceria.
@@ -322,7 +335,20 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       if (options.botChallenge) return send(200, 'text/html', CHALLENGE_PAGE)
       return send(200, 'text/html', productPage(path.replace('/products/', ''), options))
     }
-    return send(200, 'text/html', '<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a></body></html>')
+    /* Script lento no fim do corpo: o navegador pinta o conteúdo e só dispara
+       `domcontentloaded` quando ele responde. É a janela em que a transmissão
+       precisa já estar mostrando a loja. */
+    if (path === '/lento.js') {
+      const espera = options.homeScriptDelayMs ?? 0
+      return setTimeout(() => send(200, 'application/javascript', '/* pronto */'), espera)
+    }
+    const scriptLento =
+      options.homeScriptDelayMs && options.homeScriptDelayMs > 0 ? '<script src="/lento.js"></script>' : ''
+    return send(
+      200,
+      'text/html',
+      `<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a>${scriptLento}</body></html>`,
+    )
   })
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))

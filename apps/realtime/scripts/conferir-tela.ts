@@ -171,7 +171,13 @@ async function main(): Promise<number> {
      painel marcava aquilo com o certinho preto, dizendo "consegui" sobre o que
      o motor sabia não ter confirmado. Só dá para olhar DURANTE a auditoria: a
      tela de execução some quando o relatório chega. */
-  const lojaIlegivel = await startFakeStore({ carrinhoIlegivel: true })
+  /* `homeScriptDelayMs` porque a cena do TEMPO precisa da janela entre a
+     primeira pintura e o fim do carregamento — a mesma que toda loja real tem
+     por causa de pixel e chat no fim do corpo. Sem ela, contra uma loja local
+     que responde em milissegundos, a ordem dos dois eventos vira sorte da
+     máquina: 804ms de folga aqui, 35ms de atraso no Mac do Bruno, com o mesmo
+     código. Um teste que depende disso não verifica nada. */
+  const lojaIlegivel = await startFakeStore({ carrinhoIlegivel: true, homeScriptDelayMs: 1500 })
   const painel = await browser.newPage({ viewport: { width: 1400, height: 1200 } })
   await painel.route('**://fonts.googleapis.com/**', (r) => r.abort())
   await painel.route('**://fonts.gstatic.com/**', (r) => r.abort())
