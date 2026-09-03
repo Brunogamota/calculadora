@@ -27,6 +27,18 @@ export interface FakeStoreOptions {
   /** `/cart/add.js` responde 422: exercita a queda para o caminho seguinte. */
   apiRecusaAdd?: boolean
   /**
+   * O add responde 200 e o `/cart.js` fica ILEGÍVEL: a jornada segue, e o
+   * carrinho não pode ser confirmado nem desmentido.
+   *
+   * É o caso que produz `AddToCartResult.ok === null`, e é o único jeito de a
+   * jornada continuar sem confirmação — carrinho legível e vazio faz o `via`
+   * ficar nulo e a jornada lançar `BUY_BUTTON_NOT_FOUND` antes disso.
+   *
+   * Existe porque o painel mostrava o certinho preto aqui, dizendo "consegui"
+   * sobre uma etapa que o motor sabia não ter confirmado.
+   */
+  carrinhoIlegivel?: boolean
+  /**
    * Loja SEM etapa de carrinho: o botão leva direto para o checkout, e
    * /cart.js nunca conta nada. É o formato que reprovava a compra por
    * procurar uma confirmação que naquela loja jamais apareceria.
@@ -244,6 +256,9 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
     if (path === '/cart.js') {
       // Loja sem etapa de carrinho: o carrinho existe e está sempre vazio.
       if (options.semCarrinho === true) return send(200, 'application/json', JSON.stringify({ item_count: 0 }))
+      /* Ilegível de verdade: não é 0, é "não sei". A diferença é a mesma que o
+         motor faz entre `ok: false` e `ok: null`. */
+      if (options.carrinhoIlegivel === true) return send(503, 'text/plain', 'cart unavailable')
       return send(200, 'application/json', JSON.stringify({ item_count: carts.get(session) ?? 0 }))
     }
     if (path === '/cart/add') {

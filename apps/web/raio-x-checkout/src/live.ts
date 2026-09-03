@@ -17,6 +17,11 @@ export const STEP_IDS: StepId[] = ["identify", "open-product", "add-to-cart", "r
 
 type Severidade = "critica" | "alta" | "media" | "baixa";
 
+/* "Terminou" e "conseguiu" são perguntas diferentes, e o `step:done` sozinho
+   respondia as duas. Ausente no evento significa `confirmed`. Ver
+   `StepAchievement` em packages/types. */
+export type Desfecho = "confirmed" | "unconfirmed" | "not_achieved";
+
 /* O que deu e o que não deu para verificar, do jeito que o motor manda. É o
    que preenche o resumo e a lista de detalhe da tela de resultado — no lugar
    da manchete do desenho, que afirmava a mesma coisa em toda auditoria. */
@@ -37,7 +42,7 @@ export type Cobertura = {
 
 type AuditEvent =
   | { type: "step:start"; id: StepId; label: string; at: string }
-  | { type: "step:done"; id: StepId; detail?: string; at: string }
+  | { type: "step:done"; id: StepId; detail?: string; outcome?: Desfecho; at: string }
   | { type: "step:fail"; id: StepId; reason: string; at: string }
   | { type: "step:skip"; id: StepId; reason: string; at: string }
   | { type: "frame"; data: string; seq: number; url?: string }
@@ -51,7 +56,16 @@ type AuditEvent =
    barra voltar do zero, e mesmo quem só chegava tarde perdia o `step:start` da
    primeira etapa, que sai antes de o WebSocket abrir. */
 type EstadoDoServidor = {
-  steps?: { id: StepId; status: "running" | "done" | "failed" | "skipped"; startedAt?: string; finishedAt?: string }[];
+  steps?: {
+    id: StepId;
+    status: "running" | "done" | "failed" | "skipped";
+    detail?: string;
+    /* Vem no estado também: quem recarrega a página recebe daqui, e sem isto
+       a etapa que não confirmou voltaria com o certinho preto. */
+    outcome?: Desfecho;
+    startedAt?: string;
+    finishedAt?: string;
+  }[];
   findings?: { code: string; severity: Severidade; title: string }[];
   finished?: boolean;
   score?: number | null;
@@ -92,6 +106,14 @@ export type EstadoAoVivo = {
    *  checkout, e o painel exibiu as duas com o certinho verde, como se
    *  tivessem acontecido. */
   pulados: StepId[];
+  /** O que cada etapa CONSEGUIU, quando isso não foi um sim redondo.
+   *
+   *  Só entra aqui o que não é `confirmed`: uma etapa que deu certo não precisa
+   *  de linha nenhuma. O motor sempre soube a diferença — `cart.ok` é
+   *  `true | false | null` — e a tela jogava fora, então uma auditoria da
+   *  allbirds em que a gaveta dizia "Your cart is empty" exibia "adicionando ao
+   *  carrinho ✓ 9.7s". */
+  desfechos: Partial<Record<StepId, { outcome: Desfecho; detalhe: string | null }>>;
   /** Quanto cada etapa levou DE VERDADE, do relógio do motor. A tela trazia os
    *  segundos do desenho aqui, então uma etapa que levou 90s aparecia como
    *  "4.1s" — e era justamente onde a pessoa precisava olhar. */
@@ -103,7 +125,7 @@ export type EstadoAoVivo = {
 };
 
 const VAZIO: EstadoAoVivo = {
-  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, pulados: [], urlAtual: null, aoVivo: false,
+  stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, pulados: [], desfechos: {}, urlAtual: null, aoVivo: false,
 };
 
 /** Base da API. Sem ela, a tela roda em demonstração. */
@@ -188,8 +210,15 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         if (p.status === "done" || p.status === "skipped") stage = Math.max(stage, STEP_IDS.indexOf(p.id) + 1);
       }
       const pulados = [...e.pulados];
+      /* Mesma regra do evento: só registra o que NÃO foi um sim redondo. Sem
+         esta passagem, recarregar a página devolvia o certinho preto para uma
+         etapa que o motor sabia não ter conseguido. */
+      const desfechos = { ...e.desfechos };
       for (const p of st.steps ?? []) {
         if (p.status === "skipped" && !pulados.includes(p.id)) pulados.push(p.id);
+        if (p.status === "done" && p.outcome !== undefined && p.outcome !== "confirmed") {
+          desfechos[p.id] = { outcome: p.outcome, detalhe: p.detail ?? null };
+        }
       }
       const achados = [...e.achados];
       for (const f of st.findings ?? []) {
@@ -199,7 +228,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         st.finished && st.score !== undefined
           ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null }
           : e.fim;
-      return { ...e, stage, duracoes, achados, pulados, fim };
+      return { ...e, stage, duracoes, achados, pulados, desfechos, fim };
     };
 
     const aplicar = (ev: AuditEvent) => {
@@ -222,7 +251,13 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
               inicio === undefined ? e.duracoes : { ...e.duracoes, [ev.id]: (Date.parse(ev.at) - inicio) / 1000 };
             const pulados =
               ev.type === "step:skip" && !e.pulados.includes(ev.id) ? [...e.pulados, ev.id] : e.pulados;
-            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1), duracoes, pulados };
+            /* Etapa que terminou sem ter conseguido. Ausente no evento quer
+               dizer `confirmed`, e aí não há nada a registrar. */
+            const desfechos =
+              ev.type === "step:done" && ev.outcome !== undefined && ev.outcome !== "confirmed"
+                ? { ...e.desfechos, [ev.id]: { outcome: ev.outcome, detalhe: ev.detail ?? null } }
+                : e.desfechos;
+            return { ...e, stage: Math.max(e.stage, STEP_IDS.indexOf(ev.id) + 1), duracoes, pulados, desfechos };
           }
           case "frame": {
             const pulados = ev.seq > ultimaSeq + 1 ? ev.seq - ultimaSeq - 1 : 0;

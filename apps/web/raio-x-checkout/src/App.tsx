@@ -37,7 +37,7 @@ import {
 import type { FormEvent, ReactNode } from "react";
 import { STEP_IDS, TEXTO_DO_ACEITE, deQuemEAculpa, paraSeveridade, registrarAceite, temServidor, useAuditoriaAoVivo } from "./live.ts";
 import type { Aceite, Cobertura } from "./live.ts";
-import type { StepId } from "./live.ts";
+import type { Desfecho, StepId } from "./live.ts";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
 
@@ -698,7 +698,7 @@ function EsperandoPrimeiroFrame() {
    desenho. Com o motor ligado é o tempo que a etapa levou de verdade: mostrar
    "4.1s" numa etapa que levou 90 segundos escondia exatamente o lugar onde a
    pessoa precisava olhar. */
-function PainelEtapas({ stage, parou, duracoes, pulados }: { stage: number; parou?: boolean; duracoes?: Partial<Record<StepId, number>>; pulados?: StepId[] }) {
+function PainelEtapas({ stage, parou, duracoes, pulados, desfechos }: { stage: number; parou?: boolean; duracoes?: Partial<Record<StepId, number>>; pulados?: StepId[]; desfechos?: Partial<Record<StepId, { outcome: Desfecho; detalhe: string | null }>> }) {
   return (
     <div className="painel">
       <div className="painel-topo">
@@ -718,14 +718,22 @@ function PainelEtapas({ stage, parou, duracoes, pulados }: { stage: number; paro
           /* Pulada NÃO é feita. Numa loja de plataforma que esta fase não
              cobre, o robô pula carrinho e checkout — e o painel marcava as
              duas com o certinho, como se tivesse comprado. */
-          const feito = andou && !pulado;
+          const desfecho = desfechos?.[id];
+          /* Terminada NÃO é conseguida, e é a mesma família de defeito da
+             linha acima. Numa auditoria da allbirds a gaveta do carrinho dizia
+             "Your cart is empty", o robô seguiu para o checkout, e aqui saía
+             "adicionando ao carrinho ✓ 9.7s". O certinho apagado diz o que
+             aconteceu de verdade: a etapa rodou e não deu para afirmar. */
+          const semConfirmar = andou && !pulado && desfecho !== undefined;
+          const feito = andou && !pulado && !semConfirmar;
           const agora = i === stage;
           const medido = duracoes?.[id];
+          const marcado = feito || semConfirmar;
           return (
             <div className="etapa" key={s.label}>
               <div className="etapa-marca">
-                <div className={`etapa-ponto ${feito ? "feito" : pulado ? "pulado" : agora && !parou ? "agora" : "fila"}`}>
-                  {feito ? <Check size={13} strokeWidth={3} /> : pulado ? <Minus size={13} strokeWidth={3} /> : agora && !parou ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
+                <div className={`etapa-ponto ${feito ? "feito" : semConfirmar ? "sem-confirmar" : pulado ? "pulado" : agora && !parou ? "agora" : "fila"}`}>
+                  {marcado ? <Check size={13} strokeWidth={3} /> : pulado ? <Minus size={13} strokeWidth={3} /> : agora && !parou ? <span className="etapa-anel" /> : <span className="mono">{i + 1}</span>}
                 </div>
                 {i < steps.length - 1 && <div className={`etapa-traco ${feito ? "feito" : ""}`} />}
               </div>
@@ -738,6 +746,11 @@ function PainelEtapas({ stage, parou, duracoes, pulados }: { stage: number; paro
                   {pulado ? "pulada" : medido !== undefined ? `${medido.toFixed(1)}s` : ""}
                 </span>
               </div>
+              {/* O motivo vem do motor e é dito por extenso. Ele já viajava no
+                  `detail` do evento; a tela é que o jogava fora. */}
+              {semConfirmar && desfecho?.detalhe && (
+                <p className="etapa-desfecho">{desfecho.detalhe}</p>
+              )}
             </div>
           );
         })}
@@ -977,7 +990,7 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
           </section>
 
           <aside className="exec-side">
-            <PainelEtapas stage={stage} parou={parou} duracoes={vivo.duracoes} pulados={vivo.pulados} />
+            <PainelEtapas stage={stage} parou={parou} duracoes={vivo.duracoes} pulados={vivo.pulados} desfechos={vivo.desfechos} />
             <PainelAchados stage={stage} doMotor={vivo.achados} />
           </aside>
         </div>

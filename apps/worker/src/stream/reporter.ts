@@ -10,7 +10,7 @@
  * a linguagem do documento; o motor fala a dele.
  */
 
-import type { AuditEvent, Coverage, Severity, StepId } from '@raio-x/types'
+import type { AuditEvent, Coverage, Severity, StepAchievement, StepId } from '@raio-x/types'
 import { STEP_LABELS } from '@raio-x/types'
 import type { Publisher } from './publisher.ts'
 
@@ -53,10 +53,18 @@ export class Reporter {
     this.#emit({ type: 'step:start', id, label: STEP_LABELS[id], at: new Date().toISOString() })
   }
 
-  done(id: StepId, detail?: string, screenshot?: string | null): void {
+  /**
+   * `outcome` responde "conseguiu?", que é pergunta diferente de "terminou?".
+   * Ausente = `confirmed`, para as dezenas de chamadas que não têm essa dúvida
+   * continuarem lendo como leem. Ver `StepAchievement` no contrato.
+   */
+  done(id: StepId, detail?: string, screenshot?: string | null, outcome?: StepAchievement): void {
     const event: AuditEvent = { type: 'step:done', id, at: new Date().toISOString() }
     if (detail !== undefined) event.detail = detail
     if (screenshot) event.screenshot = screenshot
+    /* Só viaja quando há algo a dizer: mandar `confirmed` em toda etapa
+       encheria o canal com a informação menos interessante das três. */
+    if (outcome !== undefined && outcome !== 'confirmed') event.outcome = outcome
     this.#emit(event)
   }
 

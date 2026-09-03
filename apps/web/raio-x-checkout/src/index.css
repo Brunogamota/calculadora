@@ -1696,7 +1696,9 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .barra-indicador { width: 100%; height: 100%; border-radius: 999px; background: var(--accent); transition: transform .6s cubic-bezier(.4, 0, .2, 1); }
 
 .painel-etapas { padding: 16px 0 6px; }
-.etapa { display: flex; gap: 13px; padding: 0 16px; }
+/* `wrap` para o motivo da etapa cair numa linha própria, embaixo do rótulo,
+   em vez de disputar a mesma linha com o cronômetro. */
+.etapa { display: flex; flex-wrap: wrap; gap: 13px; padding: 0 16px; }
 .etapa-marca { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 
 /* Concluído usa o escuro da marca, não verde: verde seria uma quarta cor. */
@@ -1706,6 +1708,16 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 /* Pulada tem marca própria: nem o preto de feita, nem o cinza de quem ainda
    não chegou. O traço diz "passou por aqui e não aconteceu". */
 .etapa-ponto.pulado { background: #f0efec; color: #6E6B75; }
+/* Terminou e não deu para confirmar: o mesmo certinho, apagado e vazado. Não
+   é o preto de "conseguiu" nem o traço de "nem rodou" — é "rodou, e eu não
+   afirmo". Vazado de propósito: cheio leria como sucesso de relance, que é
+   exatamente o engano que esta marca existe para desfazer. */
+.etapa-ponto.sem-confirmar {
+  box-sizing: border-box;
+  background: transparent;
+  border: 1.5px solid #cdcbc6;
+  color: #8b8992;
+}
 .etapa-ponto.fila { background: #f0efec; color: #969499; font-size: 10px; }
 .etapa-anel {
   display: block;
@@ -1729,6 +1741,16 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .etapa-texto.fila { opacity: .62; }
 .etapa-texto h3 { margin: 0; font-size: 11px; font-weight: 700; }
 .etapa-texto span { flex-shrink: 0; font-size: 11px; color: #a1a0a6; }
+
+/* O motivo que o motor mandou, dito por extenso. Os 37px são a coluna da
+   marca (24 do ponto + 13 do vão), para o texto alinhar sob o rótulo. */
+.etapa-desfecho {
+  width: 100%;
+  margin: 3px 0 0 37px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
 
 .painel-vazio { margin: 0; padding: 22px 16px; font-size: 11px; line-height: 1.6; color: var(--muted); }
 .achado-vivo { padding: 16px; border-bottom: 1px solid #ecebe8; }

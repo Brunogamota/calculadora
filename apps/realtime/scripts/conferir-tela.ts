@@ -144,9 +144,10 @@ async function main(): Promise<number> {
     temEvidenciaDoDesenho: document.querySelector('.evidencia') !== null,
     atrasou: (window as unknown as { __atrasou?: boolean }).__atrasou === true,
   }))
-  await browser.close()
+  await page.close()
 
   if (!visto.atrasou) {
+    await browser.close()
     console.error('\n  O ROTEIRO NÃO TESTOU NADA: não conseguiu atrasar o `complete`.')
     console.error('  Sem a separação forçada, a corrida não acontece e o resultado não vale.')
     return 1
@@ -165,11 +166,67 @@ async function main(): Promise<number> {
     problemas.push(`manchete não é o resumo medido: "${visto.manchete}"`)
   }
 
+  /* Segunda cena: o PAINEL DE ETAPAS. Uma loja cujo `/cart.js` fica ilegível
+     faz a jornada seguir sem confirmação — `AddToCartResult.ok === null` — e o
+     painel marcava aquilo com o certinho preto, dizendo "consegui" sobre o que
+     o motor sabia não ter confirmado. Só dá para olhar DURANTE a auditoria: a
+     tela de execução some quando o relatório chega. */
+  const lojaIlegivel = await startFakeStore({ carrinhoIlegivel: true })
+  const painel = await browser.newPage({ viewport: { width: 1400, height: 1200 } })
+  await painel.route('**://fonts.googleapis.com/**', (r) => r.abort())
+  await painel.route('**://fonts.gstatic.com/**', (r) => r.abort())
+  await painel.goto(`http://localhost:${PORTA_SITE}/`, { waitUntil: 'domcontentloaded' })
+  await painel.fill('input[aria-label="endereço da sua loja"]', lojaIlegivel.url)
+  const aceite2 = painel.locator('input[type="checkbox"]').first()
+  if ((await aceite2.count()) > 0) await aceite2.check()
+  await painel.locator('form.url-form button[type="submit"]').click()
+
+  let marcaVista: { classe: string; motivo: string } | null = null
+  const limite = Date.now() + 180_000
+  while (Date.now() < limite) {
+    const agora = await painel
+      .evaluate(() => {
+        const etapas = Array.from(document.querySelectorAll('.etapa'))
+        // "adicionando ao carrinho" é a terceira etapa do painel.
+        const alvo = etapas.find((e) => (e.querySelector('h3')?.textContent ?? '').includes('carrinho'))
+        if (!alvo) return null
+        const ponto = alvo.querySelector('.etapa-ponto')
+        const classe = ponto?.className ?? ''
+        if (classe.includes('agora') || classe.includes('fila')) return null
+        return { classe, motivo: alvo.querySelector('.etapa-desfecho')?.textContent ?? '' }
+      })
+      .catch(() => null)
+    if (agora) {
+      marcaVista = agora
+      break
+    }
+    if (await painel.evaluate(() => document.querySelector('.resultado') !== null).catch(() => false)) break
+    await painel.waitForTimeout(150)
+  }
+  await lojaIlegivel.close()
+
+  if (marcaVista === null) {
+    problemas.push('não consegui observar a etapa do carrinho no painel — o roteiro não testou o painel')
+  } else {
+    if (marcaVista.classe.includes('feito')) {
+      problemas.push(`painel marcou "adicionando ao carrinho" como CONCLUÍDA num carrinho que não confirmou (${marcaVista.classe})`)
+    }
+    if (!marcaVista.classe.includes('sem-confirmar')) {
+      problemas.push(`painel não usou a marca de "sem confirmar": classe "${marcaVista.classe}"`)
+    }
+    if (marcaVista.motivo.trim().length === 0) {
+      problemas.push('painel não mostrou o motivo que o motor mandou')
+    }
+  }
+
+  await browser.close()
+
   if (problemas.length > 0) {
     console.error('\n  A TELA MENTIU:')
     for (const p of problemas) console.error(`    · ${p}`)
     return 1
   }
+  console.log(`  painel: ${marcaVista?.classe.trim()} · "${marcaVista?.motivo}"`)
   console.log(`\n  Tela honesta, com o complete atrasado em ${ATRASO_DO_COMPLETE_MS}ms.`)
   console.log(`  manchete: ${visto.manchete}`)
   return 0

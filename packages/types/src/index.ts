@@ -31,9 +31,40 @@ export const STEP_LABELS: Record<StepId, string> = {
   report: 'montando o relatório',
 }
 
+/**
+ * A etapa terminou — e o que ela CONSEGUIU, que é outra pergunta.
+ *
+ * `done` respondia as duas de uma vez, e por isso mentia: numa auditoria real
+ * da allbirds o carrinho ficou vazio ("Your cart is empty"), o robô seguiu
+ * para o checkout, e o painel mostrou "adicionando ao carrinho ✓ 9.7s". O
+ * motor sabia — `AddToCartResult.ok` é `true | false | null` justamente para
+ * isso — e a informação morria antes de chegar na tela.
+ *
+ * Não cabe em `fail` (a auditoria continuou, e um X vermelho acusaria a loja
+ * de um problema que pode ser limitação nossa) nem em `skip` (a etapa rodou).
+ * É a mesma razão que criou o `step:skip`, logo abaixo.
+ *
+ * Ausente significa `confirmed`: quem já fala este contrato não quebra.
+ */
+export type StepAchievement =
+  /** Fez o que se propôs, e há prova disso. */
+  | 'confirmed'
+  /** Rodou, mas não deu para afirmar que conseguiu. Sem certeza, não afirma. */
+  | 'unconfirmed'
+  /** Rodou e NÃO conseguiu — verificado, não suposto. */
+  | 'not_achieved'
+
 export type AuditEvent =
   | { type: 'step:start'; id: StepId; label: string; at: string }
-  | { type: 'step:done'; id: StepId; detail?: string; screenshot?: string; at: string }
+  | {
+      type: 'step:done'
+      id: StepId
+      detail?: string
+      screenshot?: string
+      /** Ver `StepAchievement`. Ausente = `confirmed`. */
+      outcome?: StepAchievement
+      at: string
+    }
   | { type: 'step:fail'; id: StepId; reason: string; at: string }
   /**
    * Etapa que não rodou e NÃO é falha — robots proibiu, fase não cobre.
@@ -105,6 +136,10 @@ export interface LiveState {
     label: string
     status: 'running' | 'done' | 'failed' | 'skipped'
     detail?: string
+    /* Também no ESTADO, e não só no evento: quem recarrega a página recebe o
+       estado, e sem isto uma etapa que não confirmou voltaria com o certinho
+       preto — o defeito inteiro, de volta pela porta da reconexão. */
+    outcome?: StepAchievement
     startedAt?: string
     finishedAt?: string
   }>

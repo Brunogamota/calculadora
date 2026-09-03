@@ -10,7 +10,7 @@
  * pagar por isso.
  */
 
-import type { AuditEvent, LiveState, StepId } from '@raio-x/types'
+import type { AuditEvent, LiveState, StepAchievement, StepId } from '@raio-x/types'
 import { STEP_LABELS } from '@raio-x/types'
 
 export interface Publisher {
@@ -91,17 +91,26 @@ export class MemoryPublisher implements Publisher {
     return fresh
   }
 
-  #setStep(auditId: string, id: StepId, status: StepStatus, detail: string | undefined, at: string): void {
+  #setStep(
+    auditId: string,
+    id: StepId,
+    status: StepStatus,
+    detail: string | undefined,
+    at: string,
+    outcome?: StepAchievement,
+  ): void {
     const state = this.#stateFor(auditId)
     const existing = state.steps.find((s) => s.id === id)
     if (existing) {
       existing.status = status
       if (detail !== undefined) existing.detail = detail
+      if (outcome !== undefined) existing.outcome = outcome
       if (status !== 'running') existing.finishedAt = at
       return
     }
     const step: LiveState['steps'][number] = { id, label: STEP_LABELS[id], status }
     if (detail !== undefined) step.detail = detail
+    if (outcome !== undefined) step.outcome = outcome
     if (status === 'running') step.startedAt = at
     else step.finishedAt = at
     state.steps.push(step)
@@ -113,7 +122,7 @@ export class MemoryPublisher implements Publisher {
         this.#setStep(auditId, event.id, 'running', undefined, event.at)
         break
       case 'step:done':
-        this.#setStep(auditId, event.id, 'done', event.detail, event.at)
+        this.#setStep(auditId, event.id, 'done', event.detail, event.at, event.outcome)
         break
       case 'step:fail':
         this.#setStep(auditId, event.id, 'failed', event.reason, event.at)

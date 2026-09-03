@@ -14,7 +14,7 @@ import { adapterFor } from './platforms/index.ts'
 import { describeIdentity, loadDotEnv, loadIdentity, type AuditIdentity } from './lib/identity.ts'
 import { checkCooldown, readLedger, recordAudit, cooldownHours } from './lib/cooldown.ts'
 import { runChecks, type ChecksReport } from './checks/index.ts'
-import type { Coverage } from '@raio-x/types'
+import type { Coverage, StepAchievement } from '@raio-x/types'
 import { observacaoDoCheckout } from './checks/types.ts'
 import { NullPublisher, type Publisher } from './stream/publisher.ts'
 import { Reporter } from './stream/reporter.ts'
@@ -624,11 +624,8 @@ async function runAudit(
   try {
     cart = await journey.addToCart(ctx, product)
     result.cart = cart
-    reporter.done(
-      'add-to-cart',
-      cart.itemCount === null ? 'clique feito, confirmação indisponível' : `${cart.itemCount} item no carrinho`,
-      cart.overlay.present ? null : null,
-    )
+    const doCarrinho = desfechoDoCarrinho(cart)
+    reporter.done('add-to-cart', doCarrinho.detalhe, null, doCarrinho.outcome)
     // §7.3: achado durante a execução, não só no fim.
     if (cart.overlay.present && !cart.overlay.dismissed && !cart.overlay.likelyAuditArtifact) {
       reporter.finding('BUY_BUTTON_OBSCURED', 'alta', 'Botão de comprar coberto por sobreposição')
@@ -729,7 +726,18 @@ async function runAudit(
     try {
       const checkout = await journey.reachCheckout(ctx, cart)
       result.checkout = checkout
-      reporter.done('reach-checkout', `${checkout.stepsFromProduct} passo(s) do produto`)
+      /* Chegar no /checkout não é a mesma coisa que chegar na TELA DE
+         PAGAMENTO, e era a segunda que o certinho prometia. Na auditoria da
+         allbirds o checkout abriu em branco — carrinho vazio — e o painel
+         marcou "indo pro checkout ✓" por cima daquilo. */
+      reporter.done(
+        'reach-checkout',
+        checkout.reachedPaymentScreen
+          ? `${checkout.stepsFromProduct} passo(s) do produto`
+          : 'o checkout abriu, mas a tela de pagamento não foi alcançada',
+        null,
+        checkout.reachedPaymentScreen ? 'confirmed' : 'not_achieved',
+      )
       await reporter.pace()
 
       if (!checkout.reachedPaymentScreen) {
@@ -854,6 +862,38 @@ function makeJourneyContext(
  * mostra. Antes disso a tela decidia sozinha o que dizer — e dizia a manchete
  * do desenho.
  */
+/**
+ * O que o painel deve mostrar na etapa do carrinho — e por quê.
+ *
+ * A etapa TERMINOU nos quatro casos; o que muda é o que ela conseguiu, e essa
+ * distinção existia no motor (`AddToCartResult.ok` é `true | false | null`) e
+ * morria antes da tela. Numa auditoria real da allbirds a gaveta dizia "Your
+ * cart is empty" e o painel mostrava "adicionando ao carrinho ✓ 9.7s".
+ *
+ * `lojaSemCarrinho` é sucesso, não falha: o item entrou direto no checkout ou
+ * no resumo do pedido, e isso é uma jornada mais curta — um toque a menos até
+ * pagar. Marcar aquilo como "não conseguiu" seria acusar a loja de ter feito
+ * melhor.
+ */
+function desfechoDoCarrinho(cart: AddToCartResult): { detalhe: string; outcome: StepAchievement } {
+  if (cart.lojaSemCarrinho) {
+    const onde = cart.ondeEntrou === 'checkout' ? 'a tela de checkout' : 'o resumo do pedido'
+    return { detalhe: `esta loja não tem etapa de carrinho: o item foi direto para ${onde}`, outcome: 'confirmed' }
+  }
+  if (cart.ok === false) {
+    return { detalhe: 'o item não apareceu no carrinho', outcome: 'not_achieved' }
+  }
+  if (cart.ok === null) {
+    /* Curto de propósito: quem lê o painel é lojista. O `cartReadNote` inteiro
+       — que traz as duas leituras do carrinho, antes e depois, com o código
+       HTTP de cada tentativa — continua indo no JSON e na evidência, que é
+       onde ele serve. Na tela, ele virava um parágrafo de log. */
+    return { detalhe: 'clique feito, e o carrinho não respondeu para confirmar', outcome: 'unconfirmed' }
+  }
+  const quantos = cart.itemCount === null ? 'item' : `${cart.itemCount} item`
+  return { detalhe: `${quantos} no carrinho`, outcome: 'confirmed' }
+}
+
 function paraCobertura(checks: ChecksReport | null | undefined): Coverage | undefined {
   if (!checks) return undefined
   return {
