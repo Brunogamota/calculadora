@@ -161,10 +161,13 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
      lança no meio da jornada é justamente a que mais precisa deixar rastro. */
   const slot: {
     browser: BrowserSession | null
-    cast: Screencast | null
+    /* A PROMESSA da captura, não a captura pronta: ela sobe em paralelo com a
+       navegação, e uma auditoria curta pode acabar antes de ela resolver.
+       Guardar só o objeto deixava a captura viva quando isso acontecia. */
+    castSubindo: Promise<Screencast | null> | null
     evidencia: Record<string, unknown> | null
     hostname: string | null
-  } = { browser: null, cast: null, evidencia: null, hostname: null }
+  } = { browser: null, castSubindo: null, evidencia: null, hostname: null }
   const reporter = new Reporter(
     options.publisher ?? new NullPublisher(),
     options.auditId ?? `audit_${Math.random().toString(36).slice(2, 10)}`,
@@ -350,7 +353,8 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
        existia registro nenhum de quantos frames o Chrome ofereceu, quantos
        foram publicados, quantos o teto de fps comeu, e se algum ack falhou.
        Sem isso, "a tela não funciona" não tinha como virar diagnóstico. */
-    const capturaStats = await slot.cast?.stop().catch(() => undefined)
+    const cast = slot.castSubindo === null ? null : await slot.castSubindo.catch(() => null)
+    const capturaStats = await cast?.stop().catch(() => undefined)
     if (capturaStats) {
       const s = capturaStats
       console.error(
@@ -358,6 +362,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
           `em ${(s.durationMs / 1000).toFixed(1)}s (${s.fps} fps) · ` +
           `${s.framesHeartbeat} buscados por batimento · ` +
           `${s.framesThrottled} cortados pelo teto de fps · ${s.framesDropped} tardios · ` +
+          `${s.framesAntesDeNavegar} antes de navegar · ` +
           `${s.ackFailures} falhas de ack · ${Math.round(s.bytesTotal / 1024)} KB`,
       )
     }
@@ -398,7 +403,7 @@ async function runAudit(
   deps: ReturnType<typeof createDeps>,
   slot: {
     browser: BrowserSession | null
-    cast: Screencast | null
+    castSubindo: Promise<Screencast | null> | null
     evidencia: Record<string, unknown> | null
     hostname: string | null
   },
@@ -411,23 +416,30 @@ async function runAudit(
   /* O `ownerVerified` que chega no portão sai do MODO, e não de uma opção
      separada que alguém pudesse passar sozinha. Duas fontes para a mesma
      decisão é como se abre a porta sem querer. */
+  /**
+   * §7.1: a transmissão começa assim que há PÁGINA — não quando o `prepare`
+   * inteiro termina.
+   *
+   * O comentário aqui já prometia isso e o código não entregava: o
+   * `startScreencast` só rodava depois do `await prepare(...)`, que inclui
+   * carregar a home e detectar a plataforma. Medido numa auditoria local, o
+   * primeiro frame chegava 72ms DEPOIS do fim do `identify` — e na allbirds o
+   * `identify` levou 4,5s de tela preta.
+   *
+   * Começa aqui e não espera: a captura sobe em paralelo com a navegação, que
+   * é exatamente o que o espectador quer ver acontecendo.
+   */
+  const querTransmitir = options.screencast ?? options.publisher !== undefined
   const prepared = await prepare(
     input,
     { ...options, ownerVerified: options.modo === 'consentido' },
     deps,
     (b) => {
       slot.browser = b
+      if (!querTransmitir || !options.publisher) return
+      slot.castSubindo = startScreencast(b.page, options.publisher, reporter.auditId).catch(() => null)
     },
   )
-
-  // §7.1: a transmissão começa assim que há página, para o espectador ver a
-  // loja abrindo — e não uma tela preta até o primeiro passo terminar.
-  const querTransmitir = options.screencast ?? options.publisher !== undefined
-  if (querTransmitir && options.publisher) {
-    slot.cast = await startScreencast(prepared.browser.page, options.publisher, reporter.auditId).catch(
-      () => null,
-    )
-  }
 
   const pre: PreflightOk = prepared.preflight
   const hostname = new URL(prepared.probe.baseUrl).hostname

@@ -48,6 +48,15 @@ export interface ScreencastStats {
   framesPublished: number
   /** Frames que o motor foi buscar porque a página não repintava. */
   framesHeartbeat: number
+  /**
+   * Frames descartados porque a página ainda era `about:blank`.
+   *
+   * A captura passou a começar no instante em que o navegador nasce, para o
+   * espectador ver a loja carregando. Entre esse instante e a navegação a
+   * página é branca, e publicar aquilo trocaria o esqueleto de espera — que é
+   * honesto — por um retângulo vazio que parece defeito.
+   */
+  framesAntesDeNavegar: number
   /** Frames recebidos e ACKADOS, mas não publicados por causa do teto de fps. */
   framesThrottled: number
   framesDropped: number
@@ -87,6 +96,7 @@ export async function startScreencast(
   let framesReceived = 0
   let framesPublished = 0
   let framesHeartbeat = 0
+  let framesAntesDeNavegar = 0
   let framesThrottled = 0
   let framesDropped = 0
   let lastPublishedAt = 0
@@ -94,6 +104,13 @@ export async function startScreencast(
   let bytesTotal = 0
   let ackFailures = 0
   let stopped = false
+
+  /* `page.url()` é síncrono e lê o que já está em memória. `about:blank` é o
+     endereço do navegador recém-aberto, antes de qualquer navegação. */
+  const aindaEmBranco = (): boolean => {
+    const url = page.url()
+    return url === '' || url === 'about:blank'
+  }
 
   const client = await page.context().newCDPSession(page)
 
@@ -103,6 +120,7 @@ export async function startScreencast(
       framesReceived,
       framesPublished,
       framesHeartbeat,
+      framesAntesDeNavegar,
       framesThrottled,
       framesDropped,
       bytesTotal,
@@ -124,6 +142,10 @@ export async function startScreencast(
     try {
       if (stopped) {
         framesDropped++
+      } else if (aindaEmBranco()) {
+        // Descartado, e ACKADO logo abaixo como qualquer outro: sem o ack o
+        // Chrome emudece e a captura inteira morre.
+        framesAntesDeNavegar++
       } else if (cedoDemais) {
         // Descartado pelo teto de fps — mas ainda assim ACKADO logo abaixo,
         // senão o Chrome emudece e a captura inteira morre.
@@ -171,6 +193,7 @@ export async function startScreencast(
     let ocupado = false
     batimento = setInterval(() => {
       if (stopped || ocupado) return
+      if (aindaEmBranco()) return
       if (Date.now() - lastPublishedAt < settings.heartbeatMs) return
       ocupado = true
       void page

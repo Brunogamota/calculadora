@@ -175,6 +175,39 @@ async function main(): Promise<number> {
   const painel = await browser.newPage({ viewport: { width: 1400, height: 1200 } })
   await painel.route('**://fonts.googleapis.com/**', (r) => r.abort())
   await painel.route('**://fonts.gstatic.com/**', (r) => r.abort())
+  /* Terceira cena, na mesma auditoria: QUANDO a imagem começa.
+     A captura só subia depois do `prepare` inteiro — home carregada e
+     plataforma detectada —, então o primeiro frame chegava 72ms DEPOIS do fim
+     do `identify` e o espectador olhava para o esqueleto durante os 4,5s que
+     aquela etapa levou na allbirds. Agora ela começa quando o navegador
+     nasce, e o primeiro frame tem que chegar ANTES de o `identify` acabar.
+     Vai como texto pelo mesmo motivo do outro: o esbuild embrulha função. */
+  await painel.addInitScript({
+    content: `(() => {
+      window.__t = { primeiroFrame: null, identifyFim: null, emBranco: 0 };
+      const Original = window.WebSocket;
+      const Espiao = function (...args) {
+        const ws = new Original(...args);
+        ws.addEventListener('message', (m) => {
+          let ev = null;
+          try { ev = JSON.parse(String(m.data)); } catch (e) { return; }
+          if (ev.type === 'frame') {
+            if (window.__t.primeiroFrame === null) window.__t.primeiroFrame = Date.now();
+            /* Frame de página em branco: o navegador já existe e ainda não
+               navegou. Publicar aquilo troca o esqueleto honesto por um
+               retângulo vazio que parece defeito. */
+            if (ev.url === 'about:blank' || ev.url === '') window.__t.emBranco++;
+          }
+          if (ev.type === 'step:done' && ev.id === 'identify' && window.__t.identifyFim === null) {
+            window.__t.identifyFim = Date.now();
+          }
+        });
+        return ws;
+      };
+      Espiao.prototype = Original.prototype;
+      window.WebSocket = Espiao;
+    })()`,
+  })
   await painel.goto(`http://localhost:${PORTA_SITE}/`, { waitUntil: 'domcontentloaded' })
   await painel.fill('input[aria-label="endereço da sua loja"]', lojaIlegivel.url)
   const aceite2 = painel.locator('input[type="checkbox"]').first()
@@ -203,7 +236,29 @@ async function main(): Promise<number> {
     if (await painel.evaluate(() => document.querySelector('.resultado') !== null).catch(() => false)) break
     await painel.waitForTimeout(150)
   }
+  /* A cena do tempo precisa da auditoria inteira, então espera o relatório. */
+  await painel.waitForSelector('.resultado', { timeout: 180_000 }).catch(() => undefined)
+  const tempos = await painel
+    .evaluate(() => (window as unknown as { __t?: { primeiroFrame: number | null; identifyFim: number | null; emBranco: number } }).__t)
+    .catch(() => undefined)
   await lojaIlegivel.close()
+
+  if (!tempos || tempos.primeiroFrame === null || tempos.identifyFim === null) {
+    problemas.push('não consegui medir o primeiro frame — o roteiro não testou o tempo de imagem')
+  } else {
+    const antes = tempos.identifyFim - tempos.primeiroFrame
+    if (antes <= 0) {
+      problemas.push(
+        `a imagem só começou ${-antes}ms DEPOIS de o \`identify\` terminar — o espectador olhou para o esqueleto essa etapa inteira`,
+      )
+    }
+    if (tempos.emBranco > 0) {
+      problemas.push(`${tempos.emBranco} frame(s) publicados com a página ainda em branco`)
+    }
+    if (problemas.length === 0) {
+      console.log(`  imagem: primeiro frame ${antes}ms ANTES do fim do \`identify\` · 0 frames em branco`)
+    }
+  }
 
   if (marcaVista === null) {
     problemas.push('não consegui observar a etapa do carrinho no painel — o roteiro não testou o painel')

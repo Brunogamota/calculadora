@@ -46,10 +46,46 @@ export async function prepare(
   deps: ReturnType<typeof createDeps> = createDeps(),
   onBrowser?: (session: BrowserSession) => void,
 ): Promise<PreparedSession> {
-  const pre = await preflight(input, deps)
-  if (!pre.ok) throw new PreflightRejected(pre as PreflightFailed)
+  /**
+   * O navegador sobe EM PARALELO com o preflight e o robots.
+   *
+   * Medido: `launchBrowser` leva ~1s e é praticamente constante, e essa espera
+   * acontecia depois de toda a rede, em fila. Subindo junto, ela some por
+   * baixo do DNS, do TLS e da busca do robots.txt.
+   *
+   * Subir não é navegar: este navegador não abre endereço nenhum antes de o
+   * preflight e o portão liberarem. O que se ganha é só o tempo de ligar o
+   * Chromium, que não depende de saber para onde ele vai.
+   */
+  const subindo = launchBrowser({
+    headed: options.headed !== false,
+    userAgent: DEFAULT_USER_AGENT,
+    timeoutMs: deps.deadline.clamp(30_000),
+  })
+  /* Marca a promessa como tratada AGORA. Sem isto, um Chromium que falha ao
+     subir enquanto o preflight ainda roda vira rejeição não tratada e derruba
+     o processo — e o `await` lá embaixo continua lançando normalmente. */
+  subindo.catch(() => undefined)
 
-  const policy = await fetchRobots(pre.finalUrl, deps.safeFetch)
+  /* Recusa depois de já ter subido o navegador deixaria um Chromium órfão por
+     auditoria recusada. Toda saída daqui até o `await` passa por este fechamento. */
+  const descartarNavegador = async (): Promise<void> => {
+    await subindo.then((b) => b.close()).catch(() => undefined)
+  }
+
+  const pre = await preflight(input, deps).catch(async (e: unknown) => {
+    await descartarNavegador()
+    throw e
+  })
+  if (!pre.ok) {
+    await descartarNavegador()
+    throw new PreflightRejected(pre as PreflightFailed)
+  }
+
+  const policy = await fetchRobots(pre.finalUrl, deps.safeFetch).catch(async (e: unknown) => {
+    await descartarNavegador()
+    throw e
+  })
   const gate = createRobotsGate(policy, { ownerVerified: options.ownerVerified === true })
 
   // Toda rede a partir daqui passa pelo portão: nada escapa por esquecimento.
@@ -65,16 +101,17 @@ export async function prepare(
 
   const homePermission = gate.check(pre.finalUrl)
   if (!homePermission.allowed) {
+    await descartarNavegador()
     throw new AuditError('ROBOTS_DISALLOWED', `robots.txt proíbe a própria home (${homePermission.path})`, {
       path: homePermission.path,
     })
   }
 
-  const browser = await launchBrowser({
-    headed: options.headed !== false,
-    userAgent: DEFAULT_USER_AGENT,
-    timeoutMs: deps.deadline.clamp(30_000),
-  })
+  const browser = await subindo
+  /* Aqui a página EXISTE, e é daqui que a transmissão começa — não do fim
+     desta função. Antes o `startScreencast` só rodava depois do `prepare`
+     inteiro, então o espectador ficava sem imagem durante a carga da home,
+     que é justamente a parte interessante de assistir. */
   onBrowser?.(browser)
 
   deps.deadline.assertAlive('abertura da home no browser')
