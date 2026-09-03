@@ -16,20 +16,45 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { audit } from '@raio-x/worker/src/audit.ts'
+import { criarPortaria, ipDoPedido, maxSimultaneas } from './portaria.ts'
 import { MemoryPublisher } from '@raio-x/worker/src/stream/publisher.ts'
 import type { AuditEvent } from '@raio-x/types'
 
 const PORT = Number(process.env['PORT'] ?? 4000)
 const bus = new MemoryPublisher()
+const portaria = criarPortaria()
+
+/**
+ * De onde o site pode falar com o motor.
+ *
+ * Era `*` — qualquer página da internet podia disparar auditorias no nosso
+ * servidor a partir do navegador de quem a abrisse. Enquanto isto rodava em
+ * localhost não custava nada; publicado, custa.
+ *
+ * Vazio libera geral, e é o que mantém o desenvolvimento e os roteiros de
+ * verificação funcionando sem configurar nada. Em produção, `RAIO_X_ORIGENS`
+ * traz os domínios do site, separados por vírgula.
+ */
+const ORIGENS = (process.env['RAIO_X_ORIGENS'] ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter((o) => o.length > 0)
+
+function origemPermitida(origem: string | undefined): string {
+  if (ORIGENS.length === 0) return '*'
+  if (origem && ORIGENS.includes(origem)) return origem
+  // Origem desconhecida não recebe permissão: o navegador dela barra a resposta.
+  return ORIGENS[0] as string
+}
 
 /** Auditorias em andamento, para não rodar a mesma duas vezes. */
 const running = new Set<string>()
 
-function json(res: ServerResponse, status: number, body: unknown): void {
+function json(res: ServerResponse, status: number, body: unknown, origem?: string): void {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
-    'access-control-allow-origin': '*',
+    'access-control-allow-origin': origemPermitida(origem),
   })
   res.end(payload)
 }
@@ -60,7 +85,7 @@ const server = createServer((req, res) => {
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': origemPermitida(req.headers.origin),
       'access-control-allow-headers': 'content-type',
       'access-control-allow-methods': 'GET,POST,OPTIONS',
     })
@@ -70,9 +95,17 @@ const server = createServer((req, res) => {
   // §12: POST /api/audit { url } -> { auditId }
   if (req.method === 'POST' && url.pathname === '/api/audit') {
     void (async () => {
+      const origem = req.headers.origin
+      /* A portaria vem ANTES de ler o corpo e antes de qualquer navegador: o
+         objetivo é justamente não pagar o custo do pedido que vai ser
+         recusado. Ver a nota em portaria.ts sobre o que cada limite protege. */
+      const ip = ipDoPedido(req.headers)
+      const naoEntra = portaria.recusa(ip, running.size)
+      if (naoEntra) return json(res, 429, { error: naoEntra }, origem)
+
       const body: Record<string, unknown> = await readBody(req).catch(() => ({}))
       const target = typeof body['url'] === 'string' ? body['url'] : ''
-      if (!target) return json(res, 400, { error: 'informe { "url": "..." }' })
+      if (!target) return json(res, 400, { error: 'informe { "url": "..." }' }, origem)
 
       /* O modo é obrigatório na entrada, e a API recusa antes de abrir
          navegador. Sem isto, quem chamasse a API sem declarar nada cairia no
@@ -84,7 +117,7 @@ const server = createServer((req, res) => {
           error:
             'informe { "modo": "consentido" } quando o responsável pela loja autorizou, ' +
             'ou { "modo": "leitura" } para loja de terceiro. Não há padrão.',
-        })
+        }, origem)
       }
 
       const aceiteBruto = body['aceite']
@@ -95,11 +128,12 @@ const server = createServer((req, res) => {
       if (modo === 'consentido' && aceite === null) {
         return json(res, 400, {
           error: 'modo consentido exige { "aceite": { "em", "url", "texto" } } registrado antes da execução',
-        })
+        }, origem)
       }
 
       const auditId = newAuditId()
-      json(res, 202, { auditId })
+      portaria.registra(ip)
+      json(res, 202, { auditId }, origem)
 
       // A auditoria roda em background; o acompanhamento é pelo WebSocket.
       running.add(auditId)
@@ -116,6 +150,13 @@ const server = createServer((req, res) => {
           : {}),
         publisher: bus,
         auditId,
+        /* NUNCA no caminho público, e escrito de propósito em vez de omitido.
+           `fillCheckout` preenche o checkout com a identidade real do .env —
+           nome, CPF, endereço. Num motor aberto a qualquer um, ligar isto
+           colocaria os dados pessoais do dono do projeto como um checkout
+           abandonado no admin de lojas de estranhos. Estava desligado por
+           esquecimento; agora está desligado por decisão. */
+        fillCheckout: false,
         headed: process.env['AUDIT_HEADED'] === '1',
         /* O atraso existia para dar tempo de ler quando a tela nao tinha
            imagem. Agora o cursor da o ritmo e o screencast mostra o que esta
@@ -138,7 +179,14 @@ const server = createServer((req, res) => {
     return json(res, 200, { ...state, running: running.has(auditId) })
   }
 
-  if (url.pathname === '/health') return json(res, 200, { ok: true, running: running.size })
+  if (url.pathname === '/health') {
+    return json(res, 200, {
+      ok: true,
+      running: running.size,
+      teto: maxSimultaneas(),
+      enderecosNaJanela: portaria.tamanho(),
+    })
+  }
 
   // A tela de execução (bloco 9) é servida daqui quando existir.
   void serveStatic(url.pathname, res)

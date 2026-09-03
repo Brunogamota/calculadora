@@ -1,0 +1,14 @@
+# O que NÃO vai para a imagem do motor.
+node_modules
+**/node_modules
+.git
+apps/web
+out
+dist
+**/dist
+dist-publico
+# .env tem dado pessoal REAL — nome, CPF, endereço. Ele nunca entra numa
+# imagem: imagem vai para registro, registro é copiável, e o caminho público
+# não preenche checkout de qualquer forma (`fillCheckout: false` no server).
+.env
+.env.*
