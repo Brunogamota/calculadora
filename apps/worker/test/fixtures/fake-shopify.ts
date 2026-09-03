@@ -39,18 +39,18 @@ export interface FakeStoreOptions {
    */
   carrinhoIlegivel?: boolean
   /**
-   * A home pinta rápido e só termina de carregar depois de N ms, por causa de
-   * um script no fim do corpo — que é o que toda loja real tem (pixel, chat,
-   * analytics).
+   * A home manda o conteúdo visível na hora e só FECHA a conexão N ms depois.
    *
-   * Existe porque o defeito da captura tardia só DÓI quando existe essa
-   * janela. Contra uma loja local que responde em milissegundos, a primeira
-   * pintura e o fim do `identify` acontecem quase juntos, e qual vem primeiro
-   * depende da velocidade da máquina — foi assim que um teste meu passou aqui
-   * e falhou no Mac do Bruno. Modelar a janela é o que torna a verificação
-   * determinística em vez de sorte.
+   * Nenhuma loja real entrega a página inteira num pacote só, e é essa janela
+   * — entre "já dá para ver alguma coisa" e "terminou de carregar" — que faz a
+   * captura tardia doer.
+   *
+   * Foi um `<script>` no fim do corpo antes. Script sem `async` bloqueia o
+   * parser, então o navegador pode não pintar nada até ele responder, e aí o
+   * que se mede passa a ser a heurística de primeira pintura do Chromium em
+   * vez do defeito. Entregar em pedaços não depende disso.
    */
-  homeScriptDelayMs?: number
+  homeStreamDelayMs?: number
   /**
    * Loja SEM etapa de carrinho: o botão leva direto para o checkout, e
    * /cart.js nunca conta nada. É o formato que reprovava a compra por
@@ -335,20 +335,16 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       if (options.botChallenge) return send(200, 'text/html', CHALLENGE_PAGE)
       return send(200, 'text/html', productPage(path.replace('/products/', ''), options))
     }
-    /* Script lento no fim do corpo: o navegador pinta o conteúdo e só dispara
-       `domcontentloaded` quando ele responde. É a janela em que a transmissão
-       precisa já estar mostrando a loja. */
-    if (path === '/lento.js') {
-      const espera = options.homeScriptDelayMs ?? 0
-      return setTimeout(() => send(200, 'application/javascript', '/* pronto */'), espera)
+    /* Home em pedaços: o visível sai agora, o resto depois. `domcontentloaded`
+       só dispara quando a conexão fecha, e nesse meio-tempo já há loja na
+       tela — que é a janela que a transmissão precisa cobrir. */
+    if (options.homeStreamDelayMs && options.homeStreamDelayMs > 0) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.write('<html><body><h1 style="font-size:64px">Loja Falsa</h1><a href="/cart">carrinho</a>')
+      setTimeout(() => res.end('<p>fim</p></body></html>'), options.homeStreamDelayMs)
+      return
     }
-    const scriptLento =
-      options.homeScriptDelayMs && options.homeScriptDelayMs > 0 ? '<script src="/lento.js"></script>' : ''
-    return send(
-      200,
-      'text/html',
-      `<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a>${scriptLento}</body></html>`,
-    )
+    return send(200, 'text/html', '<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a></body></html>')
   })
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))

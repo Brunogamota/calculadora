@@ -171,13 +171,9 @@ async function main(): Promise<number> {
      painel marcava aquilo com o certinho preto, dizendo "consegui" sobre o que
      o motor sabia não ter confirmado. Só dá para olhar DURANTE a auditoria: a
      tela de execução some quando o relatório chega. */
-  /* `homeScriptDelayMs` porque a cena do TEMPO precisa da janela entre a
-     primeira pintura e o fim do carregamento — a mesma que toda loja real tem
-     por causa de pixel e chat no fim do corpo. Sem ela, contra uma loja local
-     que responde em milissegundos, a ordem dos dois eventos vira sorte da
-     máquina: 804ms de folga aqui, 35ms de atraso no Mac do Bruno, com o mesmo
-     código. Um teste que depende disso não verifica nada. */
-  const lojaIlegivel = await startFakeStore({ carrinhoIlegivel: true, homeScriptDelayMs: 1500 })
+  /* A home entrega em pedaços, como loja real: dá tempo de a transmissão
+     mostrar alguma coisa antes de o carregamento terminar. */
+  const lojaIlegivel = await startFakeStore({ carrinhoIlegivel: true, homeStreamDelayMs: 1500 })
   const painel = await browser.newPage({ viewport: { width: 1400, height: 1200 } })
   await painel.route('**://fonts.googleapis.com/**', (r) => r.abort())
   await painel.route('**://fonts.gstatic.com/**', (r) => r.abort())
@@ -249,20 +245,31 @@ async function main(): Promise<number> {
     .catch(() => undefined)
   await lojaIlegivel.close()
 
-  if (!tempos || tempos.primeiroFrame === null || tempos.identifyFim === null) {
-    problemas.push('não consegui medir o primeiro frame — o roteiro não testou o tempo de imagem')
+  /**
+   * O que se afirma aqui é o que NÃO depende da máquina: a imagem chega, e
+   * nenhum frame sai com a página em branco.
+   *
+   * Havia uma terceira afirmação — "o primeiro frame chega antes de o
+   * `identify` terminar" — e ela foi removida porque não era verificável. O
+   * primeiro frame só existe depois de a loja PINTAR, e isso varia com a
+   * máquina, a versão do Chromium e a loja: a mesma asserção, com o mesmo
+   * código, deu 1470ms de folga aqui e 16ms de atraso no Mac do Bruno. Duas
+   * tentativas de estabilizá-la falharam lá.
+   *
+   * O que a correção mudou de fato — a captura começar quando o navegador
+   * nasce, e não quando o `prepare` acaba — é medido em
+   * `apps/worker/test/e2e/captura-cedo.test.ts`, no relógio do motor, sem
+   * pintura no meio.
+   */
+  if (!tempos || tempos.primeiroFrame === null) {
+    problemas.push('nenhum frame chegou à tela durante a auditoria')
   } else {
-    const antes = tempos.identifyFim - tempos.primeiroFrame
-    if (antes <= 0) {
-      problemas.push(
-        `a imagem só começou ${-antes}ms DEPOIS de o \`identify\` terminar — o espectador olhou para o esqueleto essa etapa inteira`,
-      )
-    }
     if (tempos.emBranco > 0) {
       problemas.push(`${tempos.emBranco} frame(s) publicados com a página ainda em branco`)
     }
     if (problemas.length === 0) {
-      console.log(`  imagem: primeiro frame ${antes}ms ANTES do fim do \`identify\` · 0 frames em branco`)
+      const relativo = tempos.identifyFim === null ? 'sem `identify` para comparar' : `${tempos.identifyFim - tempos.primeiroFrame}ms em relação ao fim do \`identify\` (informativo)`
+      console.log(`  imagem: chegou · 0 frames em branco · ${relativo}`)
     }
   }
 
