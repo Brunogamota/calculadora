@@ -820,11 +820,29 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
     }
   }
 
+  /**
+   * Quem decide que a auditoria acabou é o MOTOR, não o contador de etapas.
+   *
+   * O motor emite `step:done report` e, logo depois, `complete` — dois eventos,
+   * duas renderizações. Enquanto esta tela saía no contador, a primeira já
+   * bastava: o `stage` enchia, a tela navegava, o `Running` desmontava, e o
+   * `complete` chegava para um componente que não existia mais. Nota e
+   * cobertura morriam ali, e a tela de resultado, sem cobertura, caía no ramo
+   * do desenho e mostrava cinco achados inventados sobre a loja auditada.
+   *
+   * É intermitente, que é o pior modo de falhar: medido numa auditoria local,
+   * os dois eventos chegaram no mesmo lote (9316ms) e o relatório saiu certo;
+   * noutra, 22ms os separaram (23604ms e 23626ms) e saiu o desenho. Uma rodada
+   * boa "confirmaria" qualquer correção que não fizesse nada.
+   *
+   * Sem motor, o contador continua mandando: ali ele É a demonstração.
+   */
+  const acabou = temServidor() ? vivo.fim !== null : stage >= steps.length;
   useEffect(() => {
-    if (stage >= steps.length) {
+    if (acabou) {
       onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.gravacao);
     }
-  }, [stage, onComplete, vivo.fim, vivo.gravacao]);
+  }, [acabou, onComplete, vivo.fim, vivo.gravacao]);
 
   /* Só evento do motor muda de tela. Falha nossa fica aqui, dita na linha de
      estado: mandar o usuário para "a loja caiu" seria culpar a loja pelo que
@@ -1267,6 +1285,33 @@ function NadaFalhou({ cobertura }: { cobertura: Cobertura }) {
   );
 }
 
+/**
+ * A auditoria rodou com motor e voltou sem cobertura nenhuma.
+ *
+ * Existe porque o espaço em branco tem que ser preenchido com a verdade, e a
+ * alternativa que estava no lugar era preenchê-lo com o desenho. Não há nota,
+ * não há achado, e dizer isso é o resultado — não a falta dele.
+ */
+function SemMedida() {
+  return (
+    <section className="achado-aberto">
+      <div className="achado-meta">
+        <span className="severity atencao">Sem medição</span>
+      </div>
+      <h2>A auditoria não conseguiu medir esta loja.</h2>
+      <p className="fraco">
+        O robô abriu a loja, mas não reuniu o suficiente para montar um relatório — normalmente
+        porque não conseguiu colocar um item no carrinho. Isso é limitação nossa, não defeito do seu
+        checkout.
+      </p>
+      <p className="fraco">
+        Por isso não há nota nem achado nesta tela. Preferimos não mostrar nada a mostrar número que
+        ninguém mediu.
+      </p>
+    </section>
+  );
+}
+
 /** "2 críticos · 1 de atenção", contado do que existe — não do desenho. */
 function contarPorGravidade(achados: AchadoReal[]): string {
   const criticos = achados.filter((a) => paraSeveridade(a.severity) === "crítico").length;
@@ -1371,6 +1416,13 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onR
                 </section>
               ))}
           </>
+        ) : !emDemonstracao() ? (
+          /* Motor ligado e sem cobertura: a auditoria rodou e não mediu o
+             suficiente. O que cabe aqui é dizer isso. O ramo do desenho, logo
+             abaixo, existe só para a página SEM motor — e foi por ele que a
+             auditoria da allbirds saiu com cinco achados críticos e um print
+             de "Sérum de vitamina C 30ml" sobre o endereço real da loja. */
+          <SemMedida />
         ) : (
           <>
             <section className="achado-aberto">

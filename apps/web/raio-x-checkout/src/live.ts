@@ -287,7 +287,18 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         }
       };
       ws.onopen = () => { if (vivo) setEstado((e) => ({ ...e, aoVivo: true })); };
-      ws.onclose = () => { if (vivo) setEstado((e) => ({ ...e, aoVivo: false })); };
+      /* Agora que a tela só sai da execução com `fim`, uma ligação que cai sem
+         `complete` nem `aborted` deixaria a pessoa presa no relógio girando
+         para sempre. Cair antes do fim é falha NOSSA, e é dita como tal —
+         travar em silêncio seria só um jeito mais lento de mentir. */
+      ws.onclose = () => {
+        if (!vivo) return;
+        setEstado((e) =>
+          e.fim || e.abortado
+            ? { ...e, aoVivo: false }
+            : { ...e, aoVivo: false, falhaNossa: { reason: "a transmissão caiu antes de o motor dizer que terminou" } },
+        );
+      };
       ws.onerror = () => {
         if (vivo) setEstado((e) => ({ ...e, falhaNossa: { reason: "a transmissão caiu antes de terminar" } }));
       };

@@ -30,7 +30,8 @@
     "publico": "tsx apps/realtime/scripts/publico.ts",
     "dev": "npm --prefix apps/web/raio-x-checkout run dev",
     "diagnostico": "tsx apps/worker/scripts/diagnostico.ts",
-    "conferir": "tsx apps/worker/scripts/conferir.ts"
+    "conferir": "tsx apps/worker/scripts/conferir.ts",
+    "conferir:tela": "tsx apps/realtime/scripts/conferir-tela.ts"
   },
   "dependencies": {
     "playwright": "1.56.0",
