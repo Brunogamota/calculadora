@@ -342,9 +342,24 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
       timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
     }
   } finally {
-    // O screencast para ANTES do browser fechar: parar depois lança contra uma
-    // sessão CDP já morta, e o erro esconderia o resultado da auditoria.
-    await slot.cast?.stop().catch(() => undefined)
+    /* O screencast para ANTES do browser fechar: parar depois lança contra uma
+       sessão CDP já morta, e o erro esconderia o resultado da auditoria.
+       
+       E as estatísticas da captura SAEM no log. Elas já eram calculadas e eram
+       descartadas aqui — então, quando a tela ao vivo ficava congelada, não
+       existia registro nenhum de quantos frames o Chrome ofereceu, quantos
+       foram publicados, quantos o teto de fps comeu, e se algum ack falhou.
+       Sem isso, "a tela não funciona" não tinha como virar diagnóstico. */
+    const capturaStats = await slot.cast?.stop().catch(() => undefined)
+    if (capturaStats) {
+      const s = capturaStats
+      console.error(
+        `[raio-x] captura: ${s.framesPublished} publicados de ${s.framesReceived} recebidos ` +
+          `em ${(s.durationMs / 1000).toFixed(1)}s (${s.fps} fps) · ` +
+          `${s.framesThrottled} cortados pelo teto de fps · ${s.framesDropped} tardios · ` +
+          `${s.ackFailures} falhas de ack · ${Math.round(s.bytesTotal / 1024)} KB`,
+      )
+    }
     await slot.browser?.close()
 
     /* A evidência da compra vai para o disco AQUI, e não lá dentro: este
