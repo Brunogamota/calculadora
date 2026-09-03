@@ -686,7 +686,7 @@ async function runAudit(
        é este arquivo. São OBSERVAÇÃO e não achado: sobreposição na entrada não
        está entre as 13 checagens da §8, e criar uma 14ª em silêncio mudaria o
        significado da nota, que é normalizada pelas aplicáveis. */
-    for (const chave of ['nota:overlay-carrinho'] as const) {
+    for (const chave of ['nota:so-digital', 'nota:overlay-carrinho'] as const) {
       const nota = ctx.scratch.get(chave)
       if (typeof nota === 'string' && nota.length > 0) result.storefrontNotes.push(nota)
     }

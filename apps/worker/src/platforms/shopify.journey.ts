@@ -47,6 +47,15 @@ interface ShopifyVariant {
   title: string
   available: boolean
   price: string
+  /**
+   * O item tem entrega física. Vem no `/products.json` público do Shopify.
+   *
+   * `false` marca seguro de devolução, garantia estendida, proteção de envio,
+   * curso, ebook — coisas que ENTRAM no carrinho e não passam por frete.
+   * Opcional porque tema ou app podem omitir, e ausência de dado não pode
+   * virar veredito: sem o campo, o produto continua candidato.
+   */
+  requires_shipping?: boolean
 }
 
 interface ShopifyProduct {
@@ -80,7 +89,14 @@ export interface ProductPick {
   product: ShopifyProduct
   variant: ShopifyVariant
   /** Quantos produtos foram descartados e por quê — evidência, não silêncio. */
-  skipped: { unavailable: number; giftCard: number; zeroPrice: number }
+  skipped: { unavailable: number; giftCard: number; zeroPrice: number; semFrete: number }
+  /**
+   * A loja só tem itens sem entrega física, e a jornada usou um deles.
+   *
+   * Não é falha: loja de curso e de ebook é assim. Mas muda o que a auditoria
+   * mede — não há etapa de frete —, e quem lê o relatório precisa saber disso.
+   */
+  soDigital: boolean
 }
 
 /**
@@ -90,8 +106,14 @@ export interface ProductPick {
  * vez de medir o checkout.
  */
 export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
-  const skipped = { unavailable: 0, giftCard: 0, zeroPrice: 0 }
-  const candidates: Array<{ product: ShopifyProduct; variant: ShopifyVariant; complex: boolean; cents: number }> = []
+  const skipped = { unavailable: 0, giftCard: 0, zeroPrice: 0, semFrete: 0 }
+  const candidates: Array<{
+    product: ShopifyProduct
+    variant: ShopifyVariant
+    complex: boolean
+    cents: number
+    temFrete: boolean
+  }> = []
 
   for (const product of products) {
     if (GIFT_CARD.test(product.title) || GIFT_CARD.test(product.product_type ?? '')) {
@@ -119,13 +141,34 @@ export function pickProduct(products: ShopifyProduct[]): ProductPick | null {
       complex: requiresVariantChoice(product),
       // Preço ilegível vai para o fim da fila em vez de virar zero.
       cents: cents ?? Number.MAX_SAFE_INTEGER,
+      /* Só `false` explícito conta como "não tem frete". `undefined` é dado
+         ausente, e ausência de dado não exclui ninguém. */
+      temFrete: variant.requires_shipping !== false,
     })
   }
 
   if (candidates.length === 0) return null
-  candidates.sort((a, b) => Number(a.complex) - Number(b.complex) || a.cents - b.cents)
-  const best = candidates[0]!
-  return { product: best.product, variant: best.variant, skipped }
+
+  /* Item sem entrega física fica FORA, pelo mesmo motivo já escrito para o
+     vale-presente logo acima: distorce a jornada de checkout, porque tira a
+     etapa de frete do meio — e frete é uma das coisas que a auditoria mede.
+     
+     Foi assim que a auditoria da allbirds escolheu "Free Returns Coverage",
+     um seguro de devolução: "mais barato" elege o add-on todas as vezes, e o
+     checkout que se abriu depois não representava compra nenhuma.
+     
+     Mas a exclusão NÃO pode ser absoluta: loja de curso e de ebook só tem
+     item sem frete, e recusá-la inteira seria trocar um resultado errado por
+     nenhum resultado. Quando não sobra nada com frete, a jornada segue com o
+     que há e o relatório diz que aquela loja não tem etapa de frete. */
+  const comFrete = candidates.filter((c) => c.temFrete)
+  const soDigital = comFrete.length === 0
+  const elegiveis = soDigital ? candidates : comFrete
+  skipped.semFrete = soDigital ? 0 : candidates.length - comFrete.length
+
+  elegiveis.sort((a, b) => Number(a.complex) - Number(b.complex) || a.cents - b.cents)
+  const best = elegiveis[0]!
+  return { product: best.product, variant: best.variant, skipped, soDigital }
 }
 
 /**
@@ -412,6 +455,18 @@ export const shopifyJourney: JourneyDriver = {
       throw new AuditError('CATALOG_EMPTY', 'nenhum produto disponível no catálogo', {
         total: products.length,
       })
+    }
+
+    /* Loja só de itens sem entrega física — curso, ebook, assinatura. Não é
+       falha, é fato sobre a LOJA, e muda o que a auditoria mede: não há etapa
+       de frete para percorrer nem para medir. Vai como observação, do mesmo
+       jeito que "esta loja não tem etapa de carrinho". */
+    if (pick.soDigital) {
+      ctx.scratch.set(
+        'nota:so-digital',
+        'Esta loja vende só itens sem entrega física (curso, assinatura ou similar). ' +
+          'A auditoria seguiu com um deles, e por isso não há etapa de frete no que foi medido.',
+      )
     }
 
     const productUrl = new URL(

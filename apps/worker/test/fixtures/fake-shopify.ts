@@ -63,6 +63,13 @@ export interface FakeStoreOptions {
    */
   homeStreamDelayMs?: number
   /**
+   * Catálogo com um add-on sem entrega física, mais barato que tudo.
+   * É o "Free Returns Coverage" da allbirds.
+   */
+  protecaoDeEnvio?: boolean
+  /** Catálogo só de itens sem frete: curso e ebook. */
+  soDigital?: boolean
+  /**
    * Loja SEM etapa de carrinho: o botão leva direto para o checkout, e
    * /cart.js nunca conta nada. É o formato que reprovava a compra por
    * procurar uma confirmação que naquela loja jamais apareceria.
@@ -92,21 +99,79 @@ const PRODUCTS = [
   { handle: 'meia-esgotada', title: 'Meia Esgotada', price: '19.90', id: 333, available: false },
 ]
 
-function productsJson(includeZero: boolean): string {
+function productsJson(
+  includeZero: boolean,
+  opcoes?: { protecaoDeEnvio?: boolean; soDigital?: boolean },
+): string {
   const list = PRODUCTS.map((p) => ({
     handle: p.handle,
     title: p.title,
     product_type: 'Vestuário',
     options: [{ name: 'Title', values: ['Default Title'] }],
-    variants: [{ id: p.id, title: 'Default Title', available: p.available, price: p.price }],
+    variants: [
+      {
+        id: p.id,
+        title: 'Default Title',
+        available: p.available,
+        price: p.price,
+        // Produto físico normal. O Shopify manda este campo no products.json.
+        requires_shipping: true,
+      },
+    ],
   }))
+  /* Add-on sem entrega física, e o mais barato do catálogo — que é o que faz
+     "mais barato" elegê-lo. É o caso da allbirds: a auditoria escolheu "Free
+     Returns Coverage", um seguro de devolução, e abriu um checkout que não
+     representava compra nenhuma. */
+  if (opcoes?.protecaoDeEnvio) {
+    list.unshift({
+      handle: 'protecao-de-envio',
+      title: 'Proteção de Envio',
+      product_type: 'Serviço',
+      options: [{ name: 'Title', values: ['Default Title'] }],
+      variants: [
+        { id: 777, title: 'Default Title', available: true, price: '4.90', requires_shipping: false },
+      ],
+    })
+  }
+  /* Loja 100% digital: curso e ebook, nada com frete. Recusá-la inteira seria
+     trocar resultado errado por nenhum resultado. */
+  if (opcoes?.soDigital) {
+    return JSON.stringify({
+      products: [
+        {
+          handle: 'curso-de-marketing',
+          title: 'Curso de Marketing',
+          product_type: 'Curso',
+          options: [{ name: 'Title', values: ['Default Title'] }],
+          variants: [
+            { id: 881, title: 'Default Title', available: true, price: '297.00', requires_shipping: false },
+          ],
+        },
+        {
+          handle: 'ebook-vendas',
+          title: 'Ebook de Vendas',
+          product_type: 'Ebook',
+          options: [{ name: 'Title', values: ['Default Title'] }],
+          variants: [
+            { id: 882, title: 'Default Title', available: true, price: '47.00', requires_shipping: false },
+          ],
+        },
+      ],
+    })
+  }
   if (includeZero) {
     list.unshift({
       handle: 'teste-de-valor-0',
       title: 'Teste de valor 0',
       product_type: 'Teste',
       options: [{ name: 'Title', values: ['Default Title'] }],
-      variants: [{ id: 999, title: 'Default Title', available: true, price: '0.00' }],
+      /* `requires_shipping: true` de propósito: este item existe para o teste
+         do PREÇO ZERO, e deixá-lo sem frete faria a exclusão acontecer pelo
+         motivo errado — o teste passaria medindo outra coisa. */
+      variants: [
+        { id: 999, title: 'Default Title', available: true, price: '0.00', requires_shipping: true },
+      ],
     })
   }
   return JSON.stringify({ products: list })
@@ -299,7 +364,14 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       return send(200, 'text/plain', options.blockCheckout ? 'User-agent: *\nDisallow: /checkout\n' : 'User-agent: *\nDisallow:\n')
     }
     if (path === '/products.json') {
-      return send(200, 'application/json', productsJson(options.includeZeroPriceProduct === true))
+      return send(
+        200,
+        'application/json',
+        productsJson(options.includeZeroPriceProduct === true, {
+          protecaoDeEnvio: options.protecaoDeEnvio === true,
+          soDigital: options.soDigital === true,
+        }),
+      )
     }
     if (path === '/cart.js') {
       // Loja sem etapa de carrinho: o carrinho existe e está sempre vazio.
