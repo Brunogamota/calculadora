@@ -142,6 +142,7 @@ async function main(): Promise<number> {
     texto: document.body.innerText,
     manchete: document.querySelector('.nota-copy h1')?.textContent ?? '',
     temEvidenciaDoDesenho: document.querySelector('.evidencia') !== null,
+    topo: document.querySelector('.resultado-topo .mono')?.textContent ?? '',
     atrasou: (window as unknown as { __atrasou?: boolean }).__atrasou === true,
   }))
   await page.close()
@@ -164,6 +165,14 @@ async function main(): Promise<number> {
   }
   if (!/Verificamos \d+ das \d+ checagens/.test(visto.manchete)) {
     problemas.push(`manchete não é o resumo medido: "${visto.manchete}"`)
+  }
+  /* A data era cravada — "1 de setembro" em toda loja, todo dia, por cima do
+     endereço real de quem foi auditado. A guarda é contra a data de HOJE
+     porque a auditoria acabou de rodar: qualquer outra é data que ninguém
+     mediu. */
+  const hoje = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(new Date())
+  if (!visto.topo.includes(`auditoria de ${hoje}`)) {
+    problemas.push(`a linha de topo não traz a data medida (esperado "${hoje}"): "${visto.topo}"`)
   }
 
   /* Segunda cena: o PAINEL DE ETAPAS. Uma loja cujo `/cart.js` fica ilegível

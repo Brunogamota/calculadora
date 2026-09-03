@@ -136,9 +136,13 @@ describe('MemoryPublisher — estado para quem reconecta (§7.4)', () => {
   test('complete traz nota E ressalva juntas', () => {
     // O número nunca chega na tela sozinho.
     const bus = new MemoryPublisher()
-    bus.publish('a1', { type: 'complete', auditId: 'a1', score: 100, caveat: 'cobre 27% da §8' })
+    const em = new Date().toISOString()
+    bus.publish('a1', { type: 'complete', auditId: 'a1', at: em, score: 100, caveat: 'cobre 27% da §8' })
     const estado = bus.stateOf('a1')!
     assert.equal(estado.finished, true)
+    /* A data vem do MOTOR e fica no estado: a tela trazia "1 de setembro"
+       cravado, a mesma em toda loja e todo dia. */
+    assert.equal(estado.finishedAt, em)
     assert.equal(estado.score, 100)
     assert.match(estado.caveat ?? '', /27%/)
   })

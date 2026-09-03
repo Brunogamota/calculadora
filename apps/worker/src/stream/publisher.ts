@@ -140,6 +140,7 @@ export class MemoryPublisher implements Publisher {
       case 'complete': {
         const state = this.#stateFor(auditId)
         state.finished = true
+        state.finishedAt = event.at
         state.score = event.score
         state.caveat = event.caveat
         if (event.coverage) state.coverage = event.coverage

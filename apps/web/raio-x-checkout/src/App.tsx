@@ -791,7 +791,7 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
+function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, em: string | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null, aceite);
   const simulado = useCronometro(!temServidor());
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
@@ -853,7 +853,7 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
   const acabou = temServidor() ? vivo.fim !== null : stage >= steps.length;
   useEffect(() => {
     if (acabou) {
-      onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.gravacao);
+      onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.fim?.em ?? null, vivo.gravacao);
     }
   }, [acabou, onComplete, vivo.fim, vivo.gravacao]);
 
@@ -1358,10 +1358,25 @@ function TarjaReal({ a }: { a: AchadoReal }) {
   );
 }
 
-function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null; cobertura: Cobertura | null }) {
+/**
+ * A data da auditoria, em português, ou null quando não há data de verdade.
+ *
+ * `null` sai na demonstração, onde não houve medição nenhuma — e ali a linha
+ * mostra só o endereço. Melhor não dizer data do que dizer uma que ninguém
+ * mediu: era exatamente isso que a tela fazia, com "1 de setembro" cravado.
+ */
+function dataDaAuditoria(iso: string | null): string | null {
+  if (!iso) return null;
+  const quando = new Date(iso);
+  if (Number.isNaN(quando.getTime())) return null;
+  return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" }).format(quando);
+}
+
+function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura, em }: { onRestart: () => void; onGravacao: () => void; url: string; nota: number | null; ressalva: string | null; cobertura: Cobertura | null; em: string | null }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState("seu e-mail");
   const host = url || DEMO_STORE;
+  const quando = dataDaAuditoria(em);
   /* Com motor, os achados são os que o motor mediu. Sem motor, são os do
      desenho — e a tela inteira está marcada como demonstração.
      
@@ -1375,7 +1390,12 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura }: { onR
     <main className="resultado">
       <div className="resultado-shell">
         <div className="resultado-topo">
-          <span className="mono">{host} · auditoria de 1 de setembro</span>
+          {/* A data vem do MOTOR, e some quando não há motor.
+              Estava cravada: "auditoria de 1 de setembro" em toda loja, todo
+              dia, por cima do endereço real de quem foi auditado. Data
+              inventada é da mesma família do carrinho inventado — e esta ficava
+              na primeira linha que o lojista lê. */}
+          <span className="mono">{host}{quando ? ` · auditoria de ${quando}` : ""}</span>
           <ShareButton />
         </div>
         <SeloDemonstracao />
@@ -1727,7 +1747,7 @@ function App() {
   /* O registro do aceite, montado no clique. null = auditoria em leitura. */
   const [aceite, setAceite] = useState<Aceite | null>(null);
   /* A nota vem do motor quando ele responde. Sem servidor, a do desenho. */
-  const [resultado, setResultado] = useState<{ nota: number | null; ressalva: string | null; cobertura: Cobertura | null }>({ nota: 61, ressalva: null, cobertura: null });
+  const [resultado, setResultado] = useState<{ nota: number | null; ressalva: string | null; cobertura: Cobertura | null; em: string | null }>({ nota: 61, ressalva: null, cobertura: null, em: null });
 
   const start = (url: string, registro: Aceite | null) => { setStoreUrl(url); setAceite(registro); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
@@ -1742,6 +1762,7 @@ function App() {
     nota: number | null,
     ressalva: string | null,
     cobertura: Cobertura | null,
+    em: string | null,
     frames: { data: string; t: number }[],
   ) => {
     /* Com motor, o que o motor disse — INCLUSIVE nota nula, que é o caso de
@@ -1749,7 +1770,7 @@ function App() {
        estado ficava no 61 do desenho: a tela mostrava a nota de uma loja
        fictícia como se fosse a da loja auditada. Sem motor, o desenho
        continua sendo o desenho. */
-    if (temServidor()) setResultado({ nota, ressalva, cobertura });
+    if (temServidor()) setResultado({ nota, ressalva, cobertura, em });
     setGravacao(frames);
     navigate("result");
   };
@@ -1766,7 +1787,7 @@ function App() {
         /* Nosso: fica na execução, com o motivo do motor dito por extenso. */
         setNossoProblema(reason);
       }} />}
-      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} cobertura={resultado.cobertura} />}
+      {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} cobertura={resultado.cobertura} em={resultado.em} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}

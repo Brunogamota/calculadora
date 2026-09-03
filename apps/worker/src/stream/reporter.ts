@@ -95,7 +95,14 @@ export class Reporter {
   complete(score: number | null, caveat: string | null, coverage?: Coverage): void {
     if (this.#terminou) return
     this.#terminou = true
-    this.#emit({ type: 'complete', auditId: this.#auditId, score, caveat, ...(coverage ? { coverage } : {}) })
+    this.#emit({
+      type: 'complete',
+      auditId: this.#auditId,
+      at: new Date().toISOString(),
+      score,
+      caveat,
+      ...(coverage ? { coverage } : {}),
+    })
   }
 
   /**

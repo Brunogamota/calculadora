@@ -47,7 +47,7 @@ type AuditEvent =
   | { type: "step:skip"; id: StepId; reason: string; at: string }
   | { type: "frame"; data: string; seq: number; url?: string }
   | { type: "finding"; code: string; severity: Severidade; title: string; at: string }
-  | { type: "complete"; auditId: string; score: number | null; caveat: string | null; coverage?: Cobertura }
+  | { type: "complete"; auditId: string; at: string; score: number | null; caveat: string | null; coverage?: Cobertura }
   | { type: "aborted"; auditId: string; code: string; reason: string }
   | { type: "state"; state: EstadoDoServidor };
 
@@ -68,6 +68,7 @@ type EstadoDoServidor = {
   }[];
   findings?: { code: string; severity: Severidade; title: string }[];
   finished?: boolean;
+  finishedAt?: string;
   score?: number | null;
   caveat?: string | null;
   coverage?: Cobertura;
@@ -91,7 +92,10 @@ export type EstadoAoVivo = {
    *  mas dá para saber QUE se perdeu — é o que o campo `seq` existe para dizer. */
   perdidos: number;
   achados: { code: string; severity: Severidade; title: string }[];
-  fim: null | { score: number | null; caveat: string | null; cobertura: Cobertura | null };
+  /** `em` é ISO, do relógio do MOTOR — a data que o relatório afirma precisa
+   *  ser a da medição, não a do navegador de quem assiste. A tela trazia
+   *  "auditoria de 1 de setembro" cravado, igual em toda loja e todo dia. */
+  fim: null | { score: number | null; caveat: string | null; cobertura: Cobertura | null; em: string | null };
   /** A auditoria parou por algo da LOJA: antibot, sessao cortada, prazo. */
   abortado: null | { code: string; reason: string };
   /** NOSSO lado falhou: servidor fora, rede, resposta invalida. Fica separado
@@ -226,7 +230,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
       }
       const fim =
         st.finished && st.score !== undefined
-          ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null }
+          ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null, em: st.finishedAt ?? null }
           : e.fim;
       return { ...e, stage, duracoes, achados, pulados, desfechos, fim };
     };
@@ -278,7 +282,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
           case "complete":
             return {
               ...e,
-              fim: { score: ev.score, caveat: ev.caveat, cobertura: ev.coverage ?? null },
+              fim: { score: ev.score, caveat: ev.caveat, cobertura: ev.coverage ?? null, em: ev.at ?? null },
               stage: STEP_IDS.length,
             };
           case "aborted":

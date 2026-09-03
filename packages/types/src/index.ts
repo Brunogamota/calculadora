@@ -83,6 +83,19 @@ export type AuditEvent =
   | {
       type: 'complete'
       auditId: string
+      /**
+       * Quando a auditoria terminou, em ISO, pelo relógio do MOTOR.
+       *
+       * A tela de resultado trazia "auditoria de 1 de setembro" cravado no
+       * código — a mesma data em toda loja, todo dia. Data inventada em cima do
+       * endereço real da loja é da família das invenções que este projeto
+       * existe para não cometer.
+       *
+       * Do motor e não do navegador: o relógio de quem assiste pode estar em
+       * outro fuso ou simplesmente errado, e a data que o relatório afirma
+       * precisa ser a da medição.
+       */
+      at: string
       score: number | null
       /** A ressalva de cobertura viaja junto: o número nunca chega sozinho. */
       caveat: string | null
@@ -145,6 +158,8 @@ export interface LiveState {
   }>
   findings: Array<{ code: string; severity: Severity; title: string }>
   finished: boolean
+  /** Quando terminou, ISO do relógio do motor. Ver o `at` do `complete`. */
+  finishedAt?: string
   score: number | null
   caveat: string | null
   /* Vai no ESTADO, e não só no evento, porque quem reconecta depois do fim
