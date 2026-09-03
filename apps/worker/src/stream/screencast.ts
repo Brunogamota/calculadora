@@ -29,11 +29,25 @@ export interface ScreencastOptions {
    * espectador. Limitar por tempo é o que respeita o alvo de 5 a 10.
    */
   maxFps?: number
+  /**
+   * Silêncio máximo antes de o motor ir BUSCAR a imagem, em ms. 0 desliga.
+   *
+   * O screencast do Chrome só emite quando a página repinta, e uma auditoria
+   * passa boa parte do tempo lendo tela parada. Medido numa auditoria de 77s:
+   * o último frame chegou aos 28s, e os 49 restantes ficaram sem uma imagem.
+   * O encanamento estava saudável — não havia o que enviar.
+   *
+   * Passado esse silêncio, o motor tira um print ativo e publica. Custo
+   * medido: 34ms de mediana por print, 3,4% de um núcleo a 1/s.
+   */
+  heartbeatMs?: number
 }
 
 export interface ScreencastStats {
   framesReceived: number
   framesPublished: number
+  /** Frames que o motor foi buscar porque a página não repintava. */
+  framesHeartbeat: number
   /** Frames recebidos e ACKADOS, mas não publicados por causa do teto de fps. */
   framesThrottled: number
   framesDropped: number
@@ -55,6 +69,10 @@ const DEFAULTS: Required<ScreencastOptions> = {
   maxHeight: 720,
   everyNthFrame: 2,
   maxFps: 8,
+  /* 1200ms: abaixo disso o print ativo começa a competir com o screencast em
+     página que muda, e acima disso o espectador sente o congelamento. A tela
+     acusa "imagem parada" a partir de 4s, então isto fica bem antes. */
+  heartbeatMs: 1200,
 }
 
 export async function startScreencast(
@@ -68,6 +86,7 @@ export async function startScreencast(
 
   let framesReceived = 0
   let framesPublished = 0
+  let framesHeartbeat = 0
   let framesThrottled = 0
   let framesDropped = 0
   let lastPublishedAt = 0
@@ -83,6 +102,7 @@ export async function startScreencast(
     return {
       framesReceived,
       framesPublished,
+      framesHeartbeat,
       framesThrottled,
       framesDropped,
       bytesTotal,
@@ -134,6 +154,52 @@ export async function startScreencast(
       })
   })
 
+  /**
+   * Vai BUSCAR a imagem quando a página não repinta.
+   *
+   * Este é o coração da correção: o screencast é reativo, e uma jornada de
+   * auditoria é feita de longos trechos em que o robô lê a tela sem mudar
+   * nada. Sem isto, a transmissão simplesmente emudece — e emudecer é
+   * indistinguível de ter quebrado, para quem está olhando.
+   *
+   * O print é tolerante a falha de propósito: durante navegação a página pode
+   * recusar, e um batimento perdido não pode derrubar a captura nem a
+   * auditoria. Perde-se um batimento; o próximo vem.
+   */
+  let batimento: ReturnType<typeof setInterval> | null = null
+  if (settings.heartbeatMs > 0) {
+    let ocupado = false
+    batimento = setInterval(() => {
+      if (stopped || ocupado) return
+      if (Date.now() - lastPublishedAt < settings.heartbeatMs) return
+      ocupado = true
+      void page
+        .screenshot({ type: 'jpeg', quality: settings.quality })
+        .then((buf) => {
+          if (stopped) return
+          const data = buf.toString('base64')
+          bytesTotal += data.length
+          lastPublishedAt = Date.now()
+          framesPublished++
+          framesHeartbeat++
+          publisher.publish(auditId, {
+            type: 'frame',
+            data,
+            seq: framesPublished,
+            url: page.url(),
+          })
+        })
+        .catch(() => {
+          /* Página navegando, fechada ou ocupada: batimento perdido não é
+             falha da auditoria. O próximo tenta de novo. */
+        })
+        .finally(() => {
+          ocupado = false
+        })
+    }, Math.max(200, Math.floor(settings.heartbeatMs / 2)))
+    batimento.unref?.()
+  }
+
   await client.send('Page.startScreencast', {
     format: 'jpeg',
     quality: settings.quality,
@@ -147,6 +213,7 @@ export async function startScreencast(
     async stop(): Promise<ScreencastStats> {
       if (stopped) return snapshot()
       stopped = true
+      if (batimento !== null) clearInterval(batimento)
       // A página pode já ter fechado; parar é melhor esforço.
       await client.send('Page.stopScreencast').catch(() => undefined)
       await client.detach().catch(() => undefined)

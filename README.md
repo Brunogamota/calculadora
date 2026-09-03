@@ -799,6 +799,57 @@ evento no momento em que é detectado, antes de o relatório existir.
 
 ## Bloco 6 — screencast (§7.1)
 
+### O screencast sozinho não sustenta uma tela ao vivo
+
+Três dias de correções na tela em tempo real, e o encanamento estava saudável o
+tempo todo. O protocolo `destravar` isolou a causa em dois ciclos, depois de
+uma coisa que faltava havia semanas: **as estatísticas da captura eram
+calculadas e jogadas fora**. Sem elas, "a tela congelou" não tinha como virar
+diagnóstico.
+
+Com elas, numa auditoria de 77 segundos:
+
+```
+17 publicados de 56 recebidos · 39 cortados pelo teto de fps · 0 falhas de ack
+primeiro frame aos 8s · último aos 28s · fim aos 77s
+```
+
+`0 falhas de ack` matou a suspeita principal: a captura não morre. E os 39
+cortados levaram a uma hipótese errada — que o teto de fps comia a imagem.
+Implementei, medi, e a previsão falhou: segurar o frame da rajada subiu de 17
+para 22, não para 56. Revertido.
+
+O motivo da falha é a causa real. Dentro de uma rajada os frames chegam com
+milissegundos de diferença: são o mesmo instante pintado várias vezes. Os 56
+recebidos são uns 20 momentos. **O `Page.startScreencast` só emite quando a
+página repinta**, e uma auditoria passa a maior parte do tempo lendo tela
+parada — 49 dos 77 segundos sem uma única imagem.
+
+Não é defeito de implementação. É a premissa: uma tela que promete "assista o
+robô ao vivo" não pode depender de um mecanismo que só fala quando a figura
+muda.
+
+### O batimento: ir buscar a imagem quando ela não vem
+
+Passados 1200ms sem publicar nada, o motor tira um print ativo e publica.
+Custo medido antes de implementar: 34ms de mediana por print, 3,4% de um núcleo
+a 1 por segundo.
+
+| | antes | depois |
+|---|---|---|
+| frames numa auditoria de 77s | 17 | **56** |
+| primeiro frame | 8.083ms | **1.677ms** |
+| último frame | 27.983ms | **76.103ms** |
+| janela com imagem | 19,9s de 77s | **74,4s de 77s** |
+| buracos acima de 3s | 3 | **0** |
+| banda | — | ~14 KB/s por espectador |
+
+Na auditoria rápida ele quase não entra: 2 batimentos de 20 frames, e a duração
+não muda. Ele só acorda onde havia silêncio.
+
+O print ativo é tolerante a falha de propósito: durante navegação a página pode
+recusar, e um batimento perdido não derruba a captura nem a auditoria.
+
 ```bash
 npm run screencast                      # loja falsa, sem tocar em site nenhum
 npm run screencast -- --seconds 20 --quality 40 --max-fps 6

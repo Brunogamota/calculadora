@@ -356,6 +356,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
       console.error(
         `[raio-x] captura: ${s.framesPublished} publicados de ${s.framesReceived} recebidos ` +
           `em ${(s.durationMs / 1000).toFixed(1)}s (${s.fps} fps) · ` +
+          `${s.framesHeartbeat} buscados por batimento · ` +
           `${s.framesThrottled} cortados pelo teto de fps · ${s.framesDropped} tardios · ` +
           `${s.ackFailures} falhas de ack · ${Math.round(s.bytesTotal / 1024)} KB`,
       )
