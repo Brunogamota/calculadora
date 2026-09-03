@@ -17,7 +17,18 @@ import type { AddressInfo } from 'node:net'
 
 export interface FakeStoreOptions {
   /** Simula o modal que cobre o botão de comprar. */
-  overlay?: 'none' | 'geo-redirect' | 'consent'
+  overlay?: 'none' | 'geo-redirect' | 'consent' | 'oferta'
+  /**
+   * Sobreposição na ENTRADA da loja e no CARRINHO — não só na página de
+   * produto.
+   *
+   * A fixture só tinha overlay no produto, então a única pergunta exercitada
+   * era "tem algo cobrindo o botão de comprar?". Banner de cookie na entrada e
+   * gaveta no carrinho, que são os casos que o lojista encontra primeiro,
+   * nunca passaram por teste nenhum.
+   */
+  overlayNaHome?: 'geo-redirect' | 'consent' | 'oferta'
+  overlayNoCarrinho?: 'geo-redirect' | 'consent' | 'oferta'
   /** Atrasa a injeção do formulário, para exercitar a espera do DOM. */
   formDelayMs?: number
   /** robots.txt proíbe /checkout. */
@@ -101,18 +112,42 @@ function productsJson(includeZero: boolean): string {
   return JSON.stringify({ products: list })
 }
 
+/* Cada sobreposição FECHA de verdade ao clicar: o script tira o elemento do
+   DOM. Sem isto, `dismissed` nunca sairia true e o teste mediria só a
+   tentativa, não o resultado — o robô "tentou fechar" com o modal ainda na
+   tela, que é exatamente o desfecho que não pode passar por sucesso. */
+const FECHA_AO_CLICAR = (id: string): string =>
+  `<script>
+     (function () {
+       var caixa = document.getElementById('${id}');
+       var botoes = caixa.querySelectorAll('button');
+       for (var i = 0; i < botoes.length; i++) {
+         botoes[i].addEventListener('click', function () { caixa.remove() });
+       }
+     })();
+   </script>`
+
 const OVERLAY_HTML: Record<string, string> = {
   'geo-redirect': `
     <div id="geoModal" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6)">
       <style>#geoModal p{color:#fff}</style>
       <p>Dear customer. We have a dedicated store to serve your region. Would you like to go there?</p>
       <button type="button">Yes</button>
-    </div>`,
+      <button type="button">No, thanks</button>
+    </div>${FECHA_AO_CLICAR('geoModal')}`,
   consent: `
     <div id="cookieBar" role="dialog" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6)">
       <p>Usamos cookies para melhorar sua experiência.</p>
       <button type="button" aria-label="Fechar">Aceitar</button>
-    </div>`,
+    </div>${FECHA_AO_CLICAR('cookieBar')}`,
+  /* Popup de oferta: sem `role`, sem rótulo acessível de fechar, e o botão que
+     recusa diz "Não, obrigado". Só o léxico do DISMISS_TEXT resolve — que é o
+     caso real que o Bruno levantou: "ele precisa identificar o x pra recusar". */
+  oferta: `
+    <div id="promoModal" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6)">
+      <p>Ganhe 10% de desconto! Assine nossa newsletter.</p>
+      <button type="button">Não, obrigado</button>
+    </div>${FECHA_AO_CLICAR('promoModal')}`,
 }
 
 function productPage(handle: string, options: FakeStoreOptions): string {
@@ -299,7 +334,12 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       return send(200, 'application/json', JSON.stringify({ id: 111, quantity: 1 }))
     }
     if (path === '/cart') {
-      return send(200, 'text/html', `<html><body><h1>Carrinho</h1><p>${carts.get(session) ?? 0} item(ns)</p></body></html>`)
+      const sobre = options.overlayNoCarrinho ? (OVERLAY_HTML[options.overlayNoCarrinho] ?? '') : ''
+      return send(
+        200,
+        'text/html',
+        `<html><body><h1>Carrinho</h1><p>${carts.get(session) ?? 0} item(ns)</p>${sobre}</body></html>`,
+      )
     }
     // Página que se mexe sozinha: o screencast só entrega frame quando a tela
     // muda, então medir fps numa página estática mediria zero.
@@ -344,7 +384,12 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       setTimeout(() => res.end('<p>fim</p></body></html>'), options.homeStreamDelayMs)
       return
     }
-    return send(200, 'text/html', '<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a></body></html>')
+    const naHome = options.overlayNaHome ? (OVERLAY_HTML[options.overlayNaHome] ?? '') : ''
+    return send(
+      200,
+      'text/html',
+      `<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a>${naHome}</body></html>`,
+    )
   })
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))

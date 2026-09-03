@@ -37,6 +37,9 @@ import type {
 } from './types.ts'
 import type { BrowserSession } from './lib/browser.ts'
 import { idleCursor } from './journey/cursor.ts'
+import { limparSobreposicao, notaDaSobreposicao } from './journey/overlays.ts'
+import { OVERLAY_DISMISS } from './platforms/shopify.selectors.ts'
+import { assertSafeToClick } from './platforms/shopify.checkout.ts'
 
 export interface AuditOptions extends PrepareOptions {
   /**
@@ -470,6 +473,21 @@ async function runAudit(
     timings: { totalMs: 0, homeLoadMs: prepared.opened.loadMs },
   }
 
+  /* Primeiro dos três momentos em que o comprador topa com sobreposição: a
+     ENTRADA da loja. Antes só se olhava em cima do botão de comprar, na página
+     de produto, então banner de cookie e popup de oferta ficavam na tela a
+     jornada inteira — e loja que trava a interação até aceitar derrubava a
+     auditoria. Aceitar cookie é decisão registrada do Bruno; é o que um
+     comprador faz. */
+  const naEntrada = await limparSobreposicao(
+    prepared.browser.page,
+    OVERLAY_DISMISS,
+    assertSafeToClick,
+    options.fromBrazil === true ? true : null,
+  )
+  const notaEntrada = notaDaSobreposicao(naEntrada, 'Ao abrir a loja,')
+  if (notaEntrada) result.storefrontNotes.push(notaEntrada)
+
   reporter.done(
     'identify',
     `${prepared.decision.evidence.platform} (${prepared.decision.evidence.confidence})`,
@@ -661,6 +679,16 @@ async function runAudit(
       uiPattern: cart.uiPattern,
       cliques: cart.clicks,
       overlay: cart.overlay,
+    }
+
+    /* As sobreposições vistas na página de produto e no carrinho viajam pelo
+       scratch porque quem as encontra é o adaptador, e quem monta o relatório
+       é este arquivo. São OBSERVAÇÃO e não achado: sobreposição na entrada não
+       está entre as 13 checagens da §8, e criar uma 14ª em silêncio mudaria o
+       significado da nota, que é normalizada pelas aplicáveis. */
+    for (const chave of ['nota:overlay-carrinho'] as const) {
+      const nota = ctx.scratch.get(chave)
+      if (typeof nota === 'string' && nota.length > 0) result.storefrontNotes.push(nota)
     }
 
     if (cart.lojaSemCarrinho) {

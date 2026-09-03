@@ -26,8 +26,15 @@ import {
   describeSelector,
 } from './shopify.selectors.ts'
 import { readPageGlobals } from '../lib/browser.ts'
-import { DISMISS_TEXT, classifyOverlay, isLikelyAuditArtifact } from '../journey/overlays.ts'
 import {
+  classifyOverlay,
+  dispensarSobreposicao,
+  isLikelyAuditArtifact,
+  limparSobreposicao,
+  notaDaSobreposicao,
+} from '../journey/overlays.ts'
+import {
+  assertSafeToClick,
   reachCheckout as reachCheckoutImpl,
   collectPayment as collectPaymentImpl,
 } from './shopify.checkout.ts'
@@ -445,6 +452,12 @@ export const shopifyJourney: JourneyDriver = {
     }
 
     await ctx.navigate(product.url, ctx.deadline.clamp(30_000))
+    /* Aqui NÃO entra passagem de limpeza, e a ausência é deliberada.
+       Sobreposição na página de produto é medida logo adiante, pelo bloqueio
+       em cima do BOTÃO DE COMPRAR — e aquilo é achado (`BUY_BUTTON_OBSCURED`),
+       não obstáculo técnico: modal em cima do botão custa venda. Fechar antes
+       de medir apagava o achado. Medir primeiro, fechar depois; quem fecha é a
+       rotina do `addToCart`, que já usa a mesma escada. */
     const productShot = await ctx.recorder.capture(ctx.page, 'produto')
 
     // Antes de procurar qualquer elemento: a loja está nos desafiando?
@@ -661,41 +674,22 @@ export const shopifyJourney: JourneyDriver = {
         overlay.kind = classifyOverlay(blocker.text ?? '')
         overlay.likelyAuditArtifact = isLikelyAuditArtifact(overlay.kind, ctx.auditedFromBrazil)
 
-        // 1. Esc — gesto padrão, não depende de seletor nenhum.
-        overlay.dismissAttempts.push('Escape')
-        await ctx.page.keyboard.press('Escape').catch(() => undefined)
-        await ctx.page.waitForTimeout(400)
-        blocker = await findBlocker(button)
-
-        // 2. Botão de fechar por rótulo acessível.
-        if (blocker) {
-          for (const spec of OVERLAY_DISMISS) {
-            const closer = ctx.page.locator(spec.selector).first()
-            if ((await closer.count()) === 0) continue
-            if (!(await closer.isVisible().catch(() => false))) continue
-            overlay.dismissAttempts.push(spec.id)
-            await closer.click({ timeout: 3000 }).catch(() => undefined)
-            clicks++
-            await ctx.page.waitForTimeout(400)
+        /* A escada mora em journey/overlays.ts porque ela é a mesma usada na
+           entrada da loja e no carrinho. Enquanto estava escrita aqui dentro,
+           só existia para o botão de comprar — e as outras três situações que
+           o lojista vê não tinham quem as fechasse. */
+        const dispensa = await dispensarSobreposicao(
+          ctx.page,
+          async () => {
             blocker = await findBlocker(button)
-            if (!blocker) break
-          }
-        }
-
-        // 3. Botão pelo TEXTO visível — é o que uma pessoa faria ao ver
-        // "continuar neste site". Léxico, não seletor de tema.
-        if (blocker) {
-          const byText = ctx.page.getByRole('button', { name: DISMISS_TEXT }).first()
-          if ((await byText.count()) > 0 && (await byText.isVisible().catch(() => false))) {
-            overlay.dismissAttempts.push('texto-de-fechar')
-            await byText.click({ timeout: 3000 }).catch(() => undefined)
-            clicks++
-            await ctx.page.waitForTimeout(400)
-            blocker = await findBlocker(button)
-          }
-        }
-
-        overlay.dismissed = blocker === null
+            return blocker !== null
+          },
+          OVERLAY_DISMISS,
+          assertSafeToClick,
+        )
+        overlay.dismissAttempts.push(...dispensa.attempts)
+        clicks += dispensa.clicks
+        overlay.dismissed = dispensa.dismissed
         await ctx.recorder.capture(ctx.page, overlay.dismissed ? 'overlay-fechado' : 'overlay-persistente')
       }
     }
@@ -767,6 +761,17 @@ export const shopifyJourney: JourneyDriver = {
     if (ctx.gate.check(cartUrl).allowed) {
       try {
         const nav = await ctx.navigate(cartUrl, ctx.deadline.clamp(20_000))
+        /* Terceiro momento: o CARRINHO. Gaveta e popup de frete grátis vivem
+           aqui, e nenhum deles cobre o botão de comprar da página de produto —
+           que era a única pergunta que a jornada sabia fazer. */
+        const noCarrinho = await limparSobreposicao(
+          ctx.page,
+          OVERLAY_DISMISS,
+          assertSafeToClick,
+          ctx.auditedFromBrazil,
+        )
+        const notaCarrinho = notaDaSobreposicao(noCarrinho, 'No carrinho,')
+        if (notaCarrinho) ctx.scratch.set('nota:overlay-carrinho', notaCarrinho)
         ctx.scratch.set('observation:cart', await observePage(ctx, 'cart', nav.loadMs))
         await ctx.recorder.capture(ctx.page, 'pagina-carrinho')
       } catch {
