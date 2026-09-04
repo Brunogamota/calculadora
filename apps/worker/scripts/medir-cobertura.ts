@@ -39,6 +39,22 @@
  * apaga o registro e um re-run auditaria a mesma loja de novo. O script
  * imprime cada resultado NA HORA, então mesmo perdendo o arquivo o que já
  * mediu fica no terminal.
+ *
+ * SEGUNDA RODADA: a primeira devolveu 4 de 227 entrando, mas a maioria dos
+ * timeouts eliminou três hipóteses de bloqueio por loja (rede, User-Agent,
+ * redirect+corpo — todas rápidas e limpas na Fly, para os mesmos domínios) e
+ * um teste final com o Chromium de verdade não reproduziu o travamento em
+ * NENHUM dos quatro, incluindo três que tinham travado antes.
+ *
+ * Relendo o log da primeira rodada EM ORDEM: os ~9 primeiros candidatos
+ * saíram limpos, e a partir do 13º o timeout de 30s virou o desfecho
+ * dominante pro resto da lista inteira. Essa é a assinatura de recurso se
+ * esgotando ao longo de uma rodada longa e sequencial — memória, processo de
+ * Chromium não fechando direito — não de bloqueio por loja. `snapshotDeRecursos`,
+ * mais abaixo, imprime memória livre, RSS do processo e contagem de
+ * Chromium antes de CADA candidato, para esta rodada trazer o rastro que
+ * faltou na primeira: se o recurso realmente cai ao longo da lista, e em que
+ * posição a queda bate com o início dos timeouts.
  */
 
 import { detect } from '../src/detect.ts'
@@ -46,6 +62,8 @@ import { audit, type AuditResult } from '../src/audit.ts'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import os from 'node:os'
+import { execSync } from 'node:child_process'
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url))
 
@@ -444,6 +462,36 @@ function linha(...cols: string[]): void {
   console.log('  ' + cols.join('  '))
 }
 
+/**
+ * Achado depois de rodar `diagnosticar-chromium` contra 4 domínios em
+ * isolado: nenhum travou, nem os que tinham travado na cobertura. Isso
+ * derruba "bloqueio determinístico por loja" e aponta para o contrário —
+ * degradação ao longo de uma rodada LONGA e sequencial. Relendo a primeira
+ * rodada em ordem de execução: as 9 primeiras saíram limpas, a partir da
+ * 13ª o timeout de 30s vira o desfecho dominante pro resto da lista. Isso é
+ * a assinatura de recurso se esgotando (memória, processo zumbi de
+ * Chromium), não de anti-bot reconhecendo loja específica.
+ *
+ * Esta função imprime memória livre do sistema, RSS do processo Node, e
+ * quantos processos de Chromium estão de pé ANTES de cada candidato — para
+ * a próxima rodada trazer o rastro que faltou na primeira.
+ */
+function snapshotDeRecursos(): string {
+  const livre = (os.freemem() / 1024 ** 2).toFixed(0)
+  const total = (os.totalmem() / 1024 ** 2).toFixed(0)
+  const rss = (process.memoryUsage().rss / 1024 ** 2).toFixed(0)
+  let chromiums = '?'
+  try {
+    // `-f` casa no caminho inteiro do processo, não só no nome — o binário
+    // do Playwright roda de um caminho longo dentro do cache do npx.
+    chromiums = execSync('pgrep -c -f chrome', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    // pgrep sem match sai com código != 0 — não é falha, é zero processos.
+    chromiums = '0'
+  }
+  return `livre ${livre}/${total}MB · rss-node ${rss}MB · chromium ${chromiums}`
+}
+
 async function main(): Promise<void> {
   console.log('')
   console.log('CAMADA 1 — leitura, sem autorização de ninguém')
@@ -471,7 +519,8 @@ async function main(): Promise<void> {
   const porFaixaEOrigem: Record<Candidato['origem'], Contagem> = { br: zerado(), internacional: zerado() }
   const abortosPorCodigo = new Map<string, number>()
 
-  for (const { hostname, origem } of candidatos) {
+  for (const [indice, { hostname, origem }] of candidatos.entries()) {
+    console.log(`  #${indice + 1} — ${snapshotDeRecursos()}`)
     process.stdout.write(`  [${origem === 'br' ? 'BR' : 'IN'}] ${hostname.padEnd(30)} `)
     const { desfecho, ms } = await medirLeitura(`https://${hostname}`)
     porFaixa[desfecho.faixa]++
