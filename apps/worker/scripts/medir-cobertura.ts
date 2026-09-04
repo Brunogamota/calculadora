@@ -364,19 +364,46 @@ export interface Consentida {
  * Camada 2. Arquivo fora do repositório — ver `.gitignore`. Ausente é estado
  * normal, não erro: significa que ninguém deu aceite ainda.
  */
+/**
+ * A loja de desenvolvimento do próprio Bruno (Shopify Partners, criada
+ * especificamente pra medir a Camada 2 sem depender de aceite de terceiro).
+ *
+ * Vem de variável de ambiente, não do arquivo `lojas-consentidas.json` — e é
+ * ISSO que a faz sobreviver a um redeploy. O arquivo fica fora do
+ * repositório de propósito, porque dado de aceite de TERCEIRO nunca deveria
+ * ir pro git público. Esta loja não tem esse problema: é do próprio dono do
+ * projeto, autorizando a própria loja, então uma variável de ambiente
+ * versionada é o lugar certo — o mesmo raciocínio que já vale pra
+ * `RAIO_X_ORIGENS`.
+ */
+function lojaPropriaDoAmbiente(env: NodeJS.ProcessEnv = process.env): Consentida | null {
+  const url = env['RAIO_X_LOJA_PROPRIA']
+  if (!url) return null
+  return {
+    url,
+    em: '2026-09-04T00:00:00Z', // quando o Bruno criou a loja e autorizou, nesta conversa
+    texto: 'Loja de desenvolvimento própria (Shopify Partners), criada para medir a Camada 2 do Raio-X do Checkout.',
+  }
+}
+
 export async function carregarConsentidas(
   caminho: string = path.join(AQUI, 'lojas-consentidas.json'),
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<Consentida[]> {
-  try {
-    const bruto = await readFile(caminho, 'utf8')
-    const lista = JSON.parse(bruto) as unknown
-    if (!Array.isArray(lista)) throw new Error('esperava uma lista')
-    return lista as Consentida[]
-  } catch (erro) {
-    if ((erro as NodeJS.ErrnoException).code === 'ENOENT') return []
-    console.error(`[cobertura] lojas-consentidas.json existe mas não deu pra ler: ${String(erro)}`)
-    return []
-  }
+  const daPropria = lojaPropriaDoAmbiente(env)
+  const doArquivo = await (async (): Promise<Consentida[]> => {
+    try {
+      const bruto = await readFile(caminho, 'utf8')
+      const lista = JSON.parse(bruto) as unknown
+      if (!Array.isArray(lista)) throw new Error('esperava uma lista')
+      return lista as Consentida[]
+    } catch (erro) {
+      if ((erro as NodeJS.ErrnoException).code === 'ENOENT') return []
+      console.error(`[cobertura] lojas-consentidas.json existe mas não deu pra ler: ${String(erro)}`)
+      return []
+    }
+  })()
+  return daPropria ? [daPropria, ...doArquivo] : doArquivo
 }
 
 export type DesfechoLeitura =
@@ -492,7 +519,26 @@ function snapshotDeRecursos(): string {
   return `livre ${livre}/${total}MB · rss-node ${rss}MB · chromium ${chromiums}`
 }
 
+/**
+ * Pular a Camada 1 inteira (227 candidatos, 1-2h) quando o interesse do
+ * momento é só a Camada 2 — como testar a loja própria que acabou de nascer,
+ * sem esperar a lista toda de novo.
+ */
+function pularCamada1(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env['RAIO_X_PULAR_CAMADA1'] === '1'
+}
+
 async function main(): Promise<void> {
+  if (pularCamada1()) {
+    console.log('')
+    console.log('CAMADA 1 pulada (RAIO_X_PULAR_CAMADA1=1) — indo direto pra Camada 2')
+  } else {
+    await rodarCamada1()
+  }
+  await rodarCamada2()
+}
+
+async function rodarCamada1(): Promise<void> {
   console.log('')
   console.log('CAMADA 1 — leitura, sem autorização de ninguém')
   console.log('quantas lojas o robô consegue identificar e ler, de uma lista que eu não escolhi olhando pra trás')
@@ -552,7 +598,10 @@ async function main(): Promise<void> {
     console.log('  motivo dos abortos:')
     for (const [codigo, n] of abortosPorCodigo) linha(`  ${codigo}: ${n}`)
   }
+  console.log('')
+}
 
+async function rodarCamada2(): Promise<void> {
   console.log('')
   console.log('CAMADA 2 — consentido, só com aceite real do responsável')
   const consentidas = await carregarConsentidas()

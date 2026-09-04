@@ -99,4 +99,29 @@ describe('Camada 2: carregamento do arquivo de aceites', { concurrency: false },
     }
     assert.ok(ditos.length > 0, 'o erro de parsing morreu em silêncio')
   })
+
+  test('loja própria (variável de ambiente) entra na lista mesmo sem arquivo', async () => {
+    const lista = await carregarConsentidas(path.join(dir, 'nao-existe-2.json'), {
+      RAIO_X_LOJA_PROPRIA: 'https://raiox-teste.myshopify.com',
+    })
+    assert.equal(lista.length, 1)
+    assert.equal(lista[0]?.url, 'https://raiox-teste.myshopify.com')
+    assert.ok(lista[0]?.texto.length, 'o aceite da loja própria veio sem texto')
+  })
+
+  test('loja própria vem JUNTO com as do arquivo, não no lugar delas', async () => {
+    const caminho = path.join(dir, 'com-loja-propria.json')
+    const doArquivo: Consentida[] = [{ url: 'https://outra-loja.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo' }]
+    await writeFile(caminho, JSON.stringify(doArquivo))
+
+    const lista = await carregarConsentidas(caminho, { RAIO_X_LOJA_PROPRIA: 'https://raiox-teste.myshopify.com' })
+    assert.equal(lista.length, 2)
+    assert.ok(lista.some((l) => l.url === 'https://raiox-teste.myshopify.com'))
+    assert.ok(lista.some((l) => l.url === 'https://outra-loja.example'))
+  })
+
+  test('sem a variável de ambiente, nenhuma loja própria aparece', async () => {
+    const lista = await carregarConsentidas(path.join(dir, 'nao-existe-3.json'), {})
+    assert.deepEqual(lista, [])
+  })
 })

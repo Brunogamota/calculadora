@@ -11,6 +11,12 @@ primary_region = 'gru'
 
 [env]
   PORT = '8080'
+  # A loja de desenvolvimento do próprio Bruno (Shopify Partners), pra medir
+  # a Camada 2 (carrinho/checkout/pagamento) sem depender de aceite de
+  # terceiro. Sem problema de privacidade estar aqui, versionada: é o dono
+  # do projeto autorizando a própria loja. Ver lojaPropriaDoAmbiente em
+  # apps/worker/scripts/medir-cobertura.ts.
+  RAIO_X_LOJA_PROPRIA = 'https://raiox-teste.myshopify.com'
   RAIO_X_JANELA_POR_IP_MINUTOS = '10'
   RAIO_X_MAX_SIMULTANEAS = '3'
   RAIO_X_ORIGENS = 'https://calculadora-iota-pearl.vercel.app'
