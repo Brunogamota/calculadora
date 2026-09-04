@@ -13,6 +13,7 @@ import { fetchRobots } from './lib/robots.ts'
 import { createRobotsGate } from './lib/gate.ts'
 import { detectPlatform, type PlatformDecision } from './platforms/index.ts'
 import { AuditError } from './lib/errors.ts'
+import { ritmoDeSaidaGlobal } from './lib/ritmo.ts'
 import type { DetectionProbe, RobotsGate } from './types.ts'
 
 export interface PrepareOptions {
@@ -115,6 +116,10 @@ export async function prepare(
   onBrowser?.(browser)
 
   deps.deadline.assertAlive('abertura da home no browser')
+  /* Espera de ritmo ANTES da navegação de saída, DEPOIS do `assertAlive` —
+     um orçamento já estourado falha na hora, em vez de esperar à toa uma
+     proteção que não vai servir pra nada. Ver `lib/ritmo.ts`. */
+  await ritmoDeSaidaGlobal.aguardar()
   const opened = await openPage(browser.page, pre.finalUrl, deps.deadline.clamp(30_000))
   const globals = await readPageGlobals(browser.page)
 

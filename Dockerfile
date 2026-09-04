@@ -53,6 +53,16 @@ ENV AUDIT_FROM_BR=1
 # subida custa ~0,1s, e não há o que aquecer. Ver aquecimento.ts.
 ENV RAIO_X_AQUECER=1
 
+# Intervalo mínimo entre uma navegação de saída e a próxima, do processo
+# inteiro — seguro contra reputação de IP por ritmo de pedidos, NÃO
+# confirmado por experimento (decisão consciente de pular a confirmação e
+# proteger assim mesmo). Ver `apps/worker/src/lib/ritmo.ts`.
+#
+# Ligado AQUI e não por padrão no código, mesmo motivo do aquecimento: um
+# teste que sobe a loja falsa várias vezes numa suíte não deveria pagar
+# segundos de espera por uma proteção que só faz sentido contra loja real.
+ENV RAIO_X_RITMO_SAIDA_MS=2000
+
 EXPOSE 8080
 
 # Sem `--headed`: não há tela nenhuma num contêiner. A §19 pede headed por
