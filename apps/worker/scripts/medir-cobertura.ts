@@ -621,6 +621,12 @@ async function rodarCamada2(): Promise<void> {
         `${resultado.status.padEnd(8)} ${chegou ? 'chegou ao checkout' : 'parou antes'} · ` +
           `${(resultado.timings.totalMs / 1000).toFixed(1)}s${resultado.errorCode ? ` · ${resultado.errorCode}` : ''}`,
       )
+      /* `errorCode` sozinho não bastava — CATALOG_UNREADABLE pode ser status
+         != 200 OU corpo que não é JSON (a página de senha devolvida como
+         HTML, por exemplo), e sem o detalhe não dava pra saber qual das
+         duas sem rodar de novo. */
+      if (resultado.errorReason) linha(`  motivo: ${resultado.errorReason}`)
+      if (resultado.errorDetail) linha(`  detalhe: ${JSON.stringify(resultado.errorDetail).slice(0, 300)}`)
       void hostname
     }
     console.log('')
