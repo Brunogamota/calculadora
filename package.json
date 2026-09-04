@@ -34,6 +34,7 @@
     "medir": "tsx apps/worker/scripts/medir-maquina.ts",
     "medir-cobertura": "tsx apps/worker/scripts/medir-cobertura.ts",
     "diagnosticar-rede": "tsx apps/worker/scripts/diagnosticar-rede.ts",
+    "diagnosticar-user-agent": "tsx apps/worker/scripts/diagnosticar-user-agent.ts",
     "conferir:tela": "tsx apps/realtime/scripts/conferir-tela.ts",
     "subir": "bash scripts/subir-motor.sh"
   },
