@@ -32,6 +32,7 @@
     "diagnostico": "tsx apps/worker/scripts/diagnostico.ts",
     "conferir": "tsx apps/worker/scripts/conferir.ts",
     "medir": "tsx apps/worker/scripts/medir-maquina.ts",
+    "medir-cobertura": "tsx apps/worker/scripts/medir-cobertura.ts",
     "conferir:tela": "tsx apps/realtime/scripts/conferir-tela.ts",
     "subir": "bash scripts/subir-motor.sh"
   },

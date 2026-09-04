@@ -3,3 +3,7 @@ out/
 *.log
 .env
 .DS_Store
+
+# A lista de lojas com aceite de terceiro (§2.2): dado que o Bruno passa por
+# fora do chat, não código. Nunca deveria ir pro repositório público.
+apps/worker/scripts/lojas-consentidas.json
