@@ -245,10 +245,27 @@ async function main(): Promise<void> {
     console.log('  taxa de acerto em loja real antes de trocar o `size` no fly.toml mede a')
     console.log('  máquina, não as lojas.')
   } else {
-    console.log('  VEREDITO: a máquina NÃO é o gargalo. A CPU pura está no mesmo patamar da')
-    console.log('  referência, então a lentidão em produção vem das lojas reais — rede, peso')
-    console.log('  da página, anti-bot — e não do tamanho da máquina. A investigação muda de')
-    console.log('  lugar: trocar o `size` não resolveria.')
+    console.log('  VEREDITO: para ESTE trabalho, a máquina dá conta. A auditoria inteira levou')
+    console.log('  praticamente o mesmo tempo que na referência, e a taxa de frames não ficou')
+    console.log('  abaixo dela. O 0,9 fps de produção não é teto desta máquina.')
+    console.log('')
+    console.log('  O que isto NÃO prova: a loja falsa é uma página LEVE. Um núcleo só')
+    console.log('  renderizando loja real — fontes, rastreadores, bundle grande, vídeo — é')
+    console.log('  outra pergunta, e esta medição não a responde. Dizer que a lentidão vem')
+    console.log('  das lojas seria conclusão maior que a evidência.')
+  }
+
+  /* A primeira subida do Chromium não estava na previsão, e foi a maior
+     diferença de todas as linhas na primeira medição na Fly: 16,7s contra
+     0,1s aqui. Numa máquina recém-iniciada — todo deploy reinicia — a primeira
+     auditoria paga isso inteiro antes de a tela mostrar qualquer coisa. Fica
+     dito em voz alta porque medida que ninguém lê não protege ninguém. */
+  if (frioMs > navegadorMs * 5 && frioMs > 3_000) {
+    console.log('')
+    console.log(`  E ISTO NÃO ESTAVA PREVISTO: a PRIMEIRA subida do Chromium levou ${(frioMs / 1000).toFixed(1)}s,`)
+    console.log(`  contra ${navegadorMs} ms da segunda. Numa máquina recém-iniciada, a primeira`)
+    console.log('  auditoria paga isso inteiro antes de a tela ao vivo mostrar o que quer que')
+    console.log('  seja — e a tela ao vivo é o produto.')
   }
   console.log('')
 }
