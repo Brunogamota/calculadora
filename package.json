@@ -37,6 +37,7 @@
     "diagnosticar-user-agent": "tsx apps/worker/scripts/diagnosticar-user-agent.ts",
     "diagnosticar-redirecionamento": "tsx apps/worker/scripts/diagnosticar-redirecionamento.ts",
     "diagnosticar-chromium": "tsx apps/worker/scripts/diagnosticar-chromium.ts",
+    "diagnosticar-espacamento": "tsx apps/worker/scripts/diagnosticar-espacamento.ts",
     "conferir:tela": "tsx apps/realtime/scripts/conferir-tela.ts",
     "subir": "bash scripts/subir-motor.sh"
   },
