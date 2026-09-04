@@ -17,6 +17,7 @@ import path from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { audit } from '@raio-x/worker/src/audit.ts'
 import { criarPortaria, ipDoPedido, maxSimultaneas } from './portaria.ts'
+import { aquecerNavegador, deveAquecer } from './aquecimento.ts'
 import { MemoryPublisher } from '@raio-x/worker/src/stream/publisher.ts'
 import type { AuditEvent } from '@raio-x/types'
 
@@ -236,6 +237,20 @@ wss.on('connection', (socket: WebSocket, req: IncomingMessage) => {
 })
 
 server.listen(PORT, () => {
+  /* O aquecimento roda SOLTO, e depois do listen. Duas coisas de propósito:
+     a porta já está aberta quando ele começa, e ele não é esperado.
+     
+     Se fosse antes, ou se fosse aguardado, a checagem de saúde da Fly bateria
+     no /health durante os 16 segundos da subida fria e encontraria a porta
+     fechada — o `grace_period` é de 20s. Trocar 16s de primeira auditoria por
+     um deploy reprovado seria piorar. */
+  if (deveAquecer()) {
+    void aquecerNavegador().then((ms) => {
+      if (ms === null) return
+      console.error(`[raio-x] navegador aquecido em ${(ms / 1000).toFixed(1)}s`)
+    })
+  }
+
   // Silencioso quando importado por teste: o ruído esconde o que importa.
   if (process.env['RAIO_X_QUIET'] === '1') return
   console.log(`realtime em http://localhost:${PORT}`)

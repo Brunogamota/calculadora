@@ -41,6 +41,18 @@ ENV PORT=8080
 # contra a loja. Ver `vantageContradiction` em apps/worker/src/lib/environment.ts.
 ENV AUDIT_FROM_BR=1
 
+# Sobe um Chromium assim que o servidor nasce, e fecha.
+#
+# Medido nesta imagem, nesta hospedagem, numa máquina recém-reiniciada: a
+# PRIMEIRA subida do navegador custou 16,7s, e a segunda 224 ms. O que custa é
+# ler o binário do disco; fechar não desfaz, porque o que ficou quente é o
+# cache de página do sistema. Sem isto, a primeira auditoria depois de cada
+# deploy paga os 16s inteiros com a tela ao vivo parada.
+#
+# Ligado AQUI e não por padrão no código: fora de máquina hospedada a mesma
+# subida custa ~0,1s, e não há o que aquecer. Ver aquecimento.ts.
+ENV RAIO_X_AQUECER=1
+
 EXPOSE 8080
 
 # Sem `--headed`: não há tela nenhuma num contêiner. A §19 pede headed por
