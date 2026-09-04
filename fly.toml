@@ -1,50 +1,35 @@
-# O motor na Fly, em São Paulo.
+# fly.toml app configuration file generated for raio-x-motor on 2026-09-03T20:55:06-03:00
 #
-# A região não é preferência: é honestidade de medição. O produto mede Pix,
-# parcelamento e CPF, e o próprio motor avisa (environment.ts) que declarar
-# Brasil rodando de datacenter fora daqui faz "o tempo de carregamento virar
-# achado injusto e modal de região deixar de ser tratado como artefato".
-# Auditar loja brasileira de Oregon é medir a loja errada.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "raio-x-motor"
-primary_region = "gru"
+app = 'raio-x-motor'
+primary_region = 'gru'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "8080"
-  # Teto de auditorias ao mesmo tempo. Cada uma sobe um Chromium, e cada
-  # Chromium custou ~118 MB medidos. Três deixa folga numa máquina de 1 GB
-  # para o Node, o sistema e o pico de uma página pesada. Ver portaria.ts.
-  RAIO_X_MAX_SIMULTANEAS = "3"
-  RAIO_X_TETO_POR_IP = "5"
-  RAIO_X_JANELA_POR_IP_MINUTOS = "10"
-  # Os domínios do site, separados por vírgula. Vazio libera geral — e
-  # publicado, geral significa que qualquer página da internet pode disparar
-  # auditorias no nosso servidor a partir do navegador de quem a abrir.
-  # TROQUE pelo endereço real do site no Vercel antes do primeiro deploy.
-  RAIO_X_ORIGENS = "https://SEU-SITE.vercel.app"
+  PORT = '8080'
+  RAIO_X_JANELA_POR_IP_MINUTOS = '10'
+  RAIO_X_MAX_SIMULTANEAS = '3'
+  RAIO_X_ORIGENS = 'https://calculadora-iota-pearl.vercel.app'
+  RAIO_X_TETO_POR_IP = '5'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  # SEMPRE ligada, e não escalando a zero. Partida a frio somaria segundos
-  # antes de a auditoria começar, e a primeira coisa que o lead vê é a tela ao
-  # vivo — o produto é justamente ela não demorar.
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
   [[http_service.checks]]
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "20s"
-    method = "GET"
-    path = "/health"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  # 1 GB é o mínimo que comporta o teto de 3 simultâneas com folga.
-  # Subir o teto exige subir isto junto, na mesma proporção.
-  size = "shared-cpu-1x"
-  memory = "1gb"
+  size = 'shared-cpu-1x'
+  memory = '1gb'
