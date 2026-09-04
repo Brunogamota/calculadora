@@ -791,7 +791,14 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
   );
 }
 
-function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, em: string | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: string | null }) {
+/* Duas formas de a auditoria parar sem virar tela de exceção própria (a de
+   antifraude e a de conexão perdida têm as suas). "nossa" é o nosso alcance
+   que acabou; "loja-nao-esta-no-ar" é a loja ainda não estar pronta pra
+   visitante nenhum (loja com senha, por exemplo) — dizer "parou do nosso
+   lado" nesse segundo caso inventaria uma culpa que não é nossa. */
+type Parada = { motivo: string; deQuem: "nossa" | "loja-nao-esta-no-ar" } | null;
+
+function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, em: string | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: Parada }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null, aceite);
   const simulado = useCronometro(!temServidor());
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
@@ -925,7 +932,9 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
                   <span className="rodape-estado">
                     <span className="rodape-ponto" style={{ background: nossoProblema || vivo.falhaNossa || travado ? "#99979c" : "var(--accent)" }} />
                     {nossoProblema
-                      ? `a auditoria parou do nosso lado · ${nossoProblema}`
+                      ? nossoProblema.deQuem === "loja-nao-esta-no-ar"
+                        ? nossoProblema.motivo
+                        : `a auditoria parou do nosso lado · ${nossoProblema.motivo}`
                       : vivo.falhaNossa
                       ? "não conseguimos falar com o nosso servidor · a loja não tem nada a ver com isso"
                       : esperando ? "conectado · aguardando primeira imagem" : travado ? "imagem parada · execução seguindo" : "transmissão ao vivo"}
@@ -945,9 +954,13 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
                       : "Não conseguimos falar com o nosso servidor"}
                   </span>
                   <span className="parou-motivo">
-                    {nossoProblema ?? "O motor não respondeu. A loja não tem nada a ver com isso."}
+                    {nossoProblema?.motivo ?? "O motor não respondeu. A loja não tem nada a ver com isso."}
                   </span>
-                  <span className="parou-nota">Isso é limitação nossa, não da loja.</span>
+                  <span className="parou-nota">
+                    {nossoProblema?.deQuem === "loja-nao-esta-no-ar"
+                      ? "A solução está com quem administra a loja — não é falha nossa, nem bloqueio antifraude."
+                      : "Isso é limitação nossa, não da loja."}
+                  </span>
                 </div>
               ) : esperando ? (
                 <EsperandoPrimeiroFrame />
@@ -1753,8 +1766,10 @@ function App() {
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
   const [gravacao, setGravacao] = useState<{ data: string; t: number }[]>([]);
   /* Quando quem barrou fomos nós — piso entre tentativas, prazo, blocklist —
-     a pessoa fica onde está e lê o motivo, em vez de ver a loja ser acusada. */
-  const [nossoProblema, setNossoProblema] = useState<string | null>(null);
+     ou quando a loja simplesmente ainda não está no ar pra ninguém (senha
+     ativa), a pessoa fica onde está e lê o motivo, em vez de ver a loja ser
+     acusada de algo que não fez, ou nós de algo que não foi nosso. */
+  const [nossoProblema, setNossoProblema] = useState<Parada>(null);
   /* Só existe quando o motor está ligado. Sem ele, as telas de exceção são as
      do desenho — que é o que o menu "Ver estados" precisa mostrar. */
   const [apurado, setApurado] = useState<Apurado | null>(null);
@@ -1784,8 +1799,9 @@ function App() {
         setApurado(ate);
         if (culpa === "loja-bloqueou") return navigate("waf");
         if (culpa === "loja-caiu") return navigate("connection");
-        /* Nosso: fica na execução, com o motivo do motor dito por extenso. */
-        setNossoProblema(reason);
+        /* Nosso, ou loja fora do ar: fica na execução, com o motivo do motor
+           dito por extenso — e SEM afirmar "nosso lado" quando não foi. */
+        setNossoProblema({ motivo: reason, deQuem: culpa === "loja-nao-esta-no-ar" ? "loja-nao-esta-no-ar" : "nossa" });
       }} />}
       {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} cobertura={resultado.cobertura} em={resultado.em} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}

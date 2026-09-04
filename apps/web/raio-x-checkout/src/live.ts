@@ -396,10 +396,23 @@ const NAO_ALCANCAMOS = new Set([
   "CATALOG_EMPTY",
 ]);
 
-export type Culpa = "loja-bloqueou" | "loja-caiu" | "nossa";
+/* A loja ainda não está pronta pra receber visitante nenhum — nem robô, nem
+   cliente de verdade. Achado numa loja real: `/products.json` respondendo
+   200 com a página de senha do Shopify no lugar do catálogo.
+
+   Não é "nossa" (não é limite do nosso alcance num tema que não reconhecemos)
+   nem "loja-bloqueou" (não tem antifraude cortando sessão suspeita — está
+   bloqueando todo mundo, de propósito, porque ainda não lançou). Tratar isto
+   como "nossa" faria a tela dizer "a auditoria parou do nosso lado" pra uma
+   situação que é inteiramente sobre o estado da loja — e cuja solução está
+   nas mãos do lojista, não nas nossas. */
+const A_LOJA_NAO_ESTA_NO_AR = new Set(["STORE_PASSWORD_PROTECTED"]);
+
+export type Culpa = "loja-bloqueou" | "loja-caiu" | "loja-nao-esta-no-ar" | "nossa";
 
 export function deQuemEAculpa(code: string): Culpa {
   if (A_LOJA_BLOQUEOU.has(code)) return "loja-bloqueou";
+  if (A_LOJA_NAO_ESTA_NO_AR.has(code)) return "loja-nao-esta-no-ar";
   if (NAO_ALCANCAMOS.has(code)) return "nossa";
   if (A_LOJA_CAIU.has(code)) return "loja-caiu";
   /* Cooldown, prazo estourado, blocklist, navegador que não subiu, endereço

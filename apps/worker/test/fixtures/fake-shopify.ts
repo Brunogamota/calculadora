@@ -50,6 +50,12 @@ export interface FakeStoreOptions {
    */
   carrinhoIlegivel?: boolean
   /**
+   * `/products.json` responde 200 com a página de senha do Shopify em HTML,
+   * no lugar do catálogo — achado numa loja real (`raiox-teste.myshopify.com`,
+   * ainda em desenvolvimento). Ver `lib/senha-de-loja.ts`.
+   */
+  comSenha?: boolean
+  /**
    * A home manda o conteúdo visível na hora e só FECHA a conexão N ms depois.
    *
    * Nenhuma loja real entrega a página inteira num pacote só, e é essa janela
@@ -356,7 +362,14 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
 
     const send = (status: number, type: string, body: string): void => {
       const withCharset = type.startsWith('text/') || type === 'application/json' ? `${type}; charset=utf-8` : type
-      res.writeHead(status, { 'content-type': withCharset, ...setCookie })
+      /* A Shopify de verdade manda este header em TODA resposta do servidor —
+         é por isso que uma loja real com senha ativa ainda é identificada
+         como Shopify (o header não depende do corpo nem do tema). A fixture
+         não mandava, e isso escondeu o bug: toda detecção de plataforma nos
+         testes se apoiava sem perceber na confirmação de alto peso do
+         `/products.json`, que é exatamente o sinal que some quando a loja
+         tem senha. */
+      res.writeHead(status, { 'content-type': withCharset, 'x-shopid': '1', ...setCookie })
       res.end(body)
     }
 
@@ -364,6 +377,20 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       return send(200, 'text/plain', options.blockCheckout ? 'User-agent: *\nDisallow: /checkout\n' : 'User-agent: *\nDisallow:\n')
     }
     if (path === '/products.json') {
+      /* A Shopify de verdade responde 200 (não 401, não 403) com a página de
+         senha em HTML no lugar do JSON quando a loja ainda não foi
+         publicada — é isto que faz o `JSON.parse` falhar em vez de a
+         requisição falhar antes. Reproduzindo o formato exato visto na
+         loja real, incluindo o texto que `pareceSenhaDeLoja` procura. */
+      if (options.comSenha === true) {
+        return send(
+          200,
+          'text/html',
+          '<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="utf-8"><title>loja-falsa</title></head>\n' +
+            '<body><h1>loja-falsa</h1><p>This store is password protected. Use the password to enter the store.</p>' +
+            '<label>Enter store password</label><input type="password"><button>Enter</button></body></html>',
+        )
+      }
       return send(
         200,
         'application/json',
@@ -451,7 +478,7 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
        só dispara quando a conexão fecha, e nesse meio-tempo já há loja na
        tela — que é a janela que a transmissão precisa cobrir. */
     if (options.homeStreamDelayMs && options.homeStreamDelayMs > 0) {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'x-shopid': '1' })
       res.write('<html><body><h1 style="font-size:64px">Loja Falsa</h1><a href="/cart">carrinho</a>')
       setTimeout(() => res.end('<p>fim</p></body></html>'), options.homeStreamDelayMs)
       return

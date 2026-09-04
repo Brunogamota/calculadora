@@ -43,6 +43,15 @@ export type AuditErrorCode =
   | 'CATALOG_EMPTY'
   | 'BUY_FORM_NOT_FOUND'
   | 'BUY_BUTTON_NOT_FOUND'
+  /**
+   * Loja ainda com a página de senha do Shopify ativa — estado real de quem
+   * está montando a loja e não lançou. Sem isto, `/products.json` devolve
+   * 200 com a página de senha em HTML no lugar do catálogo, o JSON.parse
+   * falha, e o erro saía como CATALOG_UNREADABLE — verdade técnica, mas que
+   * não diz ao lojista o que ele precisa fazer (tirar a senha), e o faz
+   * pensar que é bug nosso.
+   */
+  | 'STORE_PASSWORD_PROTECTED'
   // modo e consentimento
   //
   // O modo decide se a execução tem permissão para existir, e por isso e

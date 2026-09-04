@@ -13,6 +13,7 @@
  */
 
 import { AuditError } from '../lib/errors.ts'
+import { pareceSenhaDeLoja } from '../lib/senha-de-loja.ts'
 import { saveHtml } from '../lib/artifacts.ts'
 import { detectBotChallenge } from '../lib/challenge.ts'
 import { type BuyIntentMatch, matchBuyIntent, melhorQue } from '../journey/buyIntent.ts'
@@ -440,6 +441,17 @@ export const shopifyJourney: JourneyDriver = {
     try {
       products = (JSON.parse(res.body) as { products: ShopifyProduct[] }).products
     } catch {
+      /* Achado numa loja real: /products.json responde 200 com a página de
+         senha do Shopify em HTML no lugar do catálogo. É verdade dizer
+         "não devolveu JSON válido", mas não diz ao lojista o que fazer —
+         e "tire a senha da loja" é bem diferente de "conserte seu tema". */
+      if (pareceSenhaDeLoja(res.body)) {
+        throw new AuditError(
+          'STORE_PASSWORD_PROTECTED',
+          'A loja ainda está protegida por senha — publique-a ou desative a proteção para rodar a auditoria.',
+          { bytes: res.body.length },
+        )
+      }
       throw new AuditError('CATALOG_UNREADABLE', '/products.json não devolveu JSON válido', {
         limit: usedLimit,
         bytes: res.body.length,
