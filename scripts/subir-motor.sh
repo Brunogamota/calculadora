@@ -44,7 +44,7 @@ passo "2/5  Ajustando de onde o site pode falar com o motor"
 
 # Aceita aspas simples OU duplas: a Fly reescreve o arquivo com as dela, e foi
 # exatamente aí que a substituição anterior passou batido.
-origem_atual=$(grep -E "^\s*RAIO_X_ORIGENS" fly.toml | sed -E "s/.*=\s*['\"](.*)['\"].*/\1/" || true)
+origem_atual=$(grep -E "^[[:space:]]*RAIO_X_ORIGENS" fly.toml | sed -E "s/.*=[[:space:]]*['\"](.*)['\"].*/\1/" || true)
 
 if [ "${1:-}" != "" ]; then
   nova="$1"
@@ -59,10 +59,10 @@ else
 fi
 
 # `|` como separador porque o valor é uma URL, cheia de barras.
-sed -i.bak -E "s|^(\s*RAIO_X_ORIGENS\s*=\s*).*|\1'${nova}'|" fly.toml && rm -f fly.toml.bak
+sed -i.bak -E "s|^([[:space:]]*RAIO_X_ORIGENS[[:space:]]*=[[:space:]]*).*|\1'${nova}'|" fly.toml && rm -f fly.toml.bak
 
 # CONFERE que a troca aconteceu. Foi a ausência disto que deixou passar.
-depois=$(grep -E "^\s*RAIO_X_ORIGENS" fly.toml | sed -E "s/.*=\s*['\"](.*)['\"].*/\1/" || true)
+depois=$(grep -E "^[[:space:]]*RAIO_X_ORIGENS" fly.toml | sed -E "s/.*=[[:space:]]*['\"](.*)['\"].*/\1/" || true)
 [ "$depois" = "$nova" ] || morre "a troca da origem NÃO pegou.
   esperado: '$nova'
   no arquivo: '$depois'
@@ -75,7 +75,7 @@ passo "3/5  Conferindo a configuração que decide o comportamento"
 exigir() {
   local chave="$1" esperado="$2" porque="$3"
   local achado
-  achado=$(grep -E "^\s*${chave}\s*=" fly.toml | head -1 | sed -E "s/.*=\s*['\"]?([^'\"]*)['\"]?.*/\1/" | tr -d ' ' || true)
+  achado=$(grep -E "^[[:space:]]*${chave}[[:space:]]*=" fly.toml | head -1 | sed -E "s/.*=[[:space:]]*['\"]?([^'\"]*)['\"]?.*/\1/" | tr -d ' ' || true)
   if [ "$achado" != "$esperado" ]; then
     morre "$chave está '$achado', esperado '$esperado'.
   $porque
@@ -96,7 +96,7 @@ fly deploy
 # ------------------------------------------------------------ 5. está vivo?
 passo "5/5  Perguntando ao motor se ele está de pé"
 
-host=$(grep -E "^app\s*=" fly.toml | sed -E "s/.*=\s*['\"](.*)['\"].*/\1/")
+host=$(grep -E "^app[[:space:]]*=" fly.toml | sed -E "s/.*=[[:space:]]*['\"](.*)['\"].*/\1/")
 saude="https://${host}.fly.dev/health"
 
 for tentativa in $(seq 1 20); do
