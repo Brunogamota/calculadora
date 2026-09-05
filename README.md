@@ -12,9 +12,9 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 |---|---|---|
 | 1 | Guards, normalização de URL, SSRF, robots.txt, rate limit, blocklist | **pronto** |
 | 2 | Detecção de plataforma (§6.2) + portão de robots | **pronto** |
-| — | Modos `consentido` e `leitura` (fatia 2) | **validado contra loja falsa; aguardando loja real** |
-| 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **nunca funcionou fora da loja falsa** |
-| 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
+| — | Modos `consentido` e `leitura` (fatia 2) | **validado em uma loja real** |
+| 3a | Jornada Shopify: produto -> carrinho (§6.3, §6.4) | **validado em uma loja real** |
+| 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **validado em uma loja real** |
 | 4 | Checagens (§8), nota e saída JSON validada | **pronto** |
 
 ### Achados medidos ficam em `ACHADOS.md`
@@ -24,7 +24,29 @@ sustenta. A primeira (A1) responde a pergunta que sempre volta: por que a
 medição de cobertura devolve um número tão baixo, e por que ele não é um
 defeito a corrigir.
 
-### Por que o 3a deixou de ser "pronto"
+### O que "validado em uma loja real" quer dizer, e o que não
+
+Uma loja: `raioxreborn.myshopify.com`, Shopify Advanced, tema Horizon, catálogo
+montado à mão. A jornada inteira, em modo consentido:
+
+```
+open-home:done → find-product:done → add-to-cart:done → reach-checkout:done
+leu o pagamento · 13.5s
+escolheu: Meia Cano Alto Reborn · R$ 39.00 · via products.json
+```
+
+E a escolha do produto foi medida contra armadilhas plantadas de propósito: um
+PDF sem frete a R$ 19 (mais barato que a resposta certa) e uma edição esgotada.
+O robô pulou os dois e pegou a meia de R$ 39. As regras da §6.3 fazem o que
+dizem fazer.
+
+**O que isso NÃO prova:** que funciona em loja que não é essa. Uma loja só, bem
+comportada, tema oficial, sem antibot, sem variante obrigatória, montada por
+quem escreveu o robô. É melhor que a loja falsa — que só provava que a fixture
+concordava com o código — e continua sendo uma testemunha só. `pronto` volta
+quando houver loja de terceiro no meio (ver `CAL-29`).
+
+### Por que o 3a tinha deixado de ser "pronto"
 
 Ele esteve marcado como pronto desde `a774174`, sobre uma base que não
 sustentava a palavra: a única testemunha era a loja falsa deste repositório.

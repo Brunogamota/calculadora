@@ -124,7 +124,11 @@
 
 <main class="home" id="home">
   <h1>Raio-X do Checkout</h1>
-  <p>Cole a URL da sua loja. O robô faz a compra na sua frente.</p>
+  <!-- "faz a compra" era falso pela §2.1: o robô NUNCA finaliza pedido, ele
+       para na tela onde os meios de pagamento aparecem, e isso está travado no
+       código. Prometer compra concluída numa página pública é a promessa que o
+       motor tem obrigação de não cumprir. -->
+  <p>Cole a URL da sua loja. O robô monta o carrinho e vai até a tela de pagamento, na sua frente.</p>
   <form class="campo" id="form">
     <input id="url" type="text" placeholder="minhaloja.com.br" autocomplete="url" required>
     <button type="submit" id="botao">Auditar</button>
