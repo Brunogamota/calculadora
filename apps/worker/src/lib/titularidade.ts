@@ -86,7 +86,21 @@ function iguais(a: string, b: string): boolean {
  * as duas coisas que um tema real faz.
  */
 export function lerEtiqueta(html: string): string | null {
-  const tags = html.match(/<meta\b[^>]*>/gi) ?? []
+  /* Só dentro do <head>, e isto NÃO é purismo.
+  
+     O token é entregue a quem pedir — a recusa por titularidade devolve o
+     token daquele domínio, igual ao Search Console faz. A segurança do modelo
+     inteiro está em não conseguir publicar conteúdo no site alheio. Procurar a
+     etiqueta no documento inteiro abriria um caminho para isso: qualquer
+     página que reflita texto de terceiro no corpo — busca, avaliação, nome de
+     produto de marketplace — passaria a poder carregar a etiqueta de outra
+     pessoa. No <head> não entra conteúdo de visitante.
+  
+     Sem <head> no HTML, procura no documento inteiro: página sem head é
+     página malformada, não é ataque, e recusar aí seria reprovar loja real
+     por um detalhe de tema. */
+  const head = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html)?.[1]
+  const tags = (head ?? html).match(/<meta\b[^>]*>/gi) ?? []
   for (const tag of tags) {
     const nome = /\bname\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1]
     if (nome?.trim().toLowerCase() !== META_NAME) continue

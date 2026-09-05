@@ -279,6 +279,14 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
       if (!verificacao.verificado) {
         return {
           ...base,
+          /* `base.robots.ownerVerified` nasce de `modo === 'consentido'`, o que
+             era verdade quando titularidade era declaração. Agora não é: sem
+             isto, a resposta que RECUSA por titularidade não verificada saía
+             dizendo `ownerVerified: true`. Relatório que afirma o contrário do
+             próprio veredito é o defeito que o princípio 1 da §1 existe para
+             impedir, e nenhum teste pegou — apareceu na primeira execução
+             contra loja real. */
+          robots: { ...base.robots, ownerVerified: false },
           errorCode: 'OWNERSHIP_UNVERIFIED',
           errorReason:
             `${verificacao.detalhe}. Para liberar a jornada completa, publique esta linha no <head> ` +

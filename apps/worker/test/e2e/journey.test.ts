@@ -781,8 +781,12 @@ describe('os dois modos, e o que cada um tem permissão de tocar', { concurrency
     }
   })
 
-  test('leitura nunca libera o robots; consentido libera e registra', async () => {
-    const store = await startFakeStore({})
+  test('leitura nunca libera o robots; consentido VERIFICADO libera e registra', async () => {
+    /* A premissa deste exercício mudou de propósito: consentido sozinho não
+       libera mais nada. Quem libera é consentido COM titularidade provada, e
+       é por isso que a loja publica a etiqueta aqui. A metade de baixo —
+       consentido sem prova — tem exercício próprio no describe seguinte. */
+    const store = await startFakeStore({ titularidadeVerificada: true })
     try {
       const leitura = await audit(store.url, { headed: false, outDir: OUT, modo: 'leitura' })
       assert.equal(leitura.robots.ownerVerified, false)
@@ -824,6 +828,9 @@ describe('titularidade: consentido exige prova, não declaração', { concurrenc
       assert.equal(r.ok, false, 'auditou o carrinho de uma loja que não provou titularidade')
       assert.equal(r.errorCode, 'OWNERSHIP_UNVERIFIED')
       assert.match(r.errorReason ?? '', /raio-x-verificacao/, 'recusou sem dizer o que a pessoa deve publicar')
+      /* Apareceu na primeira execução contra loja real: a resposta que recusa
+         por titularidade não verificada vinha com `ownerVerified: true`. */
+      assert.equal(r.robots.ownerVerified, false, 'a recusa se declarou verificada')
       assert.ok(
         typeof r.errorDetail?.['token'] === 'string' && (r.errorDetail['token'] as string).startsWith('rx_'),
         'a recusa não trouxe o token, então a tela não tem o que mostrar',

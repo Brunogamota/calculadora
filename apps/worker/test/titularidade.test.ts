@@ -87,6 +87,18 @@ describe('leitura da etiqueta no HTML', () => {
     assert.equal(lerEtiqueta(html), 'rx_certo')
   })
 
+  test('etiqueta no CORPO não vale: é por onde conteúdo de visitante entraria', () => {
+    /* O token é entregue a quem pedir. A segurança está em não conseguir
+       publicar no site alheio — e busca, avaliação e nome de produto de
+       marketplace refletem texto de terceiro no corpo, nunca no <head>. */
+    const html = `<html><head><title>loja</title></head><body><meta name="${META_NAME}" content="rx_injetado"></body></html>`
+    assert.equal(lerEtiqueta(html), null)
+  })
+
+  test('sem <head> no HTML, procura no documento inteiro — tema torto não é ataque', () => {
+    assert.equal(lerEtiqueta(`<html><meta name="${META_NAME}" content="rx_abc"><body>oi</body></html>`), 'rx_abc')
+  })
+
   test('sem a etiqueta, devolve null — e não string vazia, que confundiria com etiqueta vazia', () => {
     assert.equal(lerEtiqueta('<html><head><meta name="viewport" content="x"></head></html>'), null)
   })
