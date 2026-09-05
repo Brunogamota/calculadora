@@ -235,8 +235,15 @@ produção. Logo, a próxima medição tem que sair da Fly.
 
 ```
 fly deploy
-fly ssh console -a raio-x-motor -C "RAIO_X_ESPACAMENTO_N=4 npm run diagnosticar-espacamento"
+fly ssh console -a raio-x-motor
+  # dentro do shell da máquina:
+  cd /app && RAIO_X_ESPACAMENTO_N=4 npm run diagnosticar-espacamento
 ```
+
+O `-C` do `fly ssh console` NÃO passa por um shell: ele executa o argumento
+direto, então `VAR=valor comando` é lido como nome de executável e falha com
+`executable file not found in $PATH`. Variável de ambiente na frente só
+funciona dentro do shell interativo.
 
 A amostra foi reordenada para os três sem explicação mais a `tracksmith` como
 controle positivo. Previsões escritas ANTES:
