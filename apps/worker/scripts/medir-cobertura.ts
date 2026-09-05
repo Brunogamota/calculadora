@@ -614,16 +614,25 @@ async function rodarCamada2(): Promise<void> {
     console.log('  já foi rodado manualmente (allbirds, kith, circulei, sallve, uselinus) —')
     console.log('  e isto fica dito aqui, não escondido atrás de um número inflado.')
   } else {
-    let chegouAoCheckout = 0
+    let leuPagamento = 0
     for (const loja of consentidas) {
       process.stdout.write(`  ${loja.url.padEnd(34)} `)
       const { hostname, resultado } = await medirConsentida(loja)
-      const chegou = resultado.steps.find((s) => s.id === 'reach-checkout')?.outcome.status === 'done'
-      if (chegou) chegouAoCheckout++
+      /* O passo que decide é `read-payment`, não `reach-checkout`. Abrir a URL
+         /checkout é chegar na porta; o que o lojista quer saber é se a tela de
+         pagamento apareceu. Medir pelo `reach-checkout`, como esta linha fazia
+         antes, dava "chegou ao checkout" mesmo quando a jornada morria na
+         etapa de frete — um número mais bonito do que a verdade. */
+      const chegou = resultado.steps.find((s) => s.id === 'read-payment')?.outcome.status === 'done'
+      if (chegou) leuPagamento++
       console.log(
-        `${resultado.status.padEnd(8)} ${chegou ? 'chegou ao checkout' : 'parou antes'} · ` +
+        `${resultado.status.padEnd(8)} ${chegou ? 'leu o pagamento' : 'parou antes do pagamento'} · ` +
           `${(resultado.timings.totalMs / 1000).toFixed(1)}s${resultado.errorCode ? ` · ${resultado.errorCode}` : ''}`,
       )
+      /* Todos os passos, não só o último: sem isto, "parou antes" não diz ONDE
+         parou, e a próxima pergunta seria sempre "mas parou aonde?". */
+      const trilha = resultado.steps.map((s) => `${s.id}:${s.outcome.status}`).join(' → ')
+      linha(`  passos: ${trilha}`)
       /* `errorCode` sozinho não bastava — CATALOG_UNREADABLE pode ser status
          != 200 OU corpo que não é JSON (a página de senha devolvida como
          HTML, por exemplo), e sem o detalhe não dava pra saber qual das
@@ -633,7 +642,7 @@ async function rodarCamada2(): Promise<void> {
       void hostname
     }
     console.log('')
-    console.log(`  RESUMO DA CAMADA 2: chegou ao checkout em ${chegouAoCheckout} de ${consentidas.length}`)
+    console.log(`  RESUMO DA CAMADA 2: leu a tela de pagamento em ${leuPagamento} de ${consentidas.length}`)
   }
   console.log('')
 }
