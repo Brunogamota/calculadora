@@ -14,6 +14,7 @@ import { startFakeStore, type FakeStore } from '../../worker/test/fixtures/fake-
 const PORT = 4287
 process.env['PORT'] = String(PORT)
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
 process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
 process.env['RAIO_X_QUIET'] = '1'
@@ -69,7 +70,10 @@ describe('servidor de tempo real', { concurrency: false }, () => {
   let encerrar: () => Promise<void>
 
   before(async () => {
-    store = await startFakeStore()
+    /* Publica a etiqueta porque estes exercícios rodam em modo consentido, que
+       agora exige prova de titularidade (`lib/titularidade.ts`). A recusa sem
+       etiqueta tem exercício próprio, mais abaixo. */
+    store = await startFakeStore({ titularidadeVerificada: true })
     const servidor = await import('../src/server.ts')
     encerrar = servidor.closeServer
     await new Promise((r) => setTimeout(r, 400))

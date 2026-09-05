@@ -14,6 +14,7 @@
 
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { META_NAME, tokenPara, segredoDoAmbiente } from '../../src/lib/titularidade.ts'
 
 export interface FakeStoreOptions {
   /** Simula o modal que cobre o botão de comprar. */
@@ -97,6 +98,30 @@ export interface FakeStoreOptions {
    * "FALE COM A NINA" que começa parecido e não pode ser clicado.
    */
   buyButton?: 'submit' | 'aluguel' | 'sem-formulario'
+  /**
+   * A home publica a etiqueta de titularidade — o que uma loja de verdade faz
+   * quando o dono cola a linha no `theme.liquid`.
+   *
+   * Existe porque o modo consentido passou a EXIGIR prova (§2.3,
+   * `lib/titularidade.ts`), e sem isto a loja falsa não conseguiria
+   * representar o caso normal: um lojista que autorizou.
+   *
+   * Fica DESLIGADO por padrão de propósito. O padrão da fixture é uma loja que
+   * não provou nada, que é o caso que precisa ser recusado — se alguém apagar
+   * a verificação do motor, o teste `loja-sem-etiqueta` quebra. Ligar por
+   * padrão transformaria a fixture em carimbo.
+   */
+  titularidadeVerificada?: boolean
+  /**
+   * Publica uma etiqueta com este conteúdo literal, seja ele qual for.
+   *
+   * É o caso do lojista que copiou a linha do painel de OUTRA loja dele e
+   * colou no tema errado — o erro mais provável de todos, e o único jeito de
+   * exercitar o desfecho `divergente` de ponta a ponta. Trocar o segredo do
+   * ambiente não serve: a fixture lê o mesmo segredo, então os dois lados se
+   * moveriam juntos e o teste passaria sem testar nada.
+   */
+  etiquetaDeTitularidade?: string
 }
 
 const PRODUCTS = [
@@ -484,10 +509,21 @@ export async function startFakeStore(options: FakeStoreOptions = {}): Promise<Fa
       return
     }
     const naHome = options.overlayNaHome ? (OVERLAY_HTML[options.overlayNaHome] ?? '') : ''
+    /* O token sai do HOST do pedido, não de uma constante: é assim que uma
+       loja real se comporta (a etiqueta é daquele domínio e de nenhum outro),
+       e é o que faz o teste da etiqueta divergente valer alguma coisa. */
+    const etiqueta = options.etiquetaDeTitularidade
+      ? `<meta name="${META_NAME}" content="${options.etiquetaDeTitularidade}">`
+      : options.titularidadeVerificada === true
+        ? `<meta name="${META_NAME}" content="${tokenPara(
+            (req.headers.host ?? '127.0.0.1').split(':')[0] ?? '127.0.0.1',
+            segredoDoAmbiente(),
+          )}">`
+        : ''
     return send(
       200,
       'text/html',
-      `<html><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a>${naHome}</body></html>`,
+      `<html><head>${etiqueta}</head><body><h1>Loja Falsa</h1><a href="/cart">carrinho</a>${naHome}</body></html>`,
     )
   })
 

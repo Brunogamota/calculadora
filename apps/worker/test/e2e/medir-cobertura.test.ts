@@ -24,6 +24,7 @@ import {
 import type { AuditResult } from '../../src/audit.ts'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
 process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
 

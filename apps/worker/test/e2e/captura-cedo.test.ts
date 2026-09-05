@@ -27,6 +27,7 @@ const ESPERA_DA_HOME_MS = 1200
 describe('captura começa antes de o prepare terminar', { concurrency: false }, () => {
   test('o navegador é entregue durante a carga da home, não depois dela', async () => {
     process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+    process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
     const loja = await startFakeStore({ homeStreamDelayMs: ESPERA_DA_HOME_MS })
     try {
       let nasceuEm: number | null = null

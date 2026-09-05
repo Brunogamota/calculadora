@@ -23,9 +23,10 @@ describe('sobreposição na entrada e no carrinho', { concurrency: false }, () =
 
   before(async () => {
     process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+    process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
     process.env['AUDIT_COOLDOWN_HOURS'] = '0'
     process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
-    loja = await startFakeStore({ overlayNaHome: 'consent', overlayNoCarrinho: 'oferta' })
+    loja = await startFakeStore({ titularidadeVerificada: true, overlayNaHome: 'consent', overlayNoCarrinho: 'oferta' })
     r = await audit(loja.url, {
       modo: 'consentido',
       aceite: { em: new Date().toISOString(), url: loja.url, texto: 'teste de sobreposição' },

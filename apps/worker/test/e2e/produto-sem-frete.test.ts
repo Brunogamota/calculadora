@@ -27,9 +27,10 @@ describe('produto sem entrega física', { concurrency: false }, () => {
 
     before(async () => {
       process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+      process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
       process.env['AUDIT_COOLDOWN_HOURS'] = '0'
       process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
-      loja = await startFakeStore({ protecaoDeEnvio: true })
+      loja = await startFakeStore({ titularidadeVerificada: true, protecaoDeEnvio: true })
       r = await audit(loja.url, { modo: 'consentido', aceite: aceiteDe(loja.url), headed: false })
     })
     after(async () => {
@@ -60,7 +61,7 @@ describe('produto sem entrega física', { concurrency: false }, () => {
     let r: AuditResult
 
     before(async () => {
-      loja = await startFakeStore({ soDigital: true })
+      loja = await startFakeStore({ titularidadeVerificada: true, soDigital: true })
       r = await audit(loja.url, { modo: 'consentido', aceite: aceiteDe(loja.url), headed: false })
     })
     after(async () => {

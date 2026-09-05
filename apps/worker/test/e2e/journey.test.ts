@@ -14,6 +14,7 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { audit, type AuditResult } from '../../src/audit.ts'
+import { tokenPara } from '../../src/lib/titularidade.ts'
 import { startFakeStore, type FakeStore } from '../fixtures/fake-shopify.ts'
 import { validateAuditResult } from '../../src/output/schema.ts'
 import type { FakeStoreOptions } from '../fixtures/fake-shopify.ts'
@@ -22,6 +23,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
 process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
 
@@ -46,7 +48,12 @@ async function auditFake(
   storeOptions: FakeStoreOptions,
   auditOptions: Record<string, unknown> = {},
 ): Promise<{ result: AuditResult; store: FakeStore }> {
-  const store = await startFakeStore(storeOptions)
+  /* A loja falsa publica a etiqueta de titularidade porque estes exercícios
+     rodam em modo consentido, e consentido agora EXIGE prova, não declaração
+     (`lib/titularidade.ts`). Quem testa a recusa é o exercício
+     `sem etiqueta de titularidade`, mais abaixo, que deliberadamente não liga
+     isto — é ele que impede esta linha de virar carimbo. */
+  const store = await startFakeStore({ titularidadeVerificada: true, ...storeOptions })
   const result = await audit(store.url, {
     ...BASE,
     aceite: { ...ACEITE_DE_TESTE, url: store.url },
@@ -594,7 +601,7 @@ describe('a evidência do carrinho vai para o disco em todo desfecho', { concurr
   for (const [nome, opcoes] of casos) {
     test(`grava em: ${nome}`, async () => {
       const dir = await mkdtemp(path.join(tmpdir(), 'raiox-'))
-      const store = await startFakeStore(opcoes)
+      const store = await startFakeStore({ titularidadeVerificada: true, ...opcoes })
       try {
         const r = await audit(store.url, {
           headed: false,
@@ -795,4 +802,72 @@ describe('os dois modos, e o que cada um tem permissão de tocar', { concurrency
       await store.close()
     }
   })
+})
+
+describe('titularidade: consentido exige prova, não declaração', { concurrency: false }, () => {
+  /* ESTE é o exercício que impede `titularidadeVerificada: true` de virar
+     carimbo no resto do arquivo. Se alguém apagar a verificação de
+     `audit.ts`, todo o resto continua verde e SÓ ele quebra.
+
+     O que ele reproduz é o buraco real: `server.ts` preenchia o aceite sozinho
+     quando o chamador mandava `{}`, então bastava
+     `{"modo":"consentido","aceite":{}}` num endpoint público para o robô
+     ignorar o robots.txt de uma loja de terceiro. */
+  test('loja sem a etiqueta: recusada, e a mensagem ensina o que publicar', async () => {
+    const store = await startFakeStore({}) // sem titularidadeVerificada, de propósito
+    try {
+      const r = await audit(store.url, {
+        ...BASE,
+        outDir: OUT,
+        aceite: { ...ACEITE_DE_TESTE, url: store.url },
+      })
+      assert.equal(r.ok, false, 'auditou o carrinho de uma loja que não provou titularidade')
+      assert.equal(r.errorCode, 'OWNERSHIP_UNVERIFIED')
+      assert.match(r.errorReason ?? '', /raio-x-verificacao/, 'recusou sem dizer o que a pessoa deve publicar')
+      assert.ok(
+        typeof r.errorDetail?.['token'] === 'string' && (r.errorDetail['token'] as string).startsWith('rx_'),
+        'a recusa não trouxe o token, então a tela não tem o que mostrar',
+      )
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('um aceite bem formado NÃO substitui a prova — era exatamente o buraco', async () => {
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, {
+        ...BASE,
+        outDir: OUT,
+        aceite: {
+          em: new Date().toISOString(),
+          url: store.url,
+          texto: 'autorizo, prometo que a loja é minha',
+        },
+      })
+      assert.equal(r.errorCode, 'OWNERSHIP_UNVERIFIED', 'declarar continuou bastando')
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('etiqueta de outro domínio não libera: senão a primeira loja vira chave-mestra', async () => {
+    /* O erro mais provável do lojista com mais de uma loja: copiar a linha do
+       painel de uma e colar no tema da outra. */
+    const store = await startFakeStore({
+      etiquetaDeTitularidade: tokenPara('outraloja.com.br', process.env['RAIO_X_SEGREDO_TITULARIDADE'] ?? ''),
+    })
+    try {
+      const r = await audit(store.url, {
+        ...BASE,
+        outDir: OUT,
+        aceite: { ...ACEITE_DE_TESTE, url: store.url },
+      })
+      assert.equal(r.errorCode, 'OWNERSHIP_UNVERIFIED')
+      assert.equal(r.errorDetail?.['motivo'], 'divergente')
+    } finally {
+      await store.close()
+    }
+  })
+
 })

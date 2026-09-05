@@ -22,9 +22,10 @@ describe('loja ainda com senha ativa', { concurrency: false }, () => {
 
   before(async () => {
     process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
+    process.env['RAIO_X_SEGREDO_TITULARIDADE'] ??= 'segredo-de-teste-com-tamanho-suficiente'
     process.env['AUDIT_COOLDOWN_HOURS'] = '0'
     process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
-    loja = await startFakeStore({ comSenha: true })
+    loja = await startFakeStore({ titularidadeVerificada: true, comSenha: true })
     r = await audit(loja.url, { modo: 'consentido', aceite: aceiteDe(loja.url), headed: false })
   })
   after(async () => {
