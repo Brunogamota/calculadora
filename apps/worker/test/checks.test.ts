@@ -274,7 +274,24 @@ describe('produto e carrinho medem o que o checkout mediria', () => {
     )
   })
 
-  test('o checkout continua tendo prioridade sobre o carrinho', () => {
+  test('cupom no carrinho e não no checkout: PASSA, e a evidência diz onde está', () => {
+    /* DECISÃO INVERTIDA em 05/09, e o motivo é uma auditoria real.
+    
+       Este exercício exigia `fail`, com a justificativa "o carrinho não pode
+       encobrir um checkout medido". A primeira auditoria da loja própria
+       mostrou o custo disso: `cart.couponField: true`,
+       `checkout.couponField: false`, e o relatório entregou ao lojista o
+       achado "Sem campo de cupom" numa loja que tem campo de cupom.
+    
+       Duas coisas derrubam a regra antiga. A recomendação da própria checagem
+       diz "quem tem um código e não acha onde usar sai da página" — se o campo
+       está no carrinho, a pessoa acha, e não há venda perdida. E o checkout
+       novo da Shopify põe o cupom num passo posterior ao que a gente observa,
+       então a regra antiga dispararia em quase toda loja auditada. Checagem
+       que sempre falha não é checagem.
+    
+       O que continua valendo: ausência só se conclui da tela de pagamento.
+       O exercício logo abaixo tranca isso. */
     const r = runChecks(
       entrada({
         steps: [passo()],
@@ -284,7 +301,44 @@ describe('produto e carrinho medem o que o checkout mediria', () => {
       }),
     )
     const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
-    assert.equal(c?.status, 'fail', 'o carrinho não pode encobrir um checkout medido')
+    assert.equal(c?.status, 'pass', 'acusou ausência de cupom numa loja que tem cupom no carrinho')
+    assert.match(c?.evidence.join(' ') ?? '', /carrinho/, 'passou sem dizer onde o cupom foi encontrado')
+  })
+
+  test('o caso real da raioxreborn: cupom no carrinho, checkout sem, e o selo idem', () => {
+    /* Reprodução literal da primeira auditoria em produção (05/09). Se alguém
+       devolver a prioridade do checkout sobre a presença anterior, ESTE aqui
+       quebra — e ele quebra com o nome da loja no título, para o próximo a ler
+       saber que não é caso inventado. */
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        checkout: checkout(),
+        payment: { ...PAGAMENTO_BOM, couponField: false, saveCard: false, trustSignals: { present: false, evidence: [] } },
+        observations: [
+          observacao('product', { couponField: false, trustSignals: { present: false, evidence: [] } }),
+          observacao('cart', { couponField: true, trustSignals: { present: true, evidence: ['selo'] } }),
+        ],
+      }),
+    )
+    assert.equal(r.results.find((x) => x.id === 'NO_COUPON_FIELD')?.status, 'pass')
+    assert.equal(r.results.find((x) => x.id === 'NO_TRUST_SIGNAL')?.status, 'pass')
+    /* E o que NÃO antecipa continua não antecipando: salvar cartão não existe
+       antes da tela de pagamento, então o carrinho não pode absolvê-lo. */
+    assert.equal(r.results.find((x) => x.id === 'NO_SAVED_CARD')?.status, 'fail')
+  })
+
+  test('cupom em lugar nenhum, com checkout medido: falha, e é a tela de pagamento que decide', () => {
+    const r = runChecks(
+      entrada({
+        steps: [passo()],
+        checkout: checkout(),
+        payment: { ...PAGAMENTO_BOM, couponField: false },
+        observations: [observacao('cart', { couponField: false })],
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'NO_COUPON_FIELD')
+    assert.equal(c?.status, 'fail')
     assert.match(c?.evidence.join(' ') ?? '', /tela de pagamento/)
   })
 

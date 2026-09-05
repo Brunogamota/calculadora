@@ -219,17 +219,38 @@ function presencaAntecipavel(
 ):
   | { fonte: PageObservation; valor: boolean }
   | { razao: string; familia: FamiliaDeCobertura } {
-  const checkout = melhorFonte(input, ['checkout'])
-  if (checkout) {
-    const valor = ler(checkout)
-    if (valor === null) {
-      return { razao: 'não foi possível verificar na tela de pagamento', familia: 'dado-ilegivel' }
-    }
-    return { fonte: checkout, valor }
+  /* PRESENÇA em qualquer etapa observada já responde, e responde primeiro.
+  
+     Esta ordem é o conserto. Antes, quando o checkout tinha sido observado, a
+     função devolvia o valor DELE e nunca chegava a olhar carrinho ou produto —
+     então uma loja com campo de cupom no carrinho e sem ele na tela de
+     pagamento saía com o achado "Sem campo de cupom". Foi o que aconteceu na
+     primeira auditoria real da loja própria: `cart.couponField: true`,
+     `checkout.couponField: false`, e o relatório acusou ausência.
+  
+     E não era caso raro: o checkout novo da Shopify põe o cupom num passo
+     posterior ao que a gente observa, e o carrinho padrão tem o campo de
+     desconto. O achado falso ia sair em quase toda loja auditada.
+  
+     A regra que o comentário acima sempre descreveu, agora cumprida: achar
+     prova que a loja oferece, não achar só prova alguma coisa na tela de
+     pagamento. Da primeira etapa para a última, porque para o lojista importa
+     ONDE apareceu — cupom já no carrinho é notícia diferente de cupom só no
+     fim. */
+  for (const etapa of ['product', 'cart', 'checkout'] as const) {
+    const fonte = melhorFonte(input, [etapa])
+    if (fonte && ler(fonte) === true) return { fonte, valor: true }
   }
 
-  const antes = melhorFonte(input, ['cart', 'product'])
-  if (antes && ler(antes) === true) return { fonte: antes, valor: true }
+  /* AUSÊNCIA só se conclui da tela de pagamento, que é a última que o
+     comprador vê. Sem ela, não há como afirmar que a loja não oferece. */
+  const checkout = melhorFonte(input, ['checkout'])
+  if (checkout) {
+    if (ler(checkout) === null) {
+      return { razao: 'não foi possível verificar na tela de pagamento', familia: 'dado-ilegivel' }
+    }
+    return { fonte: checkout, valor: false }
+  }
 
   const familia = familiaDaAusencia(input, ['checkout'])
   const razao = semFonte(input, ['checkout'])
