@@ -35,11 +35,11 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { STEP_IDS, TEXTO_DO_ACEITE, deQuemEAculpa, paraSeveridade, registrarAceite, temServidor, useAuditoriaAoVivo } from "./live.ts";
-import type { Aceite, Cobertura } from "./live.ts";
+import { STEP_IDS, TEXTO_DO_ACEITE, deQuemEAculpa, paraSeveridade, registrarAceite, temServidor, useAuditoriaAoVivo, verificarTitularidade } from "./live.ts";
+import type { Aceite, Cobertura, Titularidade as TitularidadeApi } from "./live.ts";
 import type { Desfecho, StepId } from "./live.ts";
 
-type Screen = "landing" | "running" | "result" | "waf" | "connection" | "gravacao";
+type Screen = "landing" | "running" | "result" | "waf" | "connection" | "titularidade" | "gravacao";
 
 const DEMO_STORE = "casaverde.com.br";
 
@@ -857,7 +857,13 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
    *
    * Sem motor, o contador continua mandando: ali ele É a demonstração.
    */
-  const acabou = temServidor() ? vivo.fim !== null : stage >= steps.length;
+  /* Recusa VENCE conclusão, e a ordem importa: uma auditoria recusada volta
+     com `finished: true` e `score: null`, o que também preenche o `fim`. Os
+     dois efeitos disparavam, o `onComplete` está declarado primeiro, e quem
+     só precisava colar uma etiqueta caía no relatório vazio dizendo "não
+     conseguimos medir esta loja" — nós assumindo a culpa de um passo que era
+     dele e que a tela nem chegou a oferecer. */
+  const acabou = temServidor() ? vivo.fim !== null && vivo.abortado === null : stage >= steps.length;
   useEffect(() => {
     if (acabou) {
       onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.fim?.em ?? null, vivo.gravacao);
@@ -1645,6 +1651,132 @@ function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: st
 /** O que a auditoria de verdade tinha apurado quando parou. */
 type Apurado = { stage: number; duracoes: Partial<Record<StepId, number>>; achados: number; motivo: string | null };
 
+/**
+ * A tela que transforma o bloqueio em conversão.
+ *
+ * O robots.txt padrão da Shopify proíbe `/cart.js`, `/cart/add.js` e
+ * `/checkout` — medido em 8 de 8 das lojas que responderam limpo numa amostra
+ * real (achado A1). Sem autorização, a jornada não passa da página de produto
+ * na maioria das lojas, e isso não tem conserto: o conserto seria desrespeitar
+ * o robots.
+ *
+ * Então a limitação vira o gancho. O lojista acabou de ver o robô entrar na
+ * loja DELE e parar numa parede que é da loja dele — e a saída é uma linha
+ * colada no tema. É o pedido no pico de motivação, e não um formulário antes
+ * de qualquer valor ter sido entregue.
+ *
+ * A verificação NÃO roda auditoria: `POST /api/verificar` busca só a home e
+ * procura a etiqueta. Ele vai conferir várias vezes enquanto ajeita o tema, e
+ * cada conferida custar uma auditoria seria caro para nós e lento para ele.
+ */
+function Titularidade({ url, onVerificado, onRestart }: { url: string; onVerificado: () => void; onRestart: () => void }) {
+  const [dados, setDados] = useState<TitularidadeApi | null>(null);
+  const [conferindo, setConferindo] = useState(true);
+  const [copiado, setCopiado] = useState(false);
+  /* Só depois da PRIMEIRA conferida manual: dizer "não encontrei" antes de a
+     pessoa ter tido a chance de colar a etiqueta é acusá-la de não ter feito
+     algo que ninguém pediu ainda. */
+  const [tentou, setTentou] = useState(false);
+
+  const conferir = async () => {
+    setConferindo(true);
+    const r = await verificarTitularidade(url);
+    setDados(r);
+    setConferindo(false);
+    if (r?.verificado) onVerificado();
+  };
+
+  useEffect(() => {
+    void conferir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+
+  const linha = dados ? `<meta name="${dados.metaName}" content="${dados.token}">` : "";
+  const host = dados?.hostname ?? url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  /* `inacessivel` não é "faltou colar": a home não abriu, ou o robots da
+     própria loja proíbe lê-la. Mandar essa pessoa procurar erro no tema seria
+     mandá-la procurar o que não existe. */
+  const inacessivel = dados?.motivo === "inacessivel";
+
+  return (
+    <main className="erro-page">
+      <div className="erro-shell">
+        <section className="erro-card">
+          <div className="erro-marca">
+            <ShieldCheck size={15} aria-hidden="true" />
+            <span className="mono">falta um passo, e é seu</span>
+          </div>
+          <h1>Sua loja proíbe robôs no checkout. Só você pode liberar.</h1>
+          <p className="fraco">
+            Isso está no <span className="mono">robots.txt</span> de {host}, e é o padrão da Shopify — não é
+            configuração errada sua. A gente respeita, então a auditoria parou na página do produto. Para ir até a
+            tela de pagamento, a loja precisa dizer que é sua.
+          </p>
+
+          {inacessivel ? (
+            <p>{dados?.detalhe}</p>
+          ) : (
+            <>
+              <p>Cole esta linha dentro do <span className="mono">&lt;head&gt;</span> do seu tema e salve:</p>
+              <div className="titu-linha">
+                <code className="mono">{conferindo && !dados ? "gerando a sua linha…" : linha}</code>
+                <button
+                  type="button"
+                  className="botao-fino"
+                  disabled={!dados}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(linha);
+                    setCopiado(true);
+                    setTimeout(() => setCopiado(false), 2000);
+                  }}
+                >
+                  {copiado ? "copiado" : "copiar"}
+                </button>
+              </div>
+              <p className="fraco titu-caminho">
+                Na Shopify: <span className="mono">Loja virtual → Temas → ⋯ → Editar código → layout/theme.liquid</span>
+              </p>
+            </>
+          )}
+
+          {tentou && dados && !dados.verificado && !inacessivel && (
+            <p className="titu-aviso">
+              {dados.motivo === "divergente"
+                ? "Achei uma etiqueta em " + host + ", mas ela é de outra loja. Cada domínio tem a sua — copie a de cima."
+                : "Ainda não achei a etiqueta em " + host + ". O tema pode levar alguns segundos para publicar; se você acabou de salvar, tente de novo."}
+            </p>
+          )}
+
+          <div className="erro-acoes">
+            <button type="button" className="pill-button" onClick={() => { setTentou(true); void conferir(); }} disabled={conferindo}>
+              <span>{conferindo ? "procurando a etiqueta…" : "Já colei, pode conferir"}</span>
+              <span className="button-icon"><ArrowUpRight size={14} aria-hidden="true" /></span>
+            </button>
+            <button type="button" className="botao-fino" onClick={onRestart}>
+              Auditar outro endereço
+            </button>
+          </div>
+        </section>
+
+        <aside className="erro-lado">
+          <span className="mono erro-lado-titulo">o que muda ao liberar</span>
+          <div className="mono erro-etapas">
+            <span>✓ identificar a plataforma</span>
+            <span>✓ ler a página do produto</span>
+            <span className="parada">⏸ adicionar ao carrinho</span>
+            <span className="parada">⏸ chegar ao checkout</span>
+            <span className="parada">⏸ ler a tela de pagamento</span>
+          </div>
+          <span className="fraco erro-nota">
+            As três últimas etapas são onde estão 10 das 13 checagens — parcelamento, desconto no Pix, meios de
+            pagamento visíveis, campo de cupom. O robô nunca finaliza pedido nem envia pagamento.
+          </span>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
 function ExceptionState({
   type,
   onRetry,
@@ -1799,6 +1931,9 @@ function App() {
         setApurado(ate);
         if (culpa === "loja-bloqueou") return navigate("waf");
         if (culpa === "loja-caiu") return navigate("connection");
+        /* Falta autorizar não é erro de ninguém: é o único desfecho deste
+           conjunto com um próximo passo claro, e ele tem tela própria. */
+        if (culpa === "falta-autorizar") return navigate("titularidade");
         /* Nosso, ou loja fora do ar: fica na execução, com o motivo do motor
            dito por extenso — e SEM afirmar "nosso lado" quando não foi. */
         setNossoProblema({ motivo: reason, deQuem: culpa === "loja-nao-esta-no-ar" ? "loja-nao-esta-no-ar" : "nossa" });
@@ -1806,6 +1941,15 @@ function App() {
       {screen === "result" && <Result onRestart={() => navigate("landing")} onGravacao={() => navigate("gravacao")} url={storeUrl} nota={resultado.nota} ressalva={resultado.ressalva} cobertura={resultado.cobertura} em={resultado.em} />}
       {screen === "waf" && <ExceptionState type="waf" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
       {screen === "connection" && <ExceptionState type="connection" onRetry={() => navigate("running")} onRestart={() => navigate("landing")} {...(apurado ? { real: apurado } : {})} />}
+      {screen === "titularidade" && (
+        <Titularidade
+          url={storeUrl}
+          onRestart={() => navigate("landing")}
+          /* Verificou: a auditoria recomeça sozinha, em modo consentido. Pedir
+             mais um clique aqui seria cobrar duas vezes pelo mesmo sim. */
+          onVerificado={() => { setAceite(registrarAceite(storeUrl)); setNossoProblema(null); navigate("running"); }}
+        />
+      )}
       {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}
     </div>
   );

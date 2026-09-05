@@ -2036,6 +2036,25 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .erro-card p { margin: 0; font-size: 15.5px; line-height: 1.7; text-wrap: pretty; }
 .erro-card p.fraco { color: var(--muted); }
 .erro-acoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+
+/* Tela de titularidade. A linha para copiar é o objeto mais importante da
+   tela, então ela ganha contraste de bloco de código e um botão do lado —
+   e quebra em qualquer largura, porque um token de 35 caracteres estourando
+   a caixa no celular é onde este fluxo morreria. */
+.titu-linha {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--ground); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px;
+}
+.titu-linha code {
+  flex: 1 1 260px; font-size: 12.5px; line-height: 1.5;
+  word-break: break-all; color: var(--ink);
+}
+.titu-caminho { font-size: 13px; }
+.titu-aviso {
+  border-left: 2px solid var(--accent); padding-left: 12px;
+  font-size: 14.5px; line-height: 1.6;
+}
 .erro-acoes .pill-button { height: 48px; padding: 0 56px 0 22px; }
 .erro-acoes .pill-button:hover { padding: 0 22px 0 52px; }
 .erro-acoes .pill-button .button-icon { width: 40px; height: 40px; }

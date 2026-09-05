@@ -67,6 +67,14 @@ type EstadoDoServidor = {
     finishedAt?: string;
   }[];
   findings?: { code: string; severity: Severidade; title: string }[];
+  /* Por que a auditoria acabou, quando ela não completou.
+  
+     Vem no ESTADO e não só no evento porque a recusa mais importante — falta
+     autorizar — acontece em menos de um segundo, antes de qualquer rede. O
+     WebSocket só abre depois do POST voltar, então esse evento JÁ PASSOU
+     quando a tela começa a escutar. Sem ler daqui, o robô parecia ter
+     terminado e a pessoa caía no relatório vazio. */
+  abort?: { code: string; reason: string };
   finished?: boolean;
   finishedAt?: string;
   score?: number | null;
@@ -232,7 +240,12 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
         st.finished && st.score !== undefined
           ? { score: st.score, caveat: st.caveat ?? null, cobertura: st.coverage ?? null, em: st.finishedAt ?? null }
           : e.fim;
-      return { ...e, stage, duracoes, achados, pulados, desfechos, fim };
+      /* O motivo do aborto entra ANTES do `fim`, e é por isso que ele vence
+         mais abaixo: uma auditoria recusada tem `finished: true` e `score:
+         null`, o que sozinho a tela lia como "terminou sem conseguir medir" —
+         e mandava para o relatório vazio quem só precisava colar uma etiqueta. */
+      const abortado = st.abort ?? e.abortado;
+      return { ...e, stage, duracoes, achados, pulados, desfechos, fim, abortado };
     };
 
     const aplicar = (ev: AuditEvent) => {
@@ -408,9 +421,14 @@ const NAO_ALCANCAMOS = new Set([
    nas mãos do lojista, não nas nossas. */
 const A_LOJA_NAO_ESTA_NO_AR = new Set(["STORE_PASSWORD_PROTECTED"]);
 
-export type Culpa = "loja-bloqueou" | "loja-caiu" | "loja-nao-esta-no-ar" | "nossa";
+export type Culpa = "loja-bloqueou" | "loja-caiu" | "loja-nao-esta-no-ar" | "falta-autorizar" | "nossa";
 
 export function deQuemEAculpa(code: string): Culpa {
+  /* Não é culpa de ninguém: é uma coisa que falta o lojista fazer, e a única
+     saída deste conjunto que TEM um próximo passo claro. Cair no "nossa"
+     genérico mandava a pessoa ler uma frase comprida com uma etiqueta HTML no
+     meio, na tela de execução, sem nada para clicar. */
+  if (code === "OWNERSHIP_UNVERIFIED") return "falta-autorizar";
   if (A_LOJA_BLOQUEOU.has(code)) return "loja-bloqueou";
   if (A_LOJA_NAO_ESTA_NO_AR.has(code)) return "loja-nao-esta-no-ar";
   if (NAO_ALCANCAMOS.has(code)) return "nossa";
@@ -418,4 +436,39 @@ export function deQuemEAculpa(code: string): Culpa {
   /* Cooldown, prazo estourado, blocklist, navegador que não subiu, endereço
      inválido: tudo isto é nosso. Nenhum deles vira tela de erro da loja. */
   return "nossa";
+}
+
+/** O que a tela precisa para ensinar o lojista a liberar a jornada completa. */
+export type Titularidade = {
+  hostname: string;
+  metaName: string;
+  token: string;
+  verificado: boolean;
+  motivo?: "ausente" | "divergente" | "inacessivel";
+  detalhe?: string;
+};
+
+/**
+ * Pergunta ao motor qual etiqueta esta loja precisa publicar, e se ela já está
+ * no ar.
+ *
+ * Existe separado do fluxo de auditoria porque o lojista vai chamar isto
+ * VÁRIAS vezes — cola a etiqueta, salva o tema, confere. Rodar uma auditoria
+ * inteira a cada conferida seria caro para nós e lento para ele.
+ */
+export async function verificarTitularidade(url: string): Promise<Titularidade | null> {
+  if (!temServidor()) return null;
+  try {
+    const res = await fetch(`${API}/api/verificar`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as Titularidade;
+  } catch {
+    /* Sem rede não dá para afirmar nada sobre a etiqueta. Devolver "não
+       verificado" seria inventar um veredito que ninguém mediu. */
+    return null;
+  }
 }
