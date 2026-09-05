@@ -667,6 +667,23 @@ async function rodarCamada2(): Promise<void> {
          parou, e a próxima pergunta seria sempre "mas parou aonde?". */
       const trilha = resultado.steps.map((s) => `${s.id}:${s.outcome.status}`).join(' → ')
       linha(`  passos: ${trilha}`)
+      /* QUAL produto o robô escolheu. Sem isto, "chegou ao pagamento" não diz
+         se a escolha foi a certa — e a escolha é onde mora metade das regras
+         da §6.3: descartar esgotado, excluir item sem frete, pegar o mais
+         barato que sobra. Numa loja com essas armadilhas plantadas de
+         propósito, ver só o desfecho é ver o resultado sem ver a prova.
+         `requiresVariantChoice` vai junto porque o robô o REPORTA mas não age
+         sobre ele: quando é `true`, a API montou o carrinho por id de variante
+         e o caminho que o comprador de verdade faria (escolher o tamanho na
+         página) não chegou a ser medido. */
+      if (resultado.product) {
+        const p = resultado.product
+        const preco = p.priceCents === null ? 'preço ilegível' : `R$ ${(p.priceCents / 100).toFixed(2)}`
+        linha(
+          `  escolheu: ${p.title} · ${preco} · via ${p.source}` +
+            `${p.requiresVariantChoice ? ' · EXIGE escolha de variante (não medida)' : ''}`,
+        )
+      }
       /* `incompleteBecause` é onde o motor escreve, em português, por que não
          foi até o fim. Sem isto, "parou antes do pagamento" obriga a abrir o
          HTML salvo pra descobrir o que já está escrito aqui. */
