@@ -365,8 +365,11 @@ export interface Consentida {
  * normal, não erro: significa que ninguém deu aceite ainda.
  */
 /**
- * A loja de desenvolvimento do próprio Bruno (Shopify Partners, criada
- * especificamente pra medir a Camada 2 sem depender de aceite de terceiro).
+ * A loja do próprio Bruno, criada especificamente pra medir a Camada 2 sem
+ * depender de aceite de terceiro. É uma loja em plano pago criada direto no
+ * shopify.com: loja de desenvolvimento do Shopify Partners não serve, porque
+ * fica presa atrás da senha de vitrine e não tem como ativar plano por dentro
+ * da organização Partner.
  *
  * Vem de variável de ambiente, não do arquivo `lojas-consentidas.json` — e é
  * ISSO que a faz sobreviver a um redeploy. O arquivo fica fora do
@@ -381,8 +384,8 @@ function lojaPropriaDoAmbiente(env: NodeJS.ProcessEnv = process.env): Consentida
   if (!url) return null
   return {
     url,
-    em: '2026-09-04T00:00:00Z', // quando o Bruno criou a loja e autorizou, nesta conversa
-    texto: 'Loja de desenvolvimento própria (Shopify Partners), criada para medir a Camada 2 do Raio-X do Checkout.',
+    em: '2026-09-05T00:00:00Z', // quando o Bruno criou a loja e autorizou, nesta conversa
+    texto: 'Loja própria em plano pago (criada direto no shopify.com), publicada para medir a Camada 2 do Raio-X do Checkout.',
   }
 }
 
