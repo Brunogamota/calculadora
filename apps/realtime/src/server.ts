@@ -16,6 +16,9 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { audit } from '@raio-x/worker/src/audit.ts'
+import { createDeps } from '@raio-x/worker/src/preflight.ts'
+import { verificarTitularidade, segredoDoAmbiente, META_NAME } from '@raio-x/worker/src/lib/titularidade.ts'
+import { toAuditError } from '@raio-x/worker/src/lib/errors.ts'
 import { criarPortaria, ipDoPedido, maxSimultaneas } from './portaria.ts'
 import { aquecerNavegador, deveAquecer } from './aquecimento.ts'
 import { MemoryPublisher } from '@raio-x/worker/src/stream/publisher.ts'
@@ -93,6 +96,61 @@ const server = createServer((req, res) => {
     return res.end()
   }
 
+  /* POST /api/verificar { url } -> { hostname, metaName, token, verificado, motivo? }
+  
+     O que a tela precisa para ensinar o lojista a liberar a jornada completa:
+     a linha que ele tem que colar, e se ela já está no ar.
+  
+     Devolve o token para QUALQUER domínio pedido, e isso é deliberado — é o
+     mesmo modelo do Search Console. A segurança não está em esconder o token,
+     está em não conseguir publicá-lo no site de outra pessoa: `lerEtiqueta`
+     só olha dentro do <head>, onde conteúdo de visitante não entra.
+  
+     Passa pela portaria como qualquer pedido: são duas requisições de saída
+     (robots e home) contra um domínio que o chamador escolhe, e sem limite
+     isto viraria um proxy de varredura com o nosso IP na conta. */
+  if (req.method === 'POST' && url.pathname === '/api/verificar') {
+    void (async () => {
+      const origem = req.headers.origin
+      const ip = ipDoPedido(req.headers)
+      const naoEntra = portaria.recusa(ip, running.size)
+      if (naoEntra) return json(res, 429, { error: naoEntra }, origem)
+
+      const body: Record<string, unknown> = await readBody(req).catch(() => ({}))
+      const target = typeof body['url'] === 'string' ? body['url'] : ''
+      if (!target) return json(res, 400, { error: 'informe { "url": "..." }' }, origem)
+
+      portaria.registra(ip)
+      try {
+        const deps = createDeps()
+        const r = await verificarTitularidade(target, deps.safeFetch, segredoDoAmbiente())
+        return json(
+          res,
+          200,
+          r.verificado
+            ? { hostname: r.hostname, metaName: META_NAME, token: r.token, verificado: true }
+            : {
+                hostname: r.hostname,
+                metaName: META_NAME,
+                token: r.token,
+                verificado: false,
+                motivo: r.motivo,
+                detalhe: r.detalhe,
+              },
+          origem,
+        )
+      } catch (e) {
+        const err = toAuditError(e)
+        /* CONFIG_INVALIDA é falha NOSSA de configuração, não pedido inválido
+           de quem chamou: 500, para não ensinar o lojista a procurar erro no
+           que ele digitou. */
+        const status = err.code === 'CONFIG_INVALIDA' ? 500 : 400
+        return json(res, status, { error: err.message, code: err.code }, origem)
+      }
+    })()
+    return
+  }
+
   // §12: POST /api/audit { url } -> { auditId }
   if (req.method === 'POST' && url.pathname === '/api/audit') {
     void (async () => {
@@ -140,11 +198,23 @@ const server = createServer((req, res) => {
       running.add(auditId)
       audit(target, {
         modo,
+        /* O aceite viaja COMO VEIO, sem preenchimento nosso.
+        
+           Isto aqui completava os campos que faltavam — `em` virava agora,
+           `url` virava o alvo, `texto` virava string vazia. O efeito era que
+           `{"url":"lojaalheia.com.br","modo":"consentido","aceite":{}}` num
+           endpoint público montava um aceite de aparência perfeita para uma
+           loja que ninguém tinha autorizado.
+        
+           Agora o que chega incompleto é recusado pelo próprio `audit()`, com
+           a mensagem certa. Servidor que conserta o pedido do cliente esconde
+           o erro do cliente — e neste caso escondia que não havia autorização
+           nenhuma. */
         ...(aceite
           ? {
               aceite: {
-                em: typeof aceite.em === 'string' ? aceite.em : new Date().toISOString(),
-                url: typeof aceite.url === 'string' ? aceite.url : target,
+                em: typeof aceite.em === 'string' ? aceite.em : '',
+                url: typeof aceite.url === 'string' ? aceite.url : '',
                 texto: typeof aceite.texto === 'string' ? aceite.texto : '',
               },
             }
@@ -255,6 +325,7 @@ server.listen(PORT, () => {
   if (process.env['RAIO_X_QUIET'] === '1') return
   console.log(`realtime em http://localhost:${PORT}`)
   console.log(`  POST /api/audit      { "url", "modo", "aceite"? } -> { auditId }`)
+  console.log(`  POST /api/verificar  { "url" } -> { token, metaName, verificado }`)
   console.log(`  GET  /api/audit/:id  estado atual`)
   console.log(`  WS   /live?auditId=  transmissão`)
 })

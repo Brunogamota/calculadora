@@ -62,21 +62,34 @@ function ouvir(auditId: string, timeoutMs = 60_000): Promise<Record<string, unkn
   })
 }
 
+/* UM servidor para o arquivo inteiro, em hook de topo.
+   
+   `await import('../src/server.ts')` é cacheado: depois que um describe chama
+   `closeServer`, reimportar devolve o módulo já avaliado e o servidor NÃO
+   volta. Cada describe subindo o seu dava "fetch failed" em tudo que rodasse
+   depois do primeiro — que parece erro de rede e é só ciclo de vida. */
+before(async () => {
+  const servidor = await import('../src/server.ts')
+  encerrarServidor = servidor.closeServer
+  await new Promise((r) => setTimeout(r, 400))
+})
+
+after(async () => {
+  await encerrarServidor()
+})
+
+let encerrarServidor: () => Promise<void>
+
 describe('servidor de tempo real', { concurrency: false }, () => {
   let store: FakeStore
   let eventos: Record<string, unknown>[]
   let auditId: string
-
-  let encerrar: () => Promise<void>
 
   before(async () => {
     /* Publica a etiqueta porque estes exercícios rodam em modo consentido, que
        agora exige prova de titularidade (`lib/titularidade.ts`). A recusa sem
        etiqueta tem exercício próprio, mais abaixo. */
     store = await startFakeStore({ titularidadeVerificada: true })
-    const servidor = await import('../src/server.ts')
-    encerrar = servidor.closeServer
-    await new Promise((r) => setTimeout(r, 400))
 
     const pedido = await pedirAuditoria(store.url)
     auditId = String(pedido.body['auditId'])
@@ -84,7 +97,6 @@ describe('servidor de tempo real', { concurrency: false }, () => {
   })
 
   after(async () => {
-    await encerrar()
     await store.close()
   })
 
@@ -183,5 +195,92 @@ describe('servidor de tempo real', { concurrency: false }, () => {
       setTimeout(() => resolve(recebidos), 3000)
     })
     assert.equal(eventos[0]?.['code'], 'NO_AUDIT_ID')
+  })
+})
+
+describe('POST /api/verificar — o que a tela precisa para ensinar a liberar', { concurrency: false }, () => {
+
+  async function verificar(corpo: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+    const res = await fetch(`${base}/api/verificar`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(corpo),
+    })
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> }
+  }
+
+  test('loja sem etiqueta: devolve a linha que ela precisa publicar', async () => {
+    const semEtiqueta = await startFakeStore({})
+    try {
+      const { status, body } = await verificar({ url: semEtiqueta.url })
+      assert.equal(status, 200, 'não achar a etiqueta não é erro do pedido')
+      assert.equal(body['verificado'], false)
+      assert.equal(body['motivo'], 'ausente')
+      assert.equal(body['metaName'], 'raio-x-verificacao')
+      assert.ok(String(body['token']).startsWith('rx_'), 'sem token a tela não tem o que mostrar')
+    } finally {
+      await semEtiqueta.close()
+    }
+  })
+
+  test('loja com a etiqueta: verificado', async () => {
+    const comEtiqueta = await startFakeStore({ titularidadeVerificada: true })
+    try {
+      const { body } = await verificar({ url: comEtiqueta.url })
+      assert.equal(body['verificado'], true, JSON.stringify(body))
+    } finally {
+      await comEtiqueta.close()
+    }
+  })
+
+  test('sem url: 400, e não uma verificação de nada', async () => {
+    const { status } = await verificar({})
+    assert.equal(status, 400)
+  })
+})
+
+describe('o aceite não é mais fabricado pelo servidor', { concurrency: false }, () => {
+
+  test('aceite vazio não vira autorização: era o buraco', async () => {
+    /* `{"modo":"consentido","aceite":{}}` num endpoint público montava um
+       aceite de aparência perfeita e auditava o carrinho de quem não tinha
+       autorizado. Agora o servidor repassa o que veio, e `audit()` recusa.
+
+       Lido pelo `GET /api/audit/:id` e não pelo WebSocket de propósito: a
+       recusa acontece em menos de um segundo, antes de qualquer rede, então
+       quem só escuta a sala pode conectar DEPOIS do evento e não ver nada. O
+       estado guardado é o que a tela real também precisa consultar nesse
+       caso. */
+    const loja = await startFakeStore({})
+    try {
+      const { body } = await pedirAuditoria(loja.url, {
+        url: loja.url,
+        modo: 'consentido',
+        aceite: {},
+      })
+      const auditId = String(body['auditId'])
+
+      let estado: Record<string, unknown> | null = null
+      for (let tentativa = 0; tentativa < 40; tentativa++) {
+        await new Promise((r) => setTimeout(r, 100))
+        const res = await fetch(`${base}/api/audit/${auditId}`)
+        if (res.status !== 200) continue
+        const atual = (await res.json()) as Record<string, unknown>
+        if (atual['running'] === false) {
+          estado = atual
+          break
+        }
+      }
+
+      assert.ok(estado, 'a auditoria nunca terminou — o aceite vazio passou')
+      const texto = JSON.stringify(estado)
+      assert.match(
+        texto,
+        /CONSENT_MISSING|OWNERSHIP_UNVERIFIED/,
+        `terminou por outro motivo: ${texto.slice(0, 400)}`,
+      )
+    } finally {
+      await loja.close()
+    }
   })
 })

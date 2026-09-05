@@ -146,9 +146,15 @@ export class MemoryPublisher implements Publisher {
         if (event.coverage) state.coverage = event.coverage
         break
       }
-      case 'aborted':
-        this.#stateFor(auditId).finished = true
+      case 'aborted': {
+        const state = this.#stateFor(auditId)
+        state.finished = true
+        /* O motivo entra no estado, não só no evento: ver a nota em
+           `LiveState.abort`. Sem isto a recusa rápida chegava como um
+           "terminou" mudo para quem consultasse depois. */
+        state.abort = { code: event.code, reason: event.reason }
         break
+      }
       case 'frame':
         // Frame perdido é frame perdido (§7.4): não entra no estado.
         break

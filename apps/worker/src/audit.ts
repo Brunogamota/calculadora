@@ -225,6 +225,12 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
        antes até do intervalo entre auditorias. Ele decide se esta execução tem
        permissão para existir; tudo o mais vem depois disso. */
     if (options.modo !== 'consentido' && options.modo !== 'leitura') {
+      /* Toda recusa AVISA, e avisa com o código de verdade.
+      
+         Estes retornos contavam com o `garantirFim(null, null)` do `finally`,
+         que emite `AUDIT_ENDED_SILENTLY` — a rede de segurança, não o motivo.
+         A tela recebia "terminou" e nunca soube que faltava declarar o modo. */
+      reporter.aborted('MODE_MISSING', 'a auditoria não declarou o modo')
       return {
         ...base,
         errorCode: 'MODE_MISSING',
@@ -241,6 +247,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
     if (options.modo === 'consentido') {
       const recusa = aceiteInvalido(options.aceite, input)
       if (recusa !== null) {
+        reporter.aborted('CONSENT_MISSING', recusa)
         return {
           ...base,
           errorCode: 'CONSENT_MISSING',
@@ -268,6 +275,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
         verificacao = await verificarTitularidade(input, deps.safeFetch, segredoDoAmbiente())
       } catch (e) {
         const err = toAuditError(e)
+        reporter.aborted(err.code, err.message)
         return {
           ...base,
           errorCode: err.code,
@@ -277,6 +285,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
         }
       }
       if (!verificacao.verificado) {
+        reporter.aborted('OWNERSHIP_UNVERIFIED', verificacao.detalhe)
         return {
           ...base,
           /* `base.robots.ownerVerified` nasce de `modo === 'consentido'`, o que
@@ -305,6 +314,7 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
       /* Aceite em modo leitura é contradição: ou alguém autorizou, e então o
          modo é consentido, ou não autorizou, e o aceite não existe. Aceitar os
          dois deixaria passar um consentido disfarçado de leitura. */
+      reporter.aborted('CONSENT_MISSING', 'modo leitura não aceita registro de aceite')
       return {
         ...base,
         errorCode: 'CONSENT_MISSING',

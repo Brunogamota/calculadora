@@ -140,6 +140,16 @@ export type AuditEventType = AuditEvent['type']
 /** Estado que uma reconexão recebe: passos, sim; histórico de frames, não (§7.4). */
 export interface LiveState {
   auditId: string
+  /**
+   * Por que a auditoria acabou, quando ela não completou.
+   *
+   * Está no ESTADO e não só no evento porque a recusa mais importante — modo
+   * ausente, sem aceite, titularidade não provada — acontece em menos de um
+   * segundo, antes de qualquer rede. Quem abre a sala do WebSocket depois
+   * disso perdia o evento e recebia `finished: true` sem código e sem motivo:
+   * uma tela dizendo que terminou, sem dizer o que houve nem o que fazer.
+   */
+  abort?: { code: string; reason: string }
   /* `startedAt`/`finishedAt` são ISO, do relógio do motor. Estão no ESTADO e
      não só nos eventos porque quem reconecta recebe o estado, e sem eles a
      tela teria que ou inventar a duração das etapas que já passaram ou deixá-la
