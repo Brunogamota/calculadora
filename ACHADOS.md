@@ -154,7 +154,12 @@ Rodar na máquina de casa não vale: o IP é outro, com reputação outra.
 
 ## A2 — O erro de orçamento nomeava a corrida, não a etapa (e por isso os 3 travamentos ficaram sem diagnóstico)
 
-**Data:** 05/09/2026 · **Estado:** instrumento pronto; causa dos 3 travamentos ainda NÃO isolada
+**Data:** 05/09/2026 · **Estado:** FECHADO por dissolução do sintoma. Os 3 domínios
+não travam. O que existe é falha intermitente, e a resposta é de produto, não de
+depuração — ver "Como isto fechou", no fim.
+
+**Orçamento gasto:** 2 ciclos de hipótese (H1 e H2), mais uma medição na Fly.
+Dentro do orçamento. Não foi preciso acionar a regra de parada.
 
 ### Sintoma
 
@@ -259,7 +264,93 @@ controle positivo. Previsões escritas ANTES:
   adapters, e aí a suspeita passa a ser o rate limiter por host.
 - `tracksmith` falhando → mudou o ambiente, e nada mais da rodada se lê.
 
+### Como isto fechou: o sintoma dissolveu
+
+A rodada com a instrumentação, mesmos 150s de intervalo, mesma máquina da Fly:
+
+```
+#1 pantys.com.br      13.3s  robots.txt bloqueia: /cart.js, /cart/add.js, /checkout
+#2 brooklinen.com     22.8s  robots.txt bloqueia: /cart.js, /cart/add.js, /checkout
+#3 colourpop.com      24.5s  robots.txt bloqueia: /cart.js, /cart/add.js, /checkout
+#4 tracksmith.com     17.6s  ENTROU · identify 9964ms · 1 checagem(ns) possível(is)
+
+  travou de novo mesmo espaçado: 0 de 4
+```
+
+**Os três resolveram limpo, em 13 a 25 segundos.** Os mesmos que tinham estourado
+os 120s.
+
+E a instrumentação não chegou a disparar, porque nada travou. Então ela continua
+sem uso em campo — o que é o desfecho certo: o instrumento existe para a próxima
+vez que acontecer, e não custa nada esperando.
+
+### O que isso prova, e o que derruba
+
+**Derruba a premissa da própria investigação.** "`pantys`, `brooklinen` e
+`colourpop` travam" era falso. Não é propriedade desses domínios: eles passam.
+
+**Derruba também a acumulação**, que era a explicação mais natural depois do A1.
+Posição de cada um nas duas rodadas espaçadas, mesmo intervalo:
+
+```
+rodada 1 (12 domínios)              rodada 2 (4 domínios)
+ #1 gymshark        robots           #1 pantys       robots
+ #2 simpleorganic   robots           #2 brooklinen   robots
+ #3 everlane        robots           #3 colourpop    robots
+ #4 pantys          TRAVOU           #4 tracksmith   ENTROU
+ #5 brooklinen      TRAVOU
+ #6 tracksmith      ENTROU
+ #7 steamtoy        robots     <- passou DEPOIS dos dois travamentos
+ #8 rothys          robots
+ #9 ekomat          robots
+ #10 fearofgod      robots
+ #11 noahny         robots
+ #12 colourpop      TRAVOU     <- e travou DEPOIS de cinco sucessos seguidos
+```
+
+Se fosse desgaste ao longo da rodada, #7 a #11 não teriam passado. Não é
+progressivo, não é o domínio, não é o intervalo.
+
+**O que sobra é falha intermitente**, a ~25% na rodada de 12 e a 0% na de 4.
+Amostra pequena demais para chamar de taxa — e o protocolo é explícito sobre
+isto: falha intermitente exige MEDIR a taxa (20, 50, 100 execuções) antes de
+investigar causa, senão a próxima execução boa vira "confirmação" de uma
+correção que não fez nada. Foi exatamente o risco que a rodada de hoje quase
+criou.
+
+### A rota alternativa, que já estava escrita
+
+E aqui a conclusão importante: **não vale caçar essa causa.** O custo é medir
+dezenas de execuções contra lojas de terceiro, o que esbarra na §2.2, e o
+resultado no melhor caso explica um travamento que o produto pode simplesmente
+absorver.
+
+A resposta de produto já existe no backlog do Bruno, escrita antes desta
+investigação:
+
+- **`CAL-13`** — execução em background com gravação. "Hoje, o dia que a jornada
+  quebrar ao vivo, ela quebra na frente do lead."
+- **`CAL-15`** — retry automático antes de entregar. "Se a jornada quebrar em
+  background, tenta de novo e só entrega o que fechou."
+
+Falha intermitente de ~25% com retry vira ~6%, e com dois retries ~1,5% — sem
+entender a causa. Um travamento que ninguém vê não é o mesmo defeito.
+
+### Gatilho para reabrir
+
+- Se a taxa passar de ~25% numa rodada maior, ou se o retry do `CAL-15` não
+  derrubar o número na prática.
+- Quando acontecer de novo COM a instrumentação ligada: a trilha vai dizer em
+  qual das oito etapas o orçamento foi, e aí a causa custa uma rodada em vez de
+  uma investigação.
+
 ### O que eu não sei
 
-Se os três travam pelo mesmo motivo. A amostra é pequena demais para tratar
-"3 de 12" como taxa: pode ser 25% das lojas ou pode ser coincidência de três.
+A taxa real. "3 de 12" e "0 de 4" são a mesma medição ruim vista duas vezes:
+amostras pequenas de um fenômeno intermitente. O número honesto só sai de uma
+rodada grande, e essa rodada não vale o custo agora (§2.2, e o retry resolve).
+
+E continuam de pé, sem uso, os dois mecanismos verificados no código — o
+`page.content()`/`page.evaluate` sem timeout e o `timeoutMs` por hop do
+`safeFetch`. Nenhum dos dois foi corrigido, porque nenhum foi demonstrado como
+causa de nada. Ficam registrados aqui para a próxima vez.
