@@ -95,17 +95,43 @@ export function extractInstallments(text: string): InstallmentReading {
     }
   }
 
-  const counts = matches.map((m) => Number(m[1])).filter((n) => Number.isFinite(n) && n > 1 && n <= 24)
+  const aceitos = matches.filter((m) => {
+    const n = Number(m[1])
+    return Number.isFinite(n) && n > 1 && n <= 24
+  })
   const withValue = matches.some((m) => m[2] !== undefined)
   const interest = findTerm(text, INTEREST_TERMS)
-  const first = matches[0]
+
+  /* A EVIDÊNCIA É A DO NÚMERO AFIRMADO, e antes não era.
+  
+     `maxCount` saía do máximo entre todas as ocorrências e `rawText` do
+     PRIMEIRO match — dois trechos diferentes do texto. Numa auditoria real da
+     loja própria isso produziu `maxCount: 9` ao lado de `rawText: "5X"`, e o
+     relatório mostra o `rawText` como prova do número (`checks/rules/payment.ts`).
+     Quem lesse veria a ferramenta afirmando nove parcelas e citando cinco.
+  
+     Com a evidência amarrada ao número, um `maxCount` errado passa a ser
+     visível: dá para ler o trecho e discordar. Antes não dava, e por isso este
+     defeito sobreviveu — ele não era detectável pela própria saída.
+  
+     NÃO mexi no padrão de busca. A suspeita era que ele estivesse pegando
+     número solto do HTML minificado do checkout, e testar contra o texto real
+     da auditoria não reproduziu: zero matches no lixo de CSS e hashes. Sem
+     evidência, mudar a busca seria trocar um comportamento medido por um
+     palpite. */
+  const vencedor = aceitos.reduce<RegExpMatchArray | null>(
+    (melhor, m) => (melhor === null || Number(m[1]) > Number(melhor[1]) ? m : melhor),
+    null,
+  )
 
   return {
     present: true,
-    maxCount: counts.length > 0 ? Math.max(...counts) : null,
+    maxCount: vencedor ? Number(vencedor[1]) : null,
     perInstallmentValueShown: withValue,
     interestExplicit: interest !== null,
-    rawText: first?.[0]?.trim() ?? null,
+    /* Sem número aceito, cai para o primeiro match: `present` é true, alguma
+       menção a parcela existe, e o relatório precisa poder mostrar qual. */
+    rawText: (vencedor ?? matches[0])?.[0]?.trim() ?? null,
   }
 }
 

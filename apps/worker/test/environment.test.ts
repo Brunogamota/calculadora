@@ -8,7 +8,7 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectCloudEnvironment, vantageContradiction } from '../src/lib/environment.ts'
+import { detectCloudEnvironment, vantageContradiction, origemBrasileiraDoAmbiente } from '../src/lib/environment.ts'
 
 describe('detectCloudEnvironment', () => {
   test('reconhece Codespaces, que é onde isso aconteceu', () => {
@@ -52,5 +52,31 @@ describe('vantageContradiction', () => {
     // pessoa. O aviso vai no resultado, para quem lê o relatório também ver.
     const aviso = vantageContradiction(true, { CODESPACES: 'true' })
     assert.ok(aviso!.includes('sua própria máquina'))
+  })
+})
+
+describe('origemBrasileiraDoAmbiente', () => {
+  test('Fly em gru é São Paulo: a plataforma diz, não a gente adivinha', () => {
+    /* Produção roda em gru e ninguém passava `--from-br`, que é flag de CLI.
+       Numa auditoria real isso descartou CHECKOUT_SPEED com o motivo "a
+       auditoria não saiu de IP brasileiro" — sobre um checkout medido em
+       2507ms que SAIU. */
+    const r = origemBrasileiraDoAmbiente({ FLY_REGION: 'gru' })
+    assert.equal(r?.regiao, 'gru')
+    assert.equal(r?.plataforma, 'Fly.io')
+    assert.equal(r?.variavel, 'FLY_REGION', 'sem a variável, o relatório não pode mostrar a prova')
+  })
+
+  test('Fly fora do Brasil não vira origem brasileira', () => {
+    assert.equal(origemBrasileiraDoAmbiente({ FLY_REGION: 'iad' }), null)
+    assert.equal(origemBrasileiraDoAmbiente({ FLY_REGION: 'gig' }), null)
+  })
+
+  test('ambiente sem pista nenhuma não afirma nada', () => {
+    assert.equal(origemBrasileiraDoAmbiente({}), null)
+  })
+
+  test('maiúscula e espaço não escondem a região', () => {
+    assert.equal(origemBrasileiraDoAmbiente({ FLY_REGION: ' GRU ' })?.regiao, 'gru')
   })
 })

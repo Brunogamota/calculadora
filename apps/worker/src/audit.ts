@@ -20,7 +20,7 @@ import { NullPublisher, type Publisher } from './stream/publisher.ts'
 import { Reporter } from './stream/reporter.ts'
 import { startScreencast, type Screencast } from './stream/screencast.ts'
 import { normalizeUrl } from './lib/guards.ts'
-import { vantageContradiction } from './lib/environment.ts'
+import { vantageContradiction, origemBrasileiraDoAmbiente } from './lib/environment.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
 import { verificarTitularidade, segredoDoAmbiente, META_NAME } from './lib/titularidade.ts'
 import type {
@@ -156,6 +156,15 @@ function aceiteInvalido(aceite: Aceite | undefined, alvo: string): string | null
   return null
 }
 
+/**
+ * De onde a auditoria está olhando: declarado pela pessoa, ou detectado pela
+ * plataforma. Uma função só porque `audit` e `runAudit` precisam da MESMA
+ * resposta — duplicar a decisão é como as duas divergem depois.
+ */
+function origemBrasileira(options: AuditOptions): boolean | null {
+  return options.fromBrazil ?? (origemBrasileiraDoAmbiente() !== null ? true : null)
+}
+
 export async function audit(input: string, options: AuditOptions): Promise<AuditResult> {
   const startedAt = Date.now()
   const deps = createDeps()
@@ -177,6 +186,21 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
     options.auditId ?? `audit_${Math.random().toString(36).slice(2, 10)}`,
     options.stepDelayMs ?? 0,
   )
+
+  /* A ORIGEM É DETECTADA, e não só declarada.
+  
+     Produção roda na Fly em `gru` — São Paulo — e ninguém passava `--from-br`,
+     que é flag de linha de comando. Resultado medido numa auditoria real:
+     `CHECKOUT_SPEED` saiu `not_applicable` com o motivo "a auditoria não saiu
+     de IP brasileiro", jogando fora um checkout medido em 2507ms e avisando o
+     lojista que o dado não valia. O motor estava sendo honesto sobre uma
+     informação errada, que é pior que ficar calado.
+  
+     A declaração da pessoa continua vencendo: quem roda de casa e passa
+     `--from-br` sabe algo que o ambiente não conta. O que muda é que a
+     ausência da flag deixou de significar "não é do Brasil". */
+  const origemDetectada = origemBrasileiraDoAmbiente()
+  const doBrasil = origemBrasileira(options)
 
   const base: AuditResult = {
     ok: false,
@@ -202,15 +226,18 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
     robots: { ownerVerified: options.modo === 'consentido', blockedPaths: [], overridesUsed: [] },
     incompleteBecause: [],
     vantage: {
-      auditedFromBrazil: options.fromBrazil ?? null,
+      auditedFromBrazil: doBrasil,
       locale: 'pt-BR',
       timezone: 'America/Sao_Paulo',
       note:
         options.fromBrazil === true
           ? vantageContradiction(options.fromBrazil)
-          : 'ponto de observação não declarado como Brasil: tempos de carregamento e ' +
-            'meios de pagamento visíveis podem não ser os que um comprador brasileiro vê ' +
-            '(use --from-br quando a auditoria sair de IP brasileiro)',
+          : origemDetectada
+            ? `origem no Brasil segundo a própria plataforma: ${origemDetectada.plataforma} ` +
+              `informa ${origemDetectada.variavel}=${origemDetectada.regiao}`
+            : 'ponto de observação não declarado como Brasil: tempos de carregamento e ' +
+              'meios de pagamento visíveis podem não ser os que um comprador brasileiro vê ' +
+              '(use --from-br quando a auditoria sair de IP brasileiro)',
     },
     modo: options.modo,
     aceite: options.aceite ?? null,
@@ -546,7 +573,7 @@ async function runAudit(
     prepared.browser.page,
     OVERLAY_DISMISS,
     assertSafeToClick,
-    options.fromBrazil === true ? true : null,
+    origemBrasileira(options) === true ? true : null,
   )
   const notaEntrada = notaDaSobreposicao(naEntrada, 'Ao abrir a loja,')
   if (notaEntrada) result.storefrontNotes.push(notaEntrada)
@@ -626,7 +653,7 @@ async function runAudit(
     }
   }
 
-  const ctx = makeJourneyContext(prepared, recorder, deps, identity, outDir, options.fromBrazil ?? null)
+  const ctx = makeJourneyContext(prepared, recorder, deps, identity, outDir, origemBrasileira(options))
 
   // 1. encontrar produto
   let product: ProductRef

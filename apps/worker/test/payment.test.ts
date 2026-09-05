@@ -52,6 +52,36 @@ describe('extractMethods — meios visíveis e a ordem deles', () => {
 })
 
 describe('extractInstallments', () => {
+  test('a evidência é a do número afirmado, não a da primeira menção', () => {
+    /* Caso real, da primeira auditoria da loja própria em produção (05/09):
+       o relatório saiu com `maxCount: 9` ao lado de `rawText: "5X"`. O número
+       vinha do máximo entre as ocorrências e o texto do PRIMEIRO match —
+       trechos diferentes. A tela mostra o `rawText` como prova do número, então
+       a ferramenta afirmava nove parcelas citando cinco.
+
+       Isto é o que torna um `maxCount` errado detectável: dá para ler o trecho
+       e discordar. Sem isto, o número não é auditável pela própria saída. */
+    const r = extractInstallments('pague em 5x sem juros, ou em até 9x no cartão')
+    assert.equal(r.maxCount, 9)
+    assert.match(r.rawText ?? '', /9/, `a evidência "${r.rawText}" não é a do número afirmado`)
+  })
+
+  test('com uma menção só, evidência e número continuam sendo o mesmo trecho', () => {
+    const r = extractInstallments('em até 10x de R$ 30,00')
+    assert.equal(r.maxCount, 10)
+    assert.match(r.rawText ?? '', /10/)
+  })
+
+  test('menção a parcela sem número aceitável ainda deixa evidência', () => {
+    /* `1x` não é parcelamento (n > 1), mas é menção: `present` fica true e o
+       relatório precisa poder mostrar de onde veio. */
+    const r = extractInstallments('à vista ou 1x no cartão')
+    assert.equal(r.present, true)
+    assert.equal(r.maxCount, null)
+    assert.ok(r.rawText, 'present sem evidência nenhuma deixa o relatório mudo')
+  })
+
+
   test('lê quantidade, valor por parcela e juros', () => {
     const r = extractInstallments('em até 12x de R$ 49,90 sem juros')
     assert.equal(r.present, true)

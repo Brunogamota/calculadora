@@ -52,3 +52,41 @@ export function vantageContradiction(
     'tratado como artefato. Rode da sua própria máquina para medir do Brasil.'
   )
 }
+
+/**
+ * Regiões de plataforma que ficam no Brasil de verdade.
+ *
+ * Isto NÃO é palpite: é a plataforma dizendo onde a máquina está. `FLY_REGION`
+ * vem do ambiente da máquina em execução, e é evidência melhor que uma flag de
+ * linha de comando — a flag diz o que a pessoa acredita, a variável diz onde o
+ * processo está.
+ *
+ * `primary_region` do `fly.toml` não serve para isto: ele é a preferência, e a
+ * Fly pode subir a máquina em outro lugar. O que vale é onde ela subiu.
+ */
+const REGIOES_BRASILEIRAS: Array<{ variavel: string; regioes: readonly string[]; plataforma: string }> = [
+  { variavel: 'FLY_REGION', regioes: ['gru'], plataforma: 'Fly.io' },
+]
+
+export interface OrigemDoAmbiente {
+  plataforma: string
+  variavel: string
+  regiao: string
+}
+
+/**
+ * A auditoria está saindo do Brasil, segundo a própria plataforma?
+ *
+ * Devolve a evidência, não só um booleano: quem lê o relatório precisa saber
+ * POR QUE o motor concluiu isso, e "porque a Fly diz que a máquina está em gru"
+ * é verificável de um jeito que "true" não é.
+ */
+export function origemBrasileiraDoAmbiente(env: NodeJS.ProcessEnv = process.env): OrigemDoAmbiente | null {
+  for (const { variavel, regioes, plataforma } of REGIOES_BRASILEIRAS) {
+    const valor = env[variavel]
+    if (typeof valor === 'string' && regioes.includes(valor.trim().toLowerCase())) {
+      return { plataforma, variavel, regiao: valor.trim().toLowerCase() }
+    }
+  }
+  return null
+}
