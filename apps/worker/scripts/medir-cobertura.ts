@@ -493,7 +493,11 @@ export async function medirLeitura(url: string): Promise<{ desfecho: DesfechoLei
     }
   }
   const identify = r.steps.find((s) => s.id === 'open-home')
-  const produto = r.steps.find((s) => s.id === 'open-product')
+  /* `observe-product` é o passo do modo LEITURA (`audit.ts:597`), que é o modo
+     que a Camada 1 roda. Procurar `open-product` — o nome do passo da jornada
+     que compra — imprimia `produto ?ms` em toda loja que deu certo, e fazia
+     parecer que a página de produto não tinha sido lida quando tinha. */
+  const produto = r.steps.find((s) => s.id === 'observe-product' || s.id === 'open-product')
   return {
     ms: Date.now() - t0,
     desfecho: {
