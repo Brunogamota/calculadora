@@ -1,29 +1,34 @@
 /**
- * Rede, User-Agent, redirect+corpo e recurso local (memória, processo de
- * Chromium) — quatro hipóteses eliminadas com evidência real da Fly. A
- * última caiu de um jeito que aponta pra frente: `livre` ficou estável em
- * ~500-520MB de 962MB disponíveis, `chromium` nunca passou de 1, e o
- * primeiro timeout da segunda rodada de cobertura apareceu já na posição
- * #10 — com a memória ainda em 559MB, praticamente igual ao início. Não deu
- * tempo de faltar recurso nenhum.
+ * ESTE EXPERIMENTO JÁ RODOU E DECIDIU. O resultado está em `ACHADOS.md`,
+ * achado A1, com as duas colunas lado a lado. Em uma linha: a hipótese do
+ * ritmo se CONFIRMOU para a camada de rede — 8 dos 12 domínios que estouravam
+ * o `page.goto` em rajada carregaram limpos em 7 a 50 segundos espaçados, e a
+ * `tracksmith` (controle positivo, passou nas duas condições) caiu de 140,3s
+ * para 17,0s, com o `identify` indo de 75-78s para 9,4s. Mesmo domínio, mesmo
+ * código, mesmo IP: a diferença foi só não estar numa fila de 227.
  *
- * O que sobra, por eliminação repetida: `gymshark.com`, `everlane.com` e
- * `brooklinen.com` carregaram LIMPO num teste isolado (poucos pedidos, logo
- * depois de um deploy) e TRAVARAM nas duas rodadas de cobertura (227
- * pedidos, para dezenas de domínios diferentes, em ~2 horas seguidas, do
- * mesmo IP). A diferença entre os dois testes não é o domínio nem o recurso
- * local — é VOLUME e RITMO. Isso é a assinatura de reputação de IP por taxa
- * de pedidos, comum em CDN grande (boa parte dessas marcas usa Cloudflare):
- * pontuação que sobe com a velocidade dos pedidos, não só com o destino.
+ * E o que apareceu embaixo não foi `entrou`, foi `robots.txt bloqueia:
+ * /cart.js, /cart/add.js, /checkout` — em 8 de 8 dos que destravaram. O teto
+ * da Camada 1 não é o ritmo, é o robots respeitado de propósito (§2.3). O
+ * ritmo só estava escondendo isso atrás de timeout.
  *
- * Este script pega uma amostra de domínios que travaram na última cobertura
- * — a MESMA hipótese de sempre, aplicada por eliminação, então NÃO é mais
- * uma variação cega — e repete, um de cada vez, com um intervalo deliberado
- * entre eles. Se a mesma loja que travou em rajada passar quando pedida
- * devagar, a causa está confirmada — E isso muda a leitura do risco de
- * lançamento: ninguém vai auditar 227 lojas em rajada. Um usuário real pede
- * a própria loja, uma vez. Se o gatilho é ritmo, o "3 de 227" desta medição
- * pode estar SUBESTIMANDO o que vai acontecer em uso real.
+ * Ficou de pé uma coisa só: `pantys.com.br`, `brooklinen.com` e
+ * `colourpop.com` estouram os 120s da §14 NA DETECÇÃO DE PLATAFORMA mesmo com
+ * 2,5 min de intervalo. 3 de 12, sem explicação. É para isso que este script
+ * ainda serve — rodar contra uma amostra montada em cima DESSES, não em cima
+ * dos que já se explicaram.
+ *
+ * ------------------------------------------------------------------------
+ *
+ * O raciocínio original, mantido porque é o que torna o resultado legível:
+ * rede, User-Agent, redirect+corpo e recurso local (memória, processo de
+ * Chromium) já tinham sido eliminados com evidência real da Fly — `livre`
+ * estável em ~500-520MB de 962MB, `chromium` nunca acima de 1, e o primeiro
+ * timeout da segunda cobertura aparecendo já na posição #10, com a memória
+ * praticamente igual à do início. Não deu tempo de faltar recurso nenhum. O
+ * que sobrava por eliminação era VOLUME e RITMO: os mesmos domínios
+ * carregavam limpos isolados e travavam em 227 pedidos do mesmo IP em ~2h —
+ * assinatura de reputação de IP por taxa de pedidos, comum em CDN grande.
  *
  * ONDE RODAR IMPORTA MAIS QUE TUDO AQUI. A reputação em jogo é a do IP de
  * produção (datacenter da Fly). Rodar na máquina de casa testa outro IP,

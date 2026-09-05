@@ -49,6 +49,12 @@ Ler antes de codar. Isso define arquitetura, não é aviso legal.
 1. **Nunca finalizar pedido.** A jornada para na tela onde os meios de pagamento aparecem. Nada de submeter cartão, gerar Pix real ou criar pedido.
 2. **Nunca testar antifraude de terceiros.** Não tentar cartão de teste, não repetir tentativa para provocar velocity, não simular fraude. Isso é o que separa auditoria de ataque.
 3. **Respeitar robots.txt** e limitar a 1 requisição por segundo por domínio.
+   Isto tem uma consequência medida, não teórica: o robots.txt padrão da
+   Shopify proíbe `/cart.js`, `/cart/add.js` e `/checkout`, então **uma
+   auditoria sem autorização não passa da página do produto na maioria das
+   lojas**. A exceção é titularidade confirmada (`lib/gate.ts`), que é o que
+   o modo `consentido` liga. Evidência e consequências em `ACHADOS.md`, A1 —
+   ler antes de tratar isso como bug.
 4. **User-Agent identificável:** `RebornCheckoutAudit/1.0 (+https://rebornpay.io/raio-x)`, com página pública explicando o que a ferramenta faz e como pedir bloqueio.
 5. **Proteção contra SSRF:** rejeitar IP direto, localhost, faixas privadas e redirect que caia nessas faixas.
 6. **Blocklist e opt-out** funcionando desde a primeira versão pública.

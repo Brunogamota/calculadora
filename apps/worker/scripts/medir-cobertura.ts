@@ -40,21 +40,28 @@
  * imprime cada resultado NA HORA, então mesmo perdendo o arquivo o que já
  * mediu fica no terminal.
  *
- * SEGUNDA RODADA: a primeira devolveu 4 de 227 entrando, mas a maioria dos
- * timeouts eliminou três hipóteses de bloqueio por loja (rede, User-Agent,
- * redirect+corpo — todas rápidas e limpas na Fly, para os mesmos domínios) e
- * um teste final com o Chromium de verdade não reproduziu o travamento em
- * NENHUM dos quatro, incluindo três que tinham travado antes.
+ * O NÚMERO DA CAMADA 1 JÁ FOI INVESTIGADO ATÉ O FIM. Está em `ACHADOS.md`,
+ * achado A1, com a saída bruta das duas rodadas de 227 e do diagnóstico de
+ * espaçamento. Leia antes de tratar um resultado baixo aqui como defeito —
+ * duas conclusões dali mudam o que este script significa:
  *
- * Relendo o log da primeira rodada EM ORDEM: os ~9 primeiros candidatos
- * saíram limpos, e a partir do 13º o timeout de 30s virou o desfecho
- * dominante pro resto da lista inteira. Essa é a assinatura de recurso se
- * esgotando ao longo de uma rodada longa e sequencial — memória, processo de
- * Chromium não fechando direito — não de bloqueio por loja. `snapshotDeRecursos`,
- * mais abaixo, imprime memória livre, RSS do processo e contagem de
- * Chromium antes de CADA candidato, para esta rodada trazer o rastro que
- * faltou na primeira: se o recurso realmente cai ao longo da lista, e em que
- * posição a queda bate com o início dos timeouts.
+ *  1. O `3 de 227` mediu a RAJADA, não o produto. 8 de 12 domínios que
+ *     estouravam o `page.goto` aqui carregaram limpos em 7-50s quando
+ *     pedidos um de cada vez, e a `tracksmith` (que passou nas duas
+ *     condições) caiu de 140,3s para 17,0s só por sair da fila. Um lojista
+ *     pede a própria loja, uma vez: esta taxa não é a que ele vai ver.
+ *  2. Embaixo da rajada, o desfecho dominante é `robots.txt bloqueia:
+ *     /cart.js, /cart/add.js, /checkout` — o padrão da Shopify, respeitado
+ *     de propósito (§2.3, `lib/gate.ts`). A Camada 1 roda sem autorização de
+ *     ninguém, então NÃO TEM COMO passar do produto na maior parte das lojas,
+ *     e isso não tem correção: teria que virar desrespeito ao robots.
+ *
+ * O que ainda vale medir aqui é o resto — quem não é Shopify, quem responde
+ * 403, quem nem resolve o DNS, e os travamentos na detecção de plataforma que
+ * continuam sem explicação (A1, seção "o que continua sem explicação").
+ * `snapshotDeRecursos`, mais abaixo, imprime memória livre, RSS e contagem de
+ * Chromium antes de cada candidato: foi ele que eliminou o esgotamento de
+ * recurso local como causa (~500MB livres do primeiro ao último domínio).
  */
 
 import { detect } from '../src/detect.ts'

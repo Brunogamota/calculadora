@@ -17,6 +17,13 @@ imprime JSON tipado, salvando screenshots em disco. Sem UI, sem fila, sem banco.
 | 3b | Jornada Shopify: carrinho -> tela de pagamento (§6.5, §6.6) | **escrito, não validado contra loja real** |
 | 4 | Checagens (§8), nota e saída JSON validada | **pronto** |
 
+### Achados medidos ficam em `ACHADOS.md`
+
+Conclusões que custaram medição para chegar, com a saída bruta que as
+sustenta. A primeira (A1) responde a pergunta que sempre volta: por que a
+medição de cobertura devolve um número tão baixo, e por que ele não é um
+defeito a corrigir.
+
 ### Por que o 3a deixou de ser "pronto"
 
 Ele esteve marcado como pronto desde `a774174`, sobre uma base que não
