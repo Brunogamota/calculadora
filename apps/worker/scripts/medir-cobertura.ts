@@ -358,6 +358,12 @@ export interface Consentida {
   url: string
   em: string
   texto: string
+  /* Separa a loja do próprio dono do projeto das lojas de terceiro que deram
+     aceite. As duas têm aceite válido, mas só a própria pode ser reauditada
+     no mesmo dia: o intervalo da §2.2 existe pra não martelar loja alheia, e
+     `--force` foi escrito pra loja própria (ver o comentário em audit.ts:278,
+     que registra o caso real de antibot provocado numa loja de terceiro). */
+  propria: boolean
 }
 
 /**
@@ -386,6 +392,7 @@ function lojaPropriaDoAmbiente(env: NodeJS.ProcessEnv = process.env): Consentida
     url,
     em: '2026-09-05T00:00:00Z', // quando o Bruno criou a loja e autorizou, nesta conversa
     texto: 'Loja própria em plano pago (criada direto no shopify.com), publicada para medir a Camada 2 do Raio-X do Checkout.',
+    propria: true,
   }
 }
 
@@ -399,7 +406,11 @@ export async function carregarConsentidas(
       const bruto = await readFile(caminho, 'utf8')
       const lista = JSON.parse(bruto) as unknown
       if (!Array.isArray(lista)) throw new Error('esperava uma lista')
-      return lista as Consentida[]
+      /* `propria: false` não é opinião do arquivo: quem está no arquivo é
+         terceiro por definição — a loja própria entra pela variável de
+         ambiente. Fixar aqui impede que um `"propria": true` escrito à mão no
+         JSON libere reauditoria contra loja alheia. */
+      return (lista as Consentida[]).map((c) => ({ ...c, propria: false }))
     } catch (erro) {
       if ((erro as NodeJS.ErrnoException).code === 'ENOENT') return []
       console.error(`[cobertura] lojas-consentidas.json existe mas não deu pra ler: ${String(erro)}`)
@@ -484,6 +495,11 @@ export async function medirConsentida(loja: Consentida): Promise<{ hostname: str
     aceite: { em: loja.em, url: loja.url, texto: loja.texto },
     headed: false,
     outDir: '/tmp/raio-x-cobertura',
+    /* Só na loja própria. Medir a Camada 2 é iterar: mexer na loja, rodar de
+       novo, ver o que mudou — e o intervalo de 24h da §2.2 tornaria isso uma
+       medição por dia. Contra loja de terceiro o intervalo continua valendo
+       inteiro, que é exatamente o que ele existe pra proteger. */
+    force: loja.propria,
   })
   return { hostname, resultado }
 }
@@ -616,7 +632,10 @@ async function rodarCamada2(): Promise<void> {
   } else {
     let leuPagamento = 0
     for (const loja of consentidas) {
-      process.stdout.write(`  ${loja.url.padEnd(34)} `)
+      /* Forçar aparece na saída. Ignorar o intervalo da §2.2 em silêncio seria
+         a mesma doença que o resto deste script combate: número que não conta
+         em que condição foi medido. */
+      process.stdout.write(`  ${loja.url.padEnd(34)} ${loja.propria ? '[própria, sem intervalo] ' : ''}`)
       const { hostname, resultado } = await medirConsentida(loja)
       /* O passo que decide é `read-payment`, não `reach-checkout`. Abrir a URL
          /checkout é chegar na porta; o que o lojista quer saber é se a tela de

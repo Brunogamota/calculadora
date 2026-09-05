@@ -77,7 +77,7 @@ describe('Camada 2: carregamento do arquivo de aceites', { concurrency: false },
 
   test('arquivo com uma loja: devolve exatamente o que está nele', async () => {
     const caminho = path.join(dir, 'lojas-consentidas.json')
-    const conteudo: Consentida[] = [{ url: 'https://minha-loja.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo' }]
+    const conteudo: Consentida[] = [{ url: 'https://minha-loja.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo', propria: false }]
     await writeFile(caminho, JSON.stringify(conteudo))
 
     const lista = await carregarConsentidas(caminho)
@@ -111,7 +111,7 @@ describe('Camada 2: carregamento do arquivo de aceites', { concurrency: false },
 
   test('loja própria vem JUNTO com as do arquivo, não no lugar delas', async () => {
     const caminho = path.join(dir, 'com-loja-propria.json')
-    const doArquivo: Consentida[] = [{ url: 'https://outra-loja.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo' }]
+    const doArquivo: Consentida[] = [{ url: 'https://outra-loja.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo', propria: false }]
     await writeFile(caminho, JSON.stringify(doArquivo))
 
     const lista = await carregarConsentidas(caminho, { RAIO_X_LOJA_PROPRIA: 'https://raiox-teste.myshopify.com' })
@@ -123,5 +123,28 @@ describe('Camada 2: carregamento do arquivo de aceites', { concurrency: false },
   test('sem a variável de ambiente, nenhuma loja própria aparece', async () => {
     const lista = await carregarConsentidas(path.join(dir, 'nao-existe-3.json'), {})
     assert.deepEqual(lista, [])
+  })
+
+  test('só a loja do ambiente é marcada como própria — é ela que pode repetir no mesmo dia', async () => {
+    const caminho = path.join(dir, 'quem-e-propria.json')
+    const doArquivo: Consentida[] = [
+      { url: 'https://terceiro.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo', propria: false },
+    ]
+    await writeFile(caminho, JSON.stringify(doArquivo))
+
+    const lista = await carregarConsentidas(caminho, { RAIO_X_LOJA_PROPRIA: 'https://raiox-teste.myshopify.com' })
+    assert.equal(lista.find((l) => l.url === 'https://raiox-teste.myshopify.com')?.propria, true)
+    assert.equal(lista.find((l) => l.url === 'https://terceiro.example')?.propria, false)
+  })
+
+  test('"propria": true escrito no arquivo à mão não libera repetição contra loja de terceiro', async () => {
+    const caminho = path.join(dir, 'mentindo.json')
+    await writeFile(
+      caminho,
+      JSON.stringify([{ url: 'https://terceiro.example', em: '2026-09-04T10:00:00Z', texto: 'aprovo', propria: true }]),
+    )
+
+    const lista = await carregarConsentidas(caminho, {})
+    assert.equal(lista[0]?.propria, false, 'o arquivo conseguiu se declarar loja própria')
   })
 })
