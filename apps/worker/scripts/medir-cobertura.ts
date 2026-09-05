@@ -450,9 +450,17 @@ export async function medirLeitura(url: string): Promise<{ desfecho: DesfechoLei
 
   const d = await detect(url, { headed: false })
   if (!d.ok) {
+    /* A trilha do orçamento (`lib/deadline.ts`) só serve se chegar até quem
+       lê o relatório. Sem ela, um DEADLINE_EXCEEDED aqui diz que estourou e
+       não diz onde — foi assim que três lojas ficaram sem diagnóstico numa
+       rodada inteira de 30 minutos na Fly. */
+    const trilha = typeof d.detail['trilha'] === 'string' ? d.detail['trilha'] : null
     return {
       ms: Date.now() - t0,
-      desfecho: { faixa: 'descartada-no-detect', detalhe: `${d.errorCode}: ${d.errorReason}` },
+      desfecho: {
+        faixa: 'descartada-no-detect',
+        detalhe: `${d.errorCode}: ${d.errorReason}${trilha ? `\n      trilha: ${trilha}` : ''}`,
+      },
     }
   }
   if (d.platform.id !== 'shopify') {

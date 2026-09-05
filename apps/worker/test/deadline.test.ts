@@ -42,6 +42,60 @@ describe('Deadline — §14 timeout global', () => {
     await assert.rejects(d.race(sleep(1000), 'tarde demais'), /DEADLINE|estourou/)
   })
 
+  test('a mensagem nomeia a ETAPA que estava rodando, não só o rótulo da corrida', async () => {
+    /* O defeito que este teste tranca: `detect` corre a cadeia inteira dentro
+       de um `race` com um rótulo só, então preflight lento, redirect,
+       robots.txt, Chromium, `page.goto`, `page.content` e classificação
+       estouravam todos com a MESMA frase. Três lojas reais travaram nos 120s e
+       não deu para saber, pela saída, qual das oito etapas travou. */
+    const d = new Deadline(80)
+    d.marcar('busca do robots.txt')
+    d.marcar('page.goto da home')
+    try {
+      await d.race(sleep(3000), 'detecção de plataforma')
+      assert.fail('deveria ter estourado')
+    } catch (e) {
+      assert.ok(e instanceof AuditError)
+      assert.match(e.message, /detecção de plataforma/)
+      assert.match(e.message, /parado em: page\.goto da home/)
+      assert.equal(e.detail['etapa'], 'page.goto da home')
+    }
+  })
+
+  test('a trilha diz quanto DUROU cada etapa, que é o que responde onde foi o tempo', async () => {
+    const d = new Deadline(5000)
+    d.marcar('primeira')
+    await sleep(120)
+    d.marcar('segunda')
+    await sleep(40)
+    const trilha = d.trilha()
+    assert.match(trilha, /primeira 0\.1s/)
+    assert.match(trilha, /segunda 0\.0s/)
+    assert.match(trilha, /→/)
+  })
+
+  test('sem marco nenhum, a mensagem continua sendo a de antes — nada de sufixo vazio', async () => {
+    const d = new Deadline(60)
+    await assert.rejects(d.race(sleep(2000), 'jornada'), (e: unknown) => {
+      assert.ok(e instanceof AuditError)
+      assert.match(e.message, /estourou em: jornada$/)
+      return true
+    })
+  })
+
+  test('assertAlive deixa marco mesmo quando o orçamento ainda está de pé', () => {
+    /* Se ele só marcasse ao falhar, a trilha estaria vazia justo na execução
+       que interessa: a que chegou longe e morreu no fim. */
+    const d = new Deadline(5000)
+    d.assertAlive('normalização de URL')
+    d.assertAlive('abertura da home')
+    assert.deepEqual(
+      d.marcos.map((m) => m.etapa),
+      ['normalização de URL', 'abertura da home'],
+    )
+    assert.equal(d.etapaCorrente(), 'abertura da home')
+  })
+
   test('clamp nunca devolve mais do que resta', () => {
     const d = new Deadline(1000)
     assert.ok(d.clamp(30_000) <= 1000)

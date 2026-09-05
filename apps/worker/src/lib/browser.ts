@@ -138,6 +138,10 @@ export async function launchBrowser(options: LaunchOptions): Promise<BrowserSess
  * (usado pelo tsx) injeta um helper `__name` em função nomeada, e esse helper não
  * existe dentro da página — o evaluate quebra com "__name is not defined". Sem
  * função aninhada, o código serializa igual em qualquer transpilador.
+ *
+ * Mesma armadilha do `page.content`: `page.evaluate` não aceita timeout e
+ * `setDefaultTimeout` não a cobre. Ela espera o contexto de execução do
+ * renderer responder, e espera para sempre se ele não responder.
  */
 export async function readPageGlobals(page: Page): Promise<PageGlobals> {
   return page.evaluate(() => {
@@ -223,10 +227,29 @@ export interface OpenResult {
   loadMs: number
 }
 
-export async function openPage(page: Page, url: string, timeoutMs: number): Promise<OpenResult> {
+/**
+ * `marcar` é opcional porque `openPage` também é usado fora de uma auditoria
+ * com orçamento. Quando vem, separa três esperas que a mensagem de estouro
+ * juntava num nome só — e a separação não é cosmética: `goto` respeita
+ * `timeout`, `waitForLoadState` respeita, e `page.content()` NÃO ACEITA
+ * timeout nenhum no Playwright 1.56 (conferido em
+ * `playwright-core/types/types.d.ts`: `content(): Promise<string>`, sem
+ * options). `setDefaultTimeout` também não a alcança, porque ele só muda o
+ * padrão de métodos que aceitam a opção. Numa página que carrega e depois
+ * prende a thread principal, é aqui que o orçamento inteiro pode ir embora
+ * sem nenhum passo acusar nada.
+ */
+export async function openPage(
+  page: Page,
+  url: string,
+  timeoutMs: number,
+  marcar?: (etapa: string) => void,
+): Promise<OpenResult> {
   const startedAt = Date.now()
+  marcar?.('page.goto da home')
   const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs })
   // Dá um respiro para scripts que definem os globais das plataformas.
+  marcar?.('espera do evento load')
   await page.waitForLoadState('load', { timeout: Math.min(timeoutMs, 10_000) }).catch(() => undefined)
   const loadMs = Date.now() - startedAt
 
@@ -235,10 +258,13 @@ export async function openPage(page: Page, url: string, timeoutMs: number): Prom
     for (const [k, v] of Object.entries(response.headers())) headers[k.toLowerCase()] = v
   }
 
+  marcar?.('leitura do HTML (page.content, sem timeout)')
+  const html = await page.content()
+
   return {
     response,
     headers,
-    html: await page.content(),
+    html,
     finalUrl: page.url(),
     loadMs,
   }

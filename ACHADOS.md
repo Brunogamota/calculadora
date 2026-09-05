@@ -149,3 +149,110 @@ fly ssh console -a raio-x-motor -C "npm run diagnosticar-espacamento"
 ```
 
 Rodar na máquina de casa não vale: o IP é outro, com reputação outra.
+
+---
+
+## A2 — O erro de orçamento nomeava a corrida, não a etapa (e por isso os 3 travamentos ficaram sem diagnóstico)
+
+**Data:** 05/09/2026 · **Estado:** instrumento pronto; causa dos 3 travamentos ainda NÃO isolada
+
+### Sintoma
+
+`pantys.com.br`, `brooklinen.com` e `colourpop.com` devolvem
+`DEADLINE_EXCEEDED: Orçamento de 120000ms estourou em: detecção de plataforma`
+mesmo espaçados 2,5 min. Os outros 8 da mesma amostra se explicaram (A1).
+
+### O que a investigação encontrou primeiro, e não era o esperado
+
+`detect.ts:97` corre a cadeia INTEIRA dentro de um `race` com um rótulo só:
+
+```ts
+return await deps.deadline.race(runDetect(input, options, deps, slot), 'detecção de plataforma')
+```
+
+Dentro dessa corrida cabem oito etapas — normalização, cadeia de redirects do
+preflight, `robots.txt`, subida do Chromium, espera de ritmo, `page.goto`,
+`page.content()`, `page.evaluate` dos globais e a classificação de plataforma.
+Todas estouravam com a MESMA frase. **A mensagem não diz que a detecção de
+plataforma travou; diz que a corrida chamada "detecção de plataforma" acabou.**
+Nenhuma das hipóteses abaixo podia ser separada pela saída.
+
+### Dois mecanismos capazes de comer os 120s, os dois confirmados no código
+
+**1. `page.content()` e `page.evaluate` não aceitam timeout.** Conferido nos
+tipos do Playwright 1.56.0 instalado (`playwright-core/types/types.d.ts`):
+`content(): Promise<string>` e `evaluate<R, Arg>(pageFunction, arg)`, sem
+`options`. E `setDefaultTimeout` só muda o padrão de métodos que aceitam a
+opção — logo não alcança nenhum dos dois. Numa página que carrega e depois
+prende a thread principal, `session.ts` fica preso ali sem limite.
+
+**2. `timeoutMs` do `safeFetch` é POR HOP, não pela cadeia.** Medido, não
+deduzido:
+
+```
+2 hops x 10000ms  ->  30.0s  ok=true             <- 30s reais sob "timeout de 15s"
+6 hops x 15000ms  ->  15.0s  ok=false  REQUEST_TIMEOUT
+```
+
+Com `maxRedirects: 5` no laço `hop <= maxRedirects` são até 6 requisições de
+15s, mais 1s de rate limit entre elas: **~89s só no preflight**, sem nenhum
+passo acusar timeout.
+
+### O que foi feito
+
+Instrumento, não correção. `Deadline` ganhou `marcar(etapa)` e `trilha()`
+(`lib/deadline.ts`); `assertAlive` passou a marcar junto; `openPage` recebeu um
+`marcar` opcional que separa `page.goto`, espera do `load` e `page.content()`;
+`session.ts` marca robots, Chromium, ritmo, globais e classificação. A mensagem
+passou a nomear a última etapa iniciada, e o `detail` carrega a trilha com a
+duração de cada uma. Verificado contra servidor local:
+
+```
+antes:  Orçamento de 20000ms estourou em: detecção de plataforma
+depois: Orçamento de 20000ms estourou em: detecção de plataforma, parado em: abertura da home
+        trilha: normalização de URL 0.0s → abertura da home 20.0s
+```
+
+Nenhum dos dois mecanismos foi corrigido de propósito: corrigir antes de saber
+qual dos dois (ou qual terceiro) é o que acontece nessas lojas seria chute com
+cara de conserto.
+
+### Por que não foi possível fechar aqui
+
+O egresso desta sessão é bloqueado por política para esses domínios — os cinco,
+inclusive o controle que funciona na Fly, devolvem 403 no CONNECT do proxy:
+
+```
+$ curl -v https://tracksmith.com/
+< HTTP/1.1 403 Forbidden
+* CONNECT tunnel failed, response 403
+```
+
+E o experimento não vale rodado de outro IP: a reputação em jogo é a do IP de
+produção. Logo, a próxima medição tem que sair da Fly.
+
+### O experimento que decide
+
+```
+fly deploy
+fly ssh console -a raio-x-motor -C "RAIO_X_ESPACAMENTO_N=4 npm run diagnosticar-espacamento"
+```
+
+A amostra foi reordenada para os três sem explicação mais a `tracksmith` como
+controle positivo. Previsões escritas ANTES:
+
+- trilha parando em `abertura da home` → é a cadeia de redirects (mecanismo 2);
+  a correção é orçamento de cadeia, não por hop.
+- trilha parando em `page.goto da home` → a loja não entrega DOM em 30s do IP
+  da Fly; é rede/CDN, e a correção é de política (desistir antes, dizer o quê).
+- trilha parando em `leitura do HTML` ou `leitura dos globais` → é o mecanismo
+  1, thread do renderer presa; a correção é envolver as duas chamadas sem
+  timeout num `race` próprio.
+- trilha parando em `classificação de plataforma` → são os fetches dos
+  adapters, e aí a suspeita passa a ser o rate limiter por host.
+- `tracksmith` falhando → mudou o ambiente, e nada mais da rodada se lê.
+
+### O que eu não sei
+
+Se os três travam pelo mesmo motivo. A amostra é pequena demais para tratar
+"3 de 12" como taxa: pode ser 25% das lojas ou pode ser coincidência de três.

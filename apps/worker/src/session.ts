@@ -83,6 +83,7 @@ export async function prepare(
     throw new PreflightRejected(pre as PreflightFailed)
   }
 
+  deps.deadline.marcar('busca do robots.txt')
   const policy = await fetchRobots(pre.finalUrl, deps.safeFetch).catch(async (e: unknown) => {
     await descartarNavegador()
     throw e
@@ -108,6 +109,7 @@ export async function prepare(
     })
   }
 
+  deps.deadline.marcar('espera da subida do Chromium')
   const browser = await subindo
   /* Aqui a página EXISTE, e é daqui que a transmissão começa — não do fim
      desta função. Antes o `startScreencast` só rodava depois do `prepare`
@@ -119,8 +121,12 @@ export async function prepare(
   /* Espera de ritmo ANTES da navegação de saída, DEPOIS do `assertAlive` —
      um orçamento já estourado falha na hora, em vez de esperar à toa uma
      proteção que não vai servir pra nada. Ver `lib/ritmo.ts`. */
+  deps.deadline.marcar('espera de ritmo de saída')
   await ritmoDeSaidaGlobal.aguardar()
-  const opened = await openPage(browser.page, pre.finalUrl, deps.deadline.clamp(30_000))
+  const opened = await openPage(browser.page, pre.finalUrl, deps.deadline.clamp(30_000), (etapa) =>
+    deps.deadline.marcar(etapa),
+  )
+  deps.deadline.marcar('leitura dos globais (page.evaluate, sem timeout)')
   const globals = await readPageGlobals(browser.page)
 
   const probe: DetectionProbe = {
@@ -133,5 +139,6 @@ export async function prepare(
     gate,
   }
 
+  deps.deadline.marcar('classificação de plataforma')
   return { deps, preflight: pre, gate, gatedFetch, browser, opened, probe, decision: await detectPlatform(probe) }
 }

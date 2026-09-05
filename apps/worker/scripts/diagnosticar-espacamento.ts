@@ -73,22 +73,39 @@ import { medirLeitura } from './medir-cobertura.ts'
  *     agora, alguma coisa mudou no ambiente e o resto da leitura cai junto.
  */
 const AMOSTRA = [
-  /* Os 12 primeiros NÃO estão nesta ordem por acaso, e mexer nela quebra o
-     experimento de quem roda com o padrão: são os domínios que sozinhos já
-     decidem a hipótese, alternando BR e internacional para que uma amostra
-     truncada nunca vire "só brasileiras" ou "só de fora". */
-  'gymshark.com', // travou nas DUAS coberturas, passou isolado
-  'simpleorganic.com.br', // #10 na cobertura — o primeiro a travar
-  'everlane.com', // travou nas duas, passou isolado
-  'pantys.com.br', // #11
-  'brooklinen.com', // travou nas duas, passou isolado
-  'tracksmith.com', // PASSOU na cobertura — controle positivo
+  /* A ORDEM É O EXPERIMENTO, e mexer nela quebra a rodada de quem usa o
+     padrão. Ela foi refeita depois que a primeira rodada explicou 8 dos 12:
+     os que destravaram espaçados já deram a resposta deles (robots.txt) e não
+     compram mais informação nenhuma. Os quatro primeiros agora são a pergunta
+     que ficou de pé, e com `RAIO_X_ESPACAMENTO_N=4` a rodada leva ~10 min em
+     vez de 30.
+
+     Os três primeiros travam nos 120s MESMO espaçados. Com a trilha do
+     orçamento (`lib/deadline.ts`), cada um agora diz em que etapa parou — que
+     é o dado que faltava para escolher entre preflight lento, cadeia de
+     redirects, `page.goto`, `page.content` e classificação, todos escondidos
+     antes atrás do mesmo rótulo.
+
+     O quarto é o controle positivo, e sem ele a rodada não se lê: a
+     `tracksmith` passou nas duas condições, e foi a queda dela de 140,3s
+     (identify 75-78s) para 17,0s (identify 9,4s) que provou o efeito do
+     ritmo. Se ela falhar agora, mudou alguma coisa no ambiente e o resto da
+     leitura cai junto. */
+  'pantys.com.br', // 123.2s DEADLINE_EXCEEDED mesmo espaçado — sem explicação
+  'brooklinen.com', // 122.8s DEADLINE_EXCEEDED mesmo espaçado — sem explicação
+  'colourpop.com', // 124.0s DEADLINE_EXCEEDED mesmo espaçado — sem explicação
+  'tracksmith.com', // PASSOU nas duas condições — controle positivo
+  /* Daqui pra baixo, os que JÁ se explicaram: espaçados, responderam
+     `robots.txt bloqueia` em 7 a 50s (achado A1). Ficam na lista só para
+     confirmar que o resultado deles não mudou. */
+  'gymshark.com',
+  'simpleorganic.com.br',
+  'everlane.com',
   'steamtoy.com.br',
   'rothys.com',
   'ekomat.com.br',
   'fearofgod.com',
-  'noahny.com', // #224 — perto do fim da lista
-  'colourpop.com',
+  'noahny.com',
   // daqui pra baixo, só amplia a amostra — BR e internacional alternados
   'loft111.com.br',
   'skims.com',
