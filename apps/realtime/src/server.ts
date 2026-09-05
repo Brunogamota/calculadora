@@ -256,6 +256,18 @@ const server = createServer((req, res) => {
       running: running.size,
       teto: maxSimultaneas(),
       enderecosNaJanela: portaria.tamanho(),
+      /* QUAL máquina respondeu, e é para isso que serve.
+      
+         O estado da auditoria, a portaria e o ledger da §2.2 vivem neste
+         processo. Com mais de uma máquina no ar, o WebSocket do lojista pode
+         cair na que não rodou a auditoria dele, e o intervalo de 24h da §2.2
+         deixa de ser compartilhado. Isso aconteceu em produção e ninguém viu,
+         porque nada na resposta dizia de onde ela vinha: chamar /health duas
+         vezes e receber ids diferentes é o sintoma mais barato que existe.
+      
+         `fly scale count 1` é o que o motor assume hoje; ver CAL-44. */
+      maquina: process.env['FLY_MACHINE_ID'] ?? null,
+      regiao: process.env['FLY_REGION'] ?? null,
     })
   }
 

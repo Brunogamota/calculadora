@@ -45,6 +45,14 @@ type StepStatus = LiveState['steps'][number]['status']
  * Manter estado é requisito da §7.4: quem reconecta recebe os passos atuais,
  * mas não o histórico de frames. Por isso frame não entra no estado — só é
  * repassado a quem está ouvindo naquele instante.
+ *
+ * O estado é DESTE PROCESSO, e isso é uma restrição de produção, não detalhe:
+ * com mais de uma máquina no ar, o WebSocket do lojista pode cair na que não
+ * rodou a auditoria dele, e ele fica com a tela girando. Aconteceu — o POST
+ * devolveu um auditId que o GET seguinte não conhecia. O deploy agora recusa
+ * mais de uma máquina (`scripts/subir-motor.sh`) e `/health` diz qual
+ * respondeu. Para escalar de verdade, isto vira Redis, como a §3 prevê: a
+ * interface `Publisher` existe para essa troca. Ver CAL-44.
  */
 export class MemoryPublisher implements Publisher {
   readonly #listeners = new Map<string, Set<(event: AuditEvent) => void>>()

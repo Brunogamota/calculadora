@@ -50,7 +50,14 @@ export function criarPortaria(env: NodeJS.ProcessEnv = process.env): Portaria {
   const janela = janelaPorIpMs(env)
   /* Em memória e por instância, de propósito: é uma máquina só nesta fase, e a
      alternativa (Redis) é a mesma troca que a §3 já prevê para o barramento.
-     Trazer Redis por causa disto seria pagar infraestrutura antes da hora. */
+     Trazer Redis por causa disto seria pagar infraestrutura antes da hora.
+  
+     "É uma máquina só" era premissa NÃO VERIFICADA, e ficou falsa sem ninguém
+     notar: o fly.toml pedia min 1 e a produção rodava duas. Agora
+     `scripts/subir-motor.sh` conta as máquinas e recusa o deploy com mais de
+     uma, e `/health` diz qual máquina respondeu. O que muda em silêncio volta
+     a ser barulhento — que é o mínimo enquanto o estado não sai do processo.
+     Ver CAL-44. */
   const pedidos = new Map<string, number[]>()
 
   const limpar = (agora: number): void => {
