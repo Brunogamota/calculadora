@@ -9,7 +9,10 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkCooldown, cooldownHours, attemptCooldownMinutes, type Ledger } from '../src/lib/cooldown.ts'
+import { checkCooldown, cooldownHours, attemptCooldownMinutes, readLedger, recordAudit, type Ledger } from '../src/lib/cooldown.ts'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const AGORA = Date.parse('2026-08-31T22:00:00Z')
 const h = (n: number) => n * 3600_000
@@ -134,5 +137,53 @@ describe('configuração lida a cada chamada, não no import', () => {
     process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES'] = '0'
     assert.equal(attemptCooldownMinutes(), 0)
     delete process.env['AUDIT_ATTEMPT_COOLDOWN_MINUTES']
+  })
+})
+
+describe('o registro sobrevive ao deploy', () => {
+  /* O ledger ficava junto das capturas, em `outDir`, que na Fly é `/tmp`. O
+     sistema de arquivos é recriado a cada deploy, então TODO `fly deploy`
+     apagava o intervalo de 24h: bastava subir uma versão para poder auditar de
+     novo a mesma loja de terceiro. §2.2 é conduta, e regra que some com o
+     deploy não é regra. */
+  test('com RAIO_X_LEDGER_DIR, apagar a pasta das capturas não apaga o intervalo', async () => {
+    const capturas = await mkdtemp(path.join(tmpdir(), 'raiox-out-'))
+    const registro = await mkdtemp(path.join(tmpdir(), 'raiox-vol-'))
+    const anterior = process.env['RAIO_X_LEDGER_DIR']
+    process.env['RAIO_X_LEDGER_DIR'] = registro
+    try {
+      await recordAudit(capturas, 'loja.com.br', false, 'full')
+      assert.ok((await readLedger(capturas))['loja.com.br'], 'não gravou nada')
+
+      /* O deploy: a máquina volta com as capturas zeradas e o volume intacto. */
+      await rm(capturas, { recursive: true, force: true })
+
+      const depois = await readLedger(capturas)
+      assert.ok(
+        depois['loja.com.br']?.lastFullAuditAt,
+        'o intervalo da §2.2 sumiu com a pasta das capturas — é o defeito de volta',
+      )
+    } finally {
+      if (anterior === undefined) delete process.env['RAIO_X_LEDGER_DIR']
+      else process.env['RAIO_X_LEDGER_DIR'] = anterior
+      await rm(registro, { recursive: true, force: true })
+      await rm(capturas, { recursive: true, force: true })
+    }
+  })
+
+  test('sem a variável, o registro continua onde sempre esteve', async () => {
+    /* CLI e testes não precisam montar disco nenhum. */
+    const capturas = await mkdtemp(path.join(tmpdir(), 'raiox-out-'))
+    const anterior = process.env['RAIO_X_LEDGER_DIR']
+    delete process.env['RAIO_X_LEDGER_DIR']
+    try {
+      await recordAudit(capturas, 'loja.com.br', false, 'full')
+      assert.ok((await readLedger(capturas))['loja.com.br'])
+      await rm(capturas, { recursive: true, force: true })
+      assert.deepEqual(await readLedger(capturas), {}, 'devia ter sumido junto com a pasta')
+    } finally {
+      if (anterior !== undefined) process.env['RAIO_X_LEDGER_DIR'] = anterior
+      await rm(capturas, { recursive: true, force: true })
+    }
   })
 })

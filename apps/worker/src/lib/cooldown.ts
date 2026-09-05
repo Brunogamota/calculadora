@@ -54,8 +54,29 @@ export function attemptCooldownMinutes(): number {
   return Number.isFinite(value) && value >= 0 ? value : 5
 }
 
+/**
+ * ONDE o registro mora — e por que não é junto das capturas.
+ *
+ * Ele ficava em `outDir`, que na Fly é `/tmp`. O sistema de arquivos da máquina
+ * é recriado a cada deploy, então TODO `fly deploy` apagava o intervalo de 24h:
+ * bastava subir uma versão para poder auditar de novo a mesma loja de terceiro.
+ * A §2.2 é regra de conduta, e uma regra que some com o deploy não é regra.
+ *
+ * `RAIO_X_LEDGER_DIR` aponta para um lugar que sobrevive — na Fly, um volume
+ * montado. Sem a variável, cai no `outDir` de antes: no CLI e nos testes o
+ * comportamento não muda, e ninguém precisa montar disco para rodar local.
+ *
+ * Um volume é disco, não serviço: ele não cai às 3h da manhã como um Redis
+ * cairia. E ele reforça a decisão de UMA máquina (CAL-44), porque volume é
+ * preso a uma máquina — o que aqui é feature, não limitação.
+ */
+function ledgerDir(outDir: string): string {
+  const declarado = process.env['RAIO_X_LEDGER_DIR']
+  return typeof declarado === 'string' && declarado.trim().length > 0 ? declarado.trim() : outDir
+}
+
 function ledgerPath(outDir: string): string {
-  return path.join(outDir, '.audit-ledger.json')
+  return path.join(ledgerDir(outDir), '.audit-ledger.json')
 }
 
 export async function readLedger(outDir: string): Promise<Ledger> {
@@ -87,7 +108,9 @@ export async function recordAudit(
   if (lastFull) entry.lastFullAuditAt = lastFull
 
   ledger[domain] = entry
-  await mkdir(outDir, { recursive: true })
+  /* A pasta do REGISTRO, não a das capturas: com `RAIO_X_LEDGER_DIR` apontando
+     para um volume, criar `outDir` não garantiria que o destino existe. */
+  await mkdir(ledgerDir(outDir), { recursive: true })
   await writeFile(ledgerPath(outDir), JSON.stringify(ledger, null, 2), 'utf8')
 }
 

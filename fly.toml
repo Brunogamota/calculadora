@@ -21,6 +21,17 @@ primary_region = 'gru'
   RAIO_X_MAX_SIMULTANEAS = '3'
   RAIO_X_ORIGENS = 'https://calculadora-iota-pearl.vercel.app'
   RAIO_X_TETO_POR_IP = '5'
+  # Onde o registro da §2.2 mora, e por que NÃO é /tmp.
+  #
+  # O intervalo de 24h entre auditorias do mesmo domínio ficava junto das
+  # capturas, em /tmp, que a Fly recria a cada deploy. Todo `fly deploy`
+  # apagava a regra: bastava subir uma versão para poder auditar de novo a
+  # mesma loja de terceiro. §2.2 é conduta, não conveniência.
+  #
+  # Aponta para o volume montado abaixo. Sem volume, o caminho não existe e o
+  # deploy é recusado por scripts/subir-motor.sh — falhar alto é melhor que
+  # gravar em disco efêmero achando que está protegido.
+  RAIO_X_LEDGER_DIR = '/dados'
 
 [http_service]
   internal_port = 8080
@@ -35,6 +46,18 @@ primary_region = 'gru'
     grace_period = '20s'
     method = 'GET'
     path = '/health'
+
+# O disco que sobrevive ao deploy. Guarda o registro da §2.2 e nada mais.
+#
+# Volume é DISCO, não serviço: não cai às 3h da manhã como um Redis cairia, e
+# não é infraestrutura nova no sentido que importa. Ele é preso a uma máquina,
+# o que aqui é feature — reforça a decisão de uma máquina só (CAL-44).
+#
+# Criar uma vez, antes do primeiro deploy com isto:
+#   fly volumes create dados --size 1 --region gru -a raio-x-motor
+[mounts]
+  source = 'dados'
+  destination = '/dados'
 
 [[vm]]
   size = 'shared-cpu-1x'

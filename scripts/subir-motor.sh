@@ -88,6 +88,23 @@ exigir "primary_region" "gru" "gru é São Paulo. Auditar loja brasileira de out
 exigir "memory" "1gb" "abaixo disso o teto de 3 auditorias simultâneas não cabe: cada uma custa ~118 MB."
 exigir "RAIO_X_MAX_SIMULTANEAS" "3" "sem teto, cada pedido sobe um Chromium e a máquina cai no meio da auditoria de quem estava assistindo."
 exigir "min_machines_running" "1" "com zero, a primeira auditoria espera a máquina subir — e a tela ao vivo é o produto."
+exigir "RAIO_X_LEDGER_DIR" "/dados" "sem isto o registro da §2.2 volta para /tmp, que a Fly recria a cada deploy: todo deploy apagaria o intervalo de 24h entre auditorias da mesma loja."
+
+# O VOLUME precisa existir, senão /dados é pasta comum na raiz efêmera — e o
+# registro da §2.2 volta a sumir a cada deploy, agora em silêncio, porque a
+# gravação funciona igual. Falhar alto é melhor que parecer protegido.
+volumes=$(fly volumes list -a "$app" --json 2>/dev/null \
+  | python3 -c 'import json,sys; print(len([v for v in json.load(sys.stdin) if v.get("name") == "dados"]))' 2>/dev/null || echo "?")
+if [ "$volumes" = "?" ]; then
+  vermelho "  não consegui listar os volumes — confira com: fly volumes list -a $app"
+elif [ "$volumes" -lt 1 ]; then
+  morre "não existe volume 'dados', e o RAIO_X_LEDGER_DIR aponta para /dados.
+  Sem ele, /dados é pasta na raiz efêmera: o registro da §2.2 seria gravado e
+  apagado no deploy seguinte, sem erro nenhum aparecer.
+  Rode uma vez:  fly volumes create dados --size 1 --region gru -a $app"
+else
+  verde "  volume 'dados' existe (registro da §2.2 sobrevive ao deploy)"
+fi
 
 # O nome da app sai do próprio fly.toml, e é lido AQUI porque a checagem de
 # máquinas precisa dele antes do deploy. Mais abaixo ele é lido de novo para a
