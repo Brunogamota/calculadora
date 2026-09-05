@@ -15,7 +15,13 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { startFakeStore, type FakeStore } from '../fixtures/fake-shopify.ts'
-import { medirLeitura, carregarConsentidas, type Consentida } from '../../scripts/medir-cobertura.ts'
+import {
+  medirLeitura,
+  carregarConsentidas,
+  leuATelaDePagamento,
+  type Consentida,
+} from '../../scripts/medir-cobertura.ts'
+import type { AuditResult } from '../../src/audit.ts'
 
 process.env['AUDIT_ALLOW_LOCAL_TARGETS_FOR_TESTS'] = '1'
 process.env['AUDIT_COOLDOWN_HOURS'] = '0'
@@ -135,6 +141,32 @@ describe('Camada 2: carregamento do arquivo de aceites', { concurrency: false },
     const lista = await carregarConsentidas(caminho, { RAIO_X_LOJA_PROPRIA: 'https://raiox-teste.myshopify.com' })
     assert.equal(lista.find((l) => l.url === 'https://raiox-teste.myshopify.com')?.propria, true)
     assert.equal(lista.find((l) => l.url === 'https://terceiro.example')?.propria, false)
+  })
+
+  test('sucesso da Camada 2 é a tela de pagamento, não a porta do checkout', () => {
+    /* O caso da allbirds, que `audit.ts:766` registra: o /checkout abriu (e o
+       passo reach-checkout ficou `done`), mas o carrinho estava vazio e a tela
+       de pagamento nunca veio. Medir pelo passo dava certinho por cima disso. */
+    const abriuMasNaoPagou = {
+      steps: [{ id: 'reach-checkout', outcome: { status: 'done' } }],
+      checkout: { reachedPaymentScreen: false },
+    } as unknown as AuditResult
+    assert.equal(leuATelaDePagamento(abriuMasNaoPagou), false)
+  })
+
+  test('a tela de pagamento conta mesmo sem passo `read-payment` na trilha', () => {
+    /* `read-payment` existe só nos eventos ao vivo do reporter, nunca em
+       `resultado.steps` — procurá-lo ali dava zero até numa loja perfeita. */
+    const chegouNoPagamento = {
+      steps: [{ id: 'reach-checkout', outcome: { status: 'done' } }],
+      checkout: { reachedPaymentScreen: true },
+    } as unknown as AuditResult
+    assert.equal(leuATelaDePagamento(chegouNoPagamento), true)
+  })
+
+  test('jornada que nem chegou ao checkout não conta como pagamento lido', () => {
+    const morreuAntes = { steps: [], checkout: null } as unknown as AuditResult
+    assert.equal(leuATelaDePagamento(morreuAntes), false)
   })
 
   test('"propria": true escrito no arquivo à mão não libera repetição contra loja de terceiro', async () => {

@@ -488,6 +488,26 @@ export async function medirLeitura(url: string): Promise<{ desfecho: DesfechoLei
   }
 }
 
+/**
+ * A pergunta que a Camada 2 responde: a TELA DE PAGAMENTO apareceu?
+ *
+ * Duas medidas erradas já passaram por aqui, e as duas mentiam em direções
+ * opostas. A primeira olhava o passo `reach-checkout`: abrir a URL /checkout
+ * conta como sucesso, então a jornada que morre na etapa de frete saía como
+ * "chegou ao checkout" — o mesmo defeito que o comentário de `audit.ts:766`
+ * já registra da auditoria da allbirds, onde o checkout abriu em branco e o
+ * painel deu certinho por cima. A segunda procurava um passo `read-payment`
+ * dentro de `resultado.steps`, e esse passo nunca está lá: ele existe só nos
+ * eventos ao vivo do `reporter` (`audit.ts:795-800`). Essa media dava zero
+ * até numa loja perfeita.
+ *
+ * O campo que o próprio motor usa pra decidir é `reachedPaymentScreen`
+ * (`types.ts:272`) — é ele que manda aqui.
+ */
+export function leuATelaDePagamento(resultado: AuditResult): boolean {
+  return resultado.checkout?.reachedPaymentScreen === true
+}
+
 export async function medirConsentida(loja: Consentida): Promise<{ hostname: string; resultado: AuditResult }> {
   const hostname = new URL(loja.url).hostname
   const resultado = await audit(loja.url, {
@@ -637,12 +657,7 @@ async function rodarCamada2(): Promise<void> {
          em que condição foi medido. */
       process.stdout.write(`  ${loja.url.padEnd(34)} ${loja.propria ? '[própria, sem intervalo] ' : ''}`)
       const { hostname, resultado } = await medirConsentida(loja)
-      /* O passo que decide é `read-payment`, não `reach-checkout`. Abrir a URL
-         /checkout é chegar na porta; o que o lojista quer saber é se a tela de
-         pagamento apareceu. Medir pelo `reach-checkout`, como esta linha fazia
-         antes, dava "chegou ao checkout" mesmo quando a jornada morria na
-         etapa de frete — um número mais bonito do que a verdade. */
-      const chegou = resultado.steps.find((s) => s.id === 'read-payment')?.outcome.status === 'done'
+      const chegou = leuATelaDePagamento(resultado)
       if (chegou) leuPagamento++
       console.log(
         `${resultado.status.padEnd(8)} ${chegou ? 'leu o pagamento' : 'parou antes do pagamento'} · ` +
@@ -652,6 +667,10 @@ async function rodarCamada2(): Promise<void> {
          parou, e a próxima pergunta seria sempre "mas parou aonde?". */
       const trilha = resultado.steps.map((s) => `${s.id}:${s.outcome.status}`).join(' → ')
       linha(`  passos: ${trilha}`)
+      /* `incompleteBecause` é onde o motor escreve, em português, por que não
+         foi até o fim. Sem isto, "parou antes do pagamento" obriga a abrir o
+         HTML salvo pra descobrir o que já está escrito aqui. */
+      for (const porque of resultado.incompleteBecause) linha(`  incompleto: ${porque}`)
       /* `errorCode` sozinho não bastava — CATALOG_UNREADABLE pode ser status
          != 200 OU corpo que não é JSON (a página de senha devolvida como
          HTML, por exemplo), e sem o detalhe não dava pra saber qual das
