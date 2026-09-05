@@ -59,6 +59,14 @@ export type AuditErrorCode =
   // recusa, em vez de escolher sozinha a resposta mais permissiva.
   | 'MODE_MISSING'
   | 'CONSENT_MISSING'
+  /* O aceite existe e a titularidade NÃO foi provada. Separado de
+     CONSENT_MISSING porque a saída para quem recebe é outra: ali falta
+     declarar, aqui falta publicar a etiqueta — e a mensagem precisa ensinar
+     a segunda coisa, não repetir a primeira. */
+  | 'OWNERSHIP_UNVERIFIED'
+  /* Faltou configuração sem a qual a garantia seria de mentira. Nunca vira
+     padrão embutido: ver `segredoDoAmbiente` em lib/titularidade.ts. */
+  | 'CONFIG_INVALIDA'
   // política (§2.3, §2.6)
   | 'ROBOTS_DISALLOWED'
   | 'ROBOTS_UNAVAILABLE'

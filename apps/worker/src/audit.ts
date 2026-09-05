@@ -22,6 +22,7 @@ import { startScreencast, type Screencast } from './stream/screencast.ts'
 import { normalizeUrl } from './lib/guards.ts'
 import { vantageContradiction } from './lib/environment.ts'
 import { AuditError, toAuditError, type AuditErrorCode } from './lib/errors.ts'
+import { verificarTitularidade, segredoDoAmbiente, META_NAME } from './lib/titularidade.ts'
 import type {
   Aceite,
   AddToCartResult,
@@ -245,6 +246,50 @@ export async function audit(input: string, options: AuditOptions): Promise<Audit
           errorCode: 'CONSENT_MISSING',
           errorReason: recusa,
           errorDetail: { modo: options.modo },
+          timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+        }
+      }
+
+      /* A PROVA, e ela mora AQUI e não em quem chama.
+
+         O aceite acima é o registro do que a pessoa afirmou; sozinho, é uma
+         declaração. `server.ts` chegou a preencher esse objeto por conta
+         própria quando o chamador mandava `{}` — e aí bastava
+         `{"modo":"consentido","aceite":{}}` num endpoint público para o robô
+         ignorar o robots.txt de uma loja de terceiro e deixar um checkout
+         abandonado no admin de outra pessoa.
+
+         Verificar no motor, e não em cada chamador, é a mesma escolha do
+         `gatedFetch` mais abaixo: uma API nova, um script novo ou um comando
+         novo não têm como esquecer de conferir, porque não é com eles que a
+         decisão fica. */
+      let verificacao
+      try {
+        verificacao = await verificarTitularidade(input, deps.safeFetch, segredoDoAmbiente())
+      } catch (e) {
+        const err = toAuditError(e)
+        return {
+          ...base,
+          errorCode: err.code,
+          errorReason: err.message,
+          errorDetail: err.detail,
+          timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
+        }
+      }
+      if (!verificacao.verificado) {
+        return {
+          ...base,
+          errorCode: 'OWNERSHIP_UNVERIFIED',
+          errorReason:
+            `${verificacao.detalhe}. Para liberar a jornada completa, publique esta linha no <head> ` +
+            `da home de ${verificacao.hostname} (na Shopify: Loja virtual → Temas → Editar código → ` +
+            `theme.liquid): <meta name="${META_NAME}" content="${verificacao.token}">`,
+          errorDetail: {
+            motivo: verificacao.motivo,
+            hostname: verificacao.hostname,
+            token: verificacao.token,
+            metaName: META_NAME,
+          },
           timings: { totalMs: Date.now() - startedAt, homeLoadMs: null },
         }
       }
