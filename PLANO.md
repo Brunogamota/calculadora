@@ -31,8 +31,10 @@ difícil: não existe, por três paredes independentes.
 2. **§2.2** — nunca repetir auditoria contra loja de terceiro. Um funil viral,
    onde cada visitante cola a loja do concorrente, já está fora dessas regras
    antes mesmo do robots.
-3. **Confiabilidade.** Mesmo só lendo, parte das lojas não termina (achado A2,
-   em medição).
+3. **Confiabilidade.** Mesmo só lendo, parte das lojas não termina. O achado A2
+   estimou ~25% sem fechar a causa; na medição do A3, 1 de 3 estourou o
+   orçamento — e ali a instrumentação enfim nomeou o lugar
+   (`page.content` sem timeout), o que é o gatilho do `CAL-13`/`CAL-15`.
 
 Cada dia gasto em melhorar a taxa da Camada 1 é gasto contra a parede 1.
 
@@ -68,31 +70,82 @@ com as duas promessas separadas; o relatório.
 **Orçamento:** 3 dias de trabalho. Estourou → lança com autorização manual (o
 Bruno cadastra o aceite à mão) e a verificação automática vira B4.
 
-### B2 — A leitura grátis vale sozinha
-**Pronto quando:** uma loja que proíbe o checkout no robots devolve leitura
-parcial **com achado que o lojista não sabia** e com o motivo do resto na tela,
-nunca um relatório que para no meio sem explicar.
+### B2 — A leitura grátis acompanha; a autorização é que promete
+**Pronto quando:** a loja que proíbe o checkout no robots recebe leitura parcial
+que diz na tela o que foi verificado, o que não foi, e por quê — e o achado,
+quando existe, aparece com o mesmo peso de um achado da auditoria completa.
+Nunca um relatório que para no meio sem explicar.
 
-**O escopo mudou depois de medir.** Era "mostrar o motivo com honestidade". Mas
-a §8 tem 13 checagens e quase todas precisam do checkout: só `HTTPS_ISSUE`,
-`PAY_VISIBILITY` (`payment.ts:85`, precisa só do texto da PDP) e
-`INSTALLMENT_UNCLEAR` (`payment.ts:145`) rodam sem carrinho. Na `tracksmith.com`
-a medição real devolveu **1 checagem possível, de 13**.
+**O título deste bloco mudou, e a mudança é o resultado do A3.** Ele se chamava
+"a leitura grátis vale sozinha". Não vale, e agora isso está medido em vez de
+suposto.
 
-Se o grátis entregar "seu site está em HTTPS", ninguém compartilha e ninguém
-autoriza — a isca não pega e o B vira o pior dos dois mundos. Só que a
-`tracksmith` é loja americana, sem Pix e sem parcelamento, que é do que dependem
-as duas checagens de PDP. **Em loja brasileira o número é provavelmente maior, e
-não foi medido.**
+#### O limiar antigo media a coisa errada
 
-**Medir antes de dimensionar:** rodar o modo leitura contra 3 lojas Shopify
-brasileiras e contar `checks.applicable`. ~2 min.
-- 4 ou mais → 2 dias, a leitura já vale sozinha.
-- 2 a 3 → o bloco cresce: checagens novas que rodem só de home + PDP.
-- 1 → o B não fecha sem escopo novo grande, e o A volta à mesa.
+Este bloco era dimensionado por `checks.applicable`: "4 ou mais → a leitura já
+vale sozinha". A medição do A3 mostrou que `applicable` e quantidade de achados
+andam em **sentidos opostos** — o que falta numa loja vira `not_applicable`, não
+vira achado. Em loja real:
 
-**Orçamento:** 2 dias enquanto o número não existir. Estourou → a Camada 1 sai
-do lançamento e a landing pede autorização desde o primeiro campo.
+| loja | `applicable` | achados |
+|---|---|---|
+| `zerezes.com.br` | 2 | **0** |
+| `simpleorganic.com.br` | 4 | **2**, os dois de severidade alta |
+
+O limiar antigo teria lido as duas ao contrário do que interessa: a loja com
+achados passava do corte pelo motivo errado, e a sem achados quase passava
+também. **Um número não vira agenda sem alguém perguntar o que ele mede**
+(Regra 4) — e aqui a pergunta só foi feita depois que o número já governava o
+bloco.
+
+#### O teto, e ele é estrutural
+
+Das 13 checagens da §8, só 5 podem ser aplicáveis sem tocar carrinho. Dessas 5,
+duas — `NO_COUPON_FIELD` e `NO_TRUST_SIGNAL` — **só conseguem passar**: a
+ausência delas exige a tela de pagamento por desenho (`presencaAntecipavel`,
+`payment.ts:240-258`). Sobram três que podem falhar, e na prática duas, porque
+`HTTPS_ISSUE` não dispara em Shopify real:
+
+- `PAY_VISIBILITY` (`payment.ts:85`) — meios de pagamento ausentes na PDP.
+- `INSTALLMENT_UNCLEAR` (`payment.ts:145`) — parcelamento sem valor por parcela
+  ou sem juros explícito.
+
+**O teto de achados da Camada 1 é 2.** Nenhuma medição vai passar disso sem
+escopo novo. E as duas dependem de vocabulário brasileiro, o que explica o
+`1 de 13` da `tracksmith`: loja americana não tem nem uma nem outra.
+
+#### O limiar novo, sobre achados
+
+A pergunta que dimensiona o bloco passa a ser: **de N lojas brasileiras que
+terminarem, quantas entregam pelo menos um achado?**
+
+- **2 em 3 ou mais** → a leitura grátis é isca. Vale prometer na landing.
+- **cerca de metade** → **é onde estamos.** A leitura acompanha, não promete: a
+  landing promete a auditoria completa com autorização, e o grátis é o que
+  acontece enquanto o lojista decide.
+- **menos de 1 em 3** → a Camada 1 sai do lançamento e a landing pede
+  autorização desde o primeiro campo.
+
+Medição de 06/09, em `gru`, modo leitura: de 2 lojas que terminaram, **1
+entregou achado** (`simpleorganic`, dois achados de alta). A terceira
+(`pantys`) não terminou. Saída bruta no achado A3.
+
+#### O que este bloco NÃO faz, por decisão
+
+**Não construir checagens novas de home + PDP.** Era o ramo "o bloco cresce" do
+limiar antigo, é escopo grande, e o A3 mostra que ele compraria pouco: o teto de
+achados sobe devagar e o custo é de dias. Se voltar à mesa, volta como bloco
+próprio depois do B3, não como crescimento deste.
+
+**Gatilho para reabrir:** uma rodada maior (~10 domínios) mostrando 2 em 3 ou
+mais lojas com achado. Aí a leitura grátis vira isca e a landing muda.
+
+A rodada está pronta em `scripts/medir-b2.sh`: 7 domínios novos, um comando, de
+dentro da máquina em `gru`. Ela relê os arquivos da rodada de 06/09 em vez de
+auditar de novo, imprime o placar e aplica o limiar acima sozinha.
+
+**Orçamento:** 1 dia. É tela e texto, não motor — o motor já entrega o que este
+bloco precisa.
 
 ### B3 — Lançar
 **Pronto quando:** está no ar, com a loja própria mais pelo menos 3 lojas de
