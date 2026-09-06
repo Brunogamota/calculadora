@@ -1248,7 +1248,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .proof-card h3 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; text-wrap: pretty; }
 .proof-card p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
 
-/* Duas severidades, e nenhuma cor nova: crítico é o acento, atenção é a tinta.
+/* Duas severidades, e nenhuma cor nova: importante é o acento, atenção é a tinta.
    Sem ícone — elas aparecem doze vezes, quase sempre empilhadas, e um ícone em
    cada uma vira textura. Badge de estado se move, severidade não. */
 .severity {
@@ -1264,7 +1264,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   letter-spacing: -.005em;
   color: var(--surface);
 }
-.severity.critico { background: var(--accent); }
+.severity.importante { background: var(--accent); }
 .severity.atencao { background: var(--ink); }
 
 /* Apelidos para as telas que ainda estao no desenho antigo. Ao renomear as

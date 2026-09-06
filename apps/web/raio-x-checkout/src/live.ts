@@ -405,8 +405,22 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
 }
 
 /** Mapeia a severidade do motor para as duas do desenho. */
-export function paraSeveridade(s: Severidade): "crítico" | "atenção" {
-  return s === "critica" || s === "alta" ? "crítico" : "atenção";
+/**
+ * As quatro severidades do motor viram DUAS na tela, e o balde de cima se chama
+ * "importante", não "crítico".
+ *
+ * A tela tem duas cores da paleta, e isso é decisão de desenho. O que não podia
+ * continuar era a PALAVRA: `critica` pesa 30 na §8 e `alta` pesa 15 — metade.
+ * Chamar as duas de "Crítico" dizia ao lojista que não mencionar Pix na página
+ * de produto é tão grave quanto o checkout não estar em HTTPS, e não é, pela
+ * nossa própria escala.
+ *
+ * Numa ferramenta de captação, inflar severidade é a direção que AJUDA a
+ * converter. Por isso o erro aqui é mais caro do que parece: ele é
+ * conveniente.
+ */
+export function paraSeveridade(s: Severidade): "importante" | "atenção" {
+  return s === "critica" || s === "alta" ? "importante" : "atenção";
 }
 
 export function useReiniciar(): [number, () => void] {

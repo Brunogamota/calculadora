@@ -74,7 +74,7 @@ type Finding = {
 
 const findings: Finding[] = [
   {
-    severity: "crítico", category: "Pagamento", at: 2,
+    severity: "importante", category: "Pagamento", at: 2,
     title: "Quem chega no carrinho ainda não sabe se você aceita Pix",
     short: "As formas de pagamento só aparecem na quarta tela.",
     body: "As formas de pagamento só aparecem na quarta tela, depois de nome, CPF, endereço e frete. Até ali ninguém sabe se dá para pagar no Pix ou em quantas vezes.",
@@ -88,14 +88,14 @@ const findings: Finding[] = [
     fix: "Mostrar \u201C12x de R$ 12,42\u201D no produto e no carrinho, não só na tela de pagamento.",
   },
   {
-    severity: "crítico", category: "Pix", at: 4,
+    severity: "importante", category: "Pix", at: 4,
     title: "O desconto do Pix só aparece na última tela",
     short: "O cliente escolhe cartão antes de saber que pagaria menos no Pix.",
     body: "A loja dá 12% no Pix, mas isso só aparece depois que o cliente já escolheu cartão. Quem digitou o número do cartão raramente volta para trocar, e você paga a taxa de cartão numa venda que teria saído no Pix.",
     fix: "Mostrar o preço no Pix junto do preço parcelado, desde a página do produto.",
   },
   {
-    severity: "crítico", category: "Celular", at: 5,
+    severity: "importante", category: "Celular", at: 5,
     title: "Quem compra pelo celular passa por três telas a mais",
     short: "Quatro passos no computador, sete no celular.",
     body: "No computador são quatro passos até pagar. No celular são sete, porque endereço e frete viram telas separadas e o teclado cobre o botão de continuar em duas delas. Metade das suas visitas vem do celular.",
@@ -110,7 +110,7 @@ const findings: Finding[] = [
   },
 ];
 
-type Severidade = "crítico" | "atenção";
+type Severidade = "importante" | "atenção";
 
 /* Os sete itens da grade. O texto e o do markup do desenho, que e mais longo
    que o do array CHECKS do script — o markup e o que aparece na tela. */
@@ -126,15 +126,15 @@ const checks = [
 
 /* Achados de auditorias reais, sem o nome das lojas. */
 const proof: { sev: Severidade; t: string; d: string }[] = [
-  { sev: "crítico", t: "Nove toques até pagar, no celular", d: "Loja de moda, R$ 1,2 milhão por mês. No computador eram quatro." },
-  { sev: "crítico", t: "O Pix aparecia depois do cartão", d: "Suplementos. A loja pagava taxa de cartão em venda que sairia no Pix." },
+  { sev: "importante", t: "Nove toques até pagar, no celular", d: "Loja de moda, R$ 1,2 milhão por mês. No computador eram quatro." },
+  { sev: "importante", t: "O Pix aparecia depois do cartão", d: "Suplementos. A loja pagava taxa de cartão em venda que sairia no Pix." },
   { sev: "atenção", t: "A fatura dizia o nome do gateway", d: "Pet shop. Um em cada onze pedidos virava contestação de compra legítima." },
 ];
 
-/* Duas severidades, duas cores da paleta. Crítico e o acento, atenção e a
+/* Duas severidades, duas cores da paleta. Importante e o acento, atenção e a
    tinta. Nao existe uma terceira: verde e amarelo nao entram no projeto. */
 function Severidade({ sev }: { sev: Severidade }) {
-  return <span className={`severity ${sev === "crítico" ? "critico" : "atencao"}`}>{sev === "crítico" ? "Crítico" : "Atenção"}</span>;
+  return <span className={`severity ${sev === "importante" ? "importante" : "atencao"}`}>{sev === "importante" ? "Importante" : "Atenção"}</span>;
 }
 
 /* O menu de estados serve para gravar video e revisar sem digitar endereco
@@ -1061,7 +1061,7 @@ function Tarja({ f }: { f: Finding }) {
         {f.title.split(" ").map((palavra, i) => (
           <span
             key={`${f.title}-${i}`}
-            className={f.severity === "crítico" ? "" : "clara"}
+            className={f.severity === "importante" ? "" : "clara"}
             style={{ width: Math.max(16, Math.round(palavra.length * 8.2)) }}
           />
         ))}
@@ -1344,12 +1344,12 @@ function SemMedida() {
   );
 }
 
-/** "2 críticos · 1 de atenção", contado do que existe — não do desenho. */
+/** "2 importantes · 1 de atenção", contado do que existe — não do desenho. */
 function contarPorGravidade(achados: AchadoReal[]): string {
-  const criticos = achados.filter((a) => paraSeveridade(a.severity) === "crítico").length;
-  const atencao = achados.length - criticos;
+  const importantes = achados.filter((a) => paraSeveridade(a.severity) === "importante").length;
+  const atencao = achados.length - importantes;
   const partes: string[] = [];
-  if (criticos > 0) partes.push(`${criticos} ${criticos === 1 ? "crítico" : "críticos"}`);
+  if (importantes > 0) partes.push(`${importantes} ${importantes === 1 ? "importante" : "importantes"}`);
   if (atencao > 0) partes.push(`${atencao} de atenção`);
   return partes.join(" · ");
 }
@@ -1368,7 +1368,7 @@ function TarjaReal({ a }: { a: AchadoReal }) {
         {a.title.split(" ").map((palavra, i) => (
           <span
             key={`${a.id}-${i}`}
-            className={sev === "crítico" ? "" : "clara"}
+            className={sev === "importante" ? "" : "clara"}
             style={{ width: Math.max(16, Math.round(palavra.length * 8.2)) }}
           />
         ))}
@@ -1472,7 +1472,7 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura, em }: {
           /* Motor ligado e sem cobertura: a auditoria rodou e não mediu o
              suficiente. O que cabe aqui é dizer isso. O ramo do desenho, logo
              abaixo, existe só para a página SEM motor — e foi por ele que a
-             auditoria da allbirds saiu com cinco achados críticos e um print
+             auditoria da allbirds saiu com cinco achados importantes e um print
              de "Sérum de vitamina C 30ml" sobre o endereço real da loja. */
           <SemMedida />
         ) : (
@@ -1516,7 +1516,7 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura, em }: {
               <section className="cobertos">
                 <div className="cobertos-topo">
                   <span>Faltam quatro achados</span>
-                  <span className="mono">2 críticos · 2 de atenção</span>
+                  <span className="mono">2 importantes · 2 de atenção</span>
                 </div>
                 {findings.slice(1).map((f) => <Tarja f={f} key={f.title} />)}
                 <Captura onAbrir={(e) => { setEmail(e); setAberto(true); }} />
