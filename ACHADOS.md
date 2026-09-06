@@ -359,7 +359,7 @@ causa de nada. Ficam registrados aqui para a próxima vez.
 
 ## A3 — Quantas das 13 checagens rodam sem tocar o carrinho, em loja brasileira
 
-**Data:** 06/09/2026 · **Estado:** parte estrutural fechada; medição contra loja real pendente por bloqueio de egresso
+**Data:** 06/09/2026 · **Estado:** fechado — estrutura medida local, lojas reais medidas em gru
 
 ### Orçamento, declarado antes
 
@@ -521,7 +521,70 @@ Uma execução por domínio, sem `--force`: a §2.2 vale inteira contra loja de
 terceiro. `--from-br` é dispensável — `FLY_REGION=gru` já declara a origem
 desde o `CAL-46`.
 
+### A medição contra loja real, rodada em gru — 06/09
+
+Rodada pelo Bruno de dentro de `raio-x-motor` (`fly ssh console`), modo leitura,
+headless (que é o que a produção usa: `server.ts:231` só liga headed com
+`AUDIT_HEADED=1`). Uma execução por domínio, sem `--force`.
+
+```
+===== zerezes.com.br =====
+  status: partial | erro: -
+  aplicaveis: 2 | falharam: 0
+
+===== simpleorganic.com.br =====
+  status: partial | erro: -
+  aplicaveis: 4 | falharam: 2
+  ACHADO: [alta] PAY_VISIBILITY: nenhum meio de pagamento é mencionado na página do produto
+  ACHADO: [alta] INSTALLMENT_UNCLEAR: na página do produto: parcelamento sem presença ou ausência
+                 de juros — "6x R$ 11,50"
+
+===== pantys.com.br =====
+  status: failed | erro: DEADLINE_EXCEEDED Orçamento de 120000ms estourou em: auditoria,
+                         parado em: leitura do HTML (page.content, sem timeout)
+  sem checks
+```
+
+**A previsão estrutural bateu.** Os dois achados vieram de `PAY_VISIBILITY` e
+`INSTALLMENT_UNCLEAR` — as duas únicas que o modelo dizia poder falhar no modo
+leitura. Nenhum achado veio de outra checagem, em nenhuma das duas lojas que
+terminaram. E o `INSTALLMENT_UNCLEAR` da simpleorganic é do tipo que o lojista
+não sabe: "6x R$ 11,50" sem dizer se tem juros.
+
+**A confirmação do sentido invertido também bateu.** A zerezes, que não tem
+achado nenhum, tirou `aplicaveis: 2`; a simpleorganic, com dois achados de
+severidade alta, tirou `aplicaveis: 4`. Se o limiar do `PLANO.md` (`4 ou mais →
+a leitura já vale sozinha`) tivesse sido aplicado, a loja com achados e a loja
+sem achados teriam sido lidas ao contrário do que interessa.
+
+**O placar do que a pergunta de fato mede:** de 2 lojas que terminaram, **1
+entregou achado**. A terceira não terminou.
+
+### A terceira loja é o A2 reabrindo, com a instrumentação funcionando
+
+O A2 fechou registrando dois mecanismos suspeitos "de pé, sem uso, nenhum
+demonstrado como causa de nada" — um deles o `page.content()` sem timeout. E o
+gatilho de reabertura escrito lá era: *"quando acontecer de novo COM a
+instrumentação ligada: a trilha vai dizer em qual das oito etapas o orçamento
+foi"*.
+
+Foi o que aconteceu. A `pantys.com.br` estourou os 120s e a trilha nomeou o
+lugar: **`parado em: leitura do HTML (page.content, sem timeout)`**. Pela
+primeira vez o mecanismo deixou de ser hipótese de leitura de código e passou a
+ter uma execução real apontando para ele.
+
+Isso não é trabalho do B2 e não foi feito aqui — é o A2/`CAL-13`/`CAL-15`, e
+está registrado para quando aquele bloco abrir.
+
 ### Orçamento
 
-1 ciclo declarado, 1 consumido. Fechado para a parte estrutural; a parte contra
-loja real fica pendente por bloqueio de ambiente, não por falta de orçamento.
+1 ciclo declarado, 1 consumido. Fechado: a parte estrutural pela medição local,
+a parte contra loja real pela rodada em gru.
+
+### O que eu não sei
+
+Duas lojas que terminaram é amostra pequena demais para separar "metade das
+lojas tem achado" de "quase toda loja tem achado", e as duas leituras levam a
+promessas de landing diferentes. Firmar isso custa uma rodada com ~7 domínios a
+mais — um comando, ~20 min de máquina, §2.2 respeitada porque cada domínio roda
+uma vez só.
