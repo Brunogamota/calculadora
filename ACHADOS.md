@@ -651,3 +651,85 @@ cuja decisão já está tomada nos dois cenários.
 ### Orçamento
 
 1 ciclo declarado, 1 consumido. Fechado.
+
+---
+
+## A4 — Três de oito lojas recebem "1 de 13 checagens, nada falhou" sem a tela dizer que a página do produto nunca foi lida
+
+**Data:** 06/09/2026 · **Estado:** Fase 1 do `destravar` feita (delimitado). Correção NÃO iniciada — trabalho fora do bloco atual, aguardando decisão.
+
+### Orçamento, declarado antes
+
+**2 ciclos hipótese-experimento, ou 3 horas, o que vier primeiro.** Estourou sem
+causa isolada nos dois casos: corrige o que estiver isolado, e o resto vira
+limitação declarada na tela com o gatilho para reabrir.
+
+**Critério de sucesso, escrito antes:** ou as três lojas passam a entregar as
+mesmas 3–4 checagens que as outras, ou a tela diz ao lojista, com todas as
+letras, que a página do produto não foi lida e por quê. Uma das duas. O que não
+pode continuar é o estado atual.
+
+### O sintoma
+
+De 8 lojas que terminaram na medição do A3, **3 devolveram `aplicaveis: 1`** —
+só `HTTPS_ISSUE`. O relatório sai `partial`, sem erro visível na maioria dos
+casos, e diz ao lojista "verificamos 1 das 13 checagens; nada falhou".
+
+O relatório não está errado sobre o que mediu. Ele está calado sobre o que
+deixou de medir — e é a diferença entre uma auditoria parcial honesta e um
+resultado vazio com cara de bom.
+
+### Matriz É / NÃO É
+
+Saída bruta do campo `naoAplicavelPorque`, dos arquivos em `/dados`, sem
+auditoria nova:
+
+| | É (aplicaveis 1) | NÃO É (aplicaveis 4) |
+|---|---|---|
+| **lojas** | `bluntbrasil`, `nutrify`, `zissou` | `gringa`, `simpleorganic` |
+| **`PAY_VISIBILITY`** | `o texto da página de produto não foi capturado` | aplicável (nem aparece na lista) |
+| **`INSTALLMENT_UNCLEAR`** | `nenhuma página observada serve para esta checagem` | aplicável |
+| **`NO_COUPON_FIELD`** | não aplicável | **aplicável** na `gringa` |
+
+Os dois sinais do lado "É" nascem das **mesmas duas linhas consecutivas**
+(`shopify.journey.ts:546-547`, que gravam `observation:product` e
+`productText`). Ou seja: nas três, a observação da página de produto **nunca
+foi registrada**. Não é loja sem parcelamento nem loja sem Pix — é página nunca
+lida.
+
+De quebra, a `gringa` com `NO_COUPON_FIELD` aplicável confirma em loja real a
+previsão do A3: presença de cupom se responde da PDP, por causa da correção do
+`CAL-45`.
+
+### Duas causas diferentes, e só uma tem nome
+
+**`zissou`** trouxe o motivo no próprio relatório: `CATALOG_UNREADABLE
+/products.json respondeu 404`. O `findProduct` lança
+(`shopify.journey.ts:436`), a auditoria nunca chega no `observeProduct`, e
+mesmo assim o relatório sai com as 13 checagens avaliadas — 12 delas por
+ausência de dado que ninguém explicou ao lojista.
+
+**`bluntbrasil` e `nutrify`** saíram com `erro: -`. Nenhum código de erro,
+nenhuma etapa falhada visível, e ainda assim sem observação de produto. **Esta
+é a parte não explicada**, e é ela que consome o orçamento acima.
+
+### Por que isto importa mais do que o número
+
+O `destravar` trata falha silenciosa e resultado inventado como as duas únicas
+coisas piores que a falha original. "1 de 13, nada falhou" é a primeira: o
+lojista lê como aprovação. Em 3 de 8 lojas.
+
+E isso vale para o produto inteiro, não só para a Camada 1 — a mesma tela serve
+a auditoria consentida quando alguma etapa não fecha.
+
+### O que ainda não sei
+
+Por que `bluntbrasil` e `nutrify` perdem a observação sem emitir erro nenhum.
+Sem isso, não dá para saber se são o mesmo caso da `zissou` com o erro engolido
+em algum ponto, ou um caminho diferente.
+
+### Gatilho, caso o orçamento estoure
+
+A tela passa a dizer "não conseguimos ler a página de produto desta loja, então
+só verificamos X checagens" — a limitação vira informação em vez de silêncio, e
+a causa fica registrada aqui para a próxima rodada.
