@@ -713,9 +713,21 @@ async function runAudit(
        Sem esta linha a leitura saía `done`: uma auditoria que não abriu
        carrinho nem checkout se anunciava completa. O modo é uma escolha
        legítima, mas o que ele deixa de ver não pode virar silêncio. */
+    /* A frase era FIXA e afirmava "a auditoria leu a página do produto".
+    
+       Em 3 de 8 lojas medidas em 06/09 (A4) a página não foi lida, e a
+       auditoria dizia que tinha lido — no campo que existe justamente para
+       impedir que o que ficou de fora vire silêncio. Silêncio já era ruim;
+       afirmar o contrário do que aconteceu é a coisa que o protocolo trata
+       como pior que a falha original. */
+    const leuOProduto = ctx.scratch.get('observation:product') !== undefined
     incompleteBecause.push(
-      'modo leitura: a auditoria leu a página do produto e não abriu carrinho nem checkout, ' +
-        'porque ninguém pela loja autorizou. Para a jornada completa, o responsável precisa aceitar.',
+      leuOProduto
+        ? 'modo leitura: a auditoria leu a página do produto e não abriu carrinho nem checkout, ' +
+          'porque ninguém pela loja autorizou. Para a jornada completa, o responsável precisa aceitar.'
+        : 'modo leitura: a auditoria NÃO conseguiu ler a página de produto desta loja, e não abriu ' +
+          'carrinho nem checkout porque ninguém pela loja autorizou. Sem a página de produto quase ' +
+          'nada pôde ser verificado, e essa limitação é nossa, não da loja.',
     )
 
     const finalLeitura = finish(result, recorder.steps, incompleteBecause, startedAt, {

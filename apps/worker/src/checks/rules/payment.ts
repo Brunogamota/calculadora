@@ -10,6 +10,7 @@ import {
   fail,
   familiaDaAusencia,
   melhorFonte,
+  produtoNaoFoiLido,
   notApplicable,
   pass,
   razaoDoModo,
@@ -61,6 +62,16 @@ function bloqueiosRelevantes(
 
 function semFonte(input: CheckInput, ordem: ReadonlyArray<PageObservation['source']>): string | null {
   if (melhorFonte(input, ordem)) return null
+  /* Antes de qualquer outro motivo: a página de produto não foi lida.
+  
+     Sem esta linha, uma loja que proíbe /cart e /checkout no robots E cuja
+     página de produto não foi lida saía com "o robots.txt da loja proíbe
+     /cart, /checkout" — verdade sobre duas das três fontes procuradas, e
+     silêncio sobre a única que era culpa nossa. Foi o que a `nutrify` recebeu
+     na medição do A4. */
+  if (produtoNaoFoiLido(input, ordem)) {
+    return 'a página de produto desta loja não foi lida pela auditoria; sem ela esta checagem não tem fonte'
+  }
   const doModo = razaoDoModo(input, ordem)
   if (doModo) return doModo
   if (input.blockedBySite) return 'a loja bloqueou a auditoria antes de qualquer página medível'
@@ -88,7 +99,13 @@ export const payVisibility: CheckRule = {
 
   evaluate(input) {
     if (input.productText === null) {
-      return notApplicable('o texto da página de produto não foi capturado')
+      /* Sem família declarada isto caía em `dado-ilegivel` — "a página abriu,
+         mas o dado não estava claro o bastante", que descreve uma página lida
+         e ambígua. A página não foi lida. Ver A4. */
+      return notApplicable(
+        'a página de produto desta loja não foi lida pela auditoria',
+        produtoNaoFoiLido(input, ['product']) ? 'produto-nao-lido' : 'jornada-parou',
+      )
     }
     const vocabulario = [...PAYMENT_METHODS.flatMap((m) => m.terms), ...CARD_BRANDS]
     const naPagina = findTerm(input.productText, vocabulario)

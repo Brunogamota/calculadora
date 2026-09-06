@@ -171,9 +171,32 @@ function resumoDeCobertura(results: CheckResult[], aplicaveis: number): string {
     const f = r.coverageFamily ?? 'dado-ilegivel'
     contagem.set(f, (contagem.get(f) ?? 0) + 1)
   }
-  const [dominante, quantas] = [...contagem.entries()].sort((a, b) => b[1] - a[1])[0]!
+
+  /* A REGRA DA MANCHETE NÃO É SÓ FREQUÊNCIA.
+  
+     "O motivo que aparece em mais checagens" é uma boa regra entre motivos
+     COMPARÁVEIS — robots, modo leitura, jornada parou. Ela quebra quando um
+     dos motivos é pré-requisito dos outros.
+  
+     Quando a página de produto não foi lida, o robots continua explicando
+     carrinho e checkout e ganha no voto: 8 de 12 contra 2. O lojista lê "o
+     robots da sua loja bloqueou" e conclui que autorizar resolve. Não resolve
+     — sem a página de produto, a auditoria completa também não mede nada ali,
+     e a limitação é nossa.
+  
+     Medido em 06/09 (A4): 3 de 8 lojas recebiam "1 de 13 checagens, nada
+     falhou" com esta manchete errada. */
+  const dominantePorFrequencia = [...contagem.entries()].sort((a, b) => b[1] - a[1])[0]!
+  const [dominante, quantas] = contagem.has('produto-nao-lido')
+    ? (['produto-nao-lido', contagem.get('produto-nao-lido')!] as const)
+    : dominantePorFrequencia
 
   const primeira = `Verificamos ${aplicaveis} das ${results.length} checagens; ${naoFeitas.length} não deram para fazer.`
+  /* `produto-nao-lido` vira manchete sem ser maioria, então "na maior parte
+     delas" seria falso. Ela é citada como a causa de raiz que é. */
+  if (dominante === 'produto-nao-lido') {
+    return `${primeira} O motivo principal: ${FRASE_DA_FAMILIA[dominante]}.`
+  }
   const parte =
     quantas === naoFeitas.length
       ? 'Em todas elas'

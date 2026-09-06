@@ -32,6 +32,7 @@ export type CheckStatus = 'pass' | 'fail' | 'not_applicable'
  */
 export type FamiliaDeCobertura =
   | 'robots'
+  | 'produto-nao-lido'
   | 'modo-leitura'
   | 'loja-bloqueou'
   | 'jornada-parou'
@@ -41,6 +42,12 @@ export type FamiliaDeCobertura =
 /** A mesma família dita para o lojista, sem jargão nosso. */
 export const FRASE_DA_FAMILIA: Record<FamiliaDeCobertura, string> = {
   robots: 'o arquivo robots.txt da loja pede que robôs não abram essas páginas',
+  /* Esta é limitação NOSSA, e a frase precisa dizer isso sem rodeio. As outras
+     famílias descrevem escolhas da loja; confundir as duas faz o lojista achar
+     que a loja dele tem um problema quando quem falhou foi a auditoria. */
+  'produto-nao-lido':
+    'não conseguimos ler a página de produto desta loja — e sem ela quase nada ' +
+    'do que se verifica antes do carrinho pode ser afirmado. A limitação é nossa, não da loja',
   'modo-leitura': 'a auditoria rodou sem autorização da loja, então não abriu carrinho nem checkout',
   'loja-bloqueou': 'a loja bloqueou a auditoria antes de chegar nessas páginas',
   'jornada-parou': 'a auditoria não conseguiu chegar até essas páginas',
@@ -153,10 +160,32 @@ export function robotsSegurou(
   return input.robotsBlockedPaths.some((c) => ordem.some((f) => caminhos[f].test(c)))
 }
 
+export function produtoNaoFoiLido(
+  input: CheckInput,
+  ordem: ReadonlyArray<PageObservation['source']>,
+): boolean {
+  if (!ordem.includes('product')) return false
+  if (input.observations.some((o) => o.source === 'product')) return false
+  /* Se o robots proibiu a página de produto, a ausência é escolha da loja e a
+     família continua sendo `robots`. Só é nossa quando nada impedia. */
+  return !input.robotsBlockedPaths.some((caminho) => /^\/products?\b/.test(caminho))
+}
+
 export function familiaDaAusencia(
   input: CheckInput,
   ordem: ReadonlyArray<PageObservation['source']>,
 ): FamiliaDeCobertura {
+  /* VEM PRIMEIRO, e não por ordem de portas se fechando como as outras.
+  
+     Numa loja cuja página de produto não foi lida, o robots ainda explica o
+     carrinho e o checkout — e explicava sozinho o resumo inteiro, porque é o
+     motivo mais FREQUENTE. O lojista lia "o robots da sua loja bloqueou" e
+     concluía que autorizar resolveria. Não resolveria: sem a página de produto
+     a auditoria completa também não teria o que medir ali.
+  
+     Medido em 06/09 (achado A4): 3 de 8 lojas caíam neste caso, e nenhuma das
+     três dizia isso na tela. */
+  if (produtoNaoFoiLido(input, ordem)) return 'produto-nao-lido'
   if (razaoDoModo(input, ordem)) return 'modo-leitura'
   if (input.blockedBySite) return 'loja-bloqueou'
   if (robotsSegurou(input, ordem)) return 'robots'

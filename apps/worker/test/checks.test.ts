@@ -402,21 +402,40 @@ describe('o motivo aponta para a causa real, não para a que soa plausível', ()
 })
 
 describe('o resumo de cobertura diz o que foi medido, e por que o resto não foi', () => {
+  /* A loja destes exercícios teve a PÁGINA DE PRODUTO LIDA, e isso passou a
+     precisar ser dito.
+
+     Eles nasceram com `entrada({ modo: 'leitura' })`, que não traz observação
+     nenhuma — e enquanto "produto não lido" não tinha tratamento próprio, esse
+     input representava uma leitura comum. Depois do A4 ele representa a loja
+     avariada, e a manchete dela é outra de propósito. As asserções abaixo não
+     mudaram: o que mudou foi a loja que elas descrevem. O caso do produto não
+     lido tem exercícios próprios no bloco A4. */
+  const leituraNormal = () =>
+    entrada({
+      steps: [passo()],
+      modo: 'leitura',
+      productText: 'em até 10x de R$ 8,99 sem juros',
+      observations: [
+        { source: 'product' as const, url: 'https://loja.com.br/products/x', loadMs: 800, snapshot: PAGAMENTO_BOM },
+      ],
+    })
+
   test('conta as verificadas e as não verificadas', () => {
-    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    const r = runChecks(leituraNormal())
     assert.match(r.coverageSummary, new RegExp(`Verificamos ${r.applicable} das ${r.results.length} checagens`))
     assert.match(r.coverageSummary, new RegExp(`${r.notApplicable} não deram para fazer`))
   })
 
   test('nomeia o motivo que dominou, em português de lojista', () => {
-    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    const r = runChecks(leituraNormal())
     // Sem §, sem "not_applicable", sem nome de arquivo: quem lê é o lojista.
     assert.match(r.coverageSummary, /não abriu carrinho nem checkout|não conseguiu chegar/)
     assert.doesNotMatch(r.coverageSummary, /not_applicable|§/)
   })
 
   test('quando o motivo não é único, o resumo diz de quantas ele dá conta', () => {
-    const r = runChecks(entrada({ steps: [passo()], modo: 'leitura' }))
+    const r = runChecks(leituraNormal())
     const familias = new Set(
       r.results.filter((x) => x.status === 'not_applicable').map((x) => x.coverageFamily),
     )
@@ -583,5 +602,103 @@ describe('o motivo do não aplicável cita só o que tem a ver com a checagem', 
     const c = comRobots(['/admin']).results.find((x) => x.id === 'NO_TRUST_SIGNAL')
     assert.equal(c?.status, 'not_applicable')
     assert.doesNotMatch(c?.notApplicableReason ?? '', /robots/, c?.notApplicableReason ?? '')
+  })
+})
+
+/**
+ * A4 — a página de produto não lida precisa virar a manchete, mesmo sendo
+ * minoria dos motivos.
+ *
+ * Medido em 06/09 contra 8 lojas brasileiras: 3 devolveram `aplicaveis: 1` e
+ * dizem ao lojista "verificamos 1 das 13 checagens; nada falhou", com o robots
+ * levando a manchete por ser o motivo mais frequente. O lojista lê e conclui
+ * que autorizar resolve — e não resolve, porque sem a página de produto a
+ * auditoria completa também não mede nada ali.
+ */
+describe('A4 — quando a página de produto não foi lida', () => {
+  /* A loja da `nutrify`: robots proibindo carrinho e checkout (que explica 8
+     das não feitas) E página de produto ausente (que explica 2). A frequência
+     dá a manchete ao robots; a causa de raiz é a outra. */
+  const comoNutrify = () =>
+    runChecks(
+      entrada({
+        modo: 'leitura',
+        steps: [passo()],
+        robotsBlockedPaths: ['/cart', '/cart.js', '/checkout'],
+        observations: [],
+        productText: null,
+      }),
+    )
+
+  test('a manchete cita a página de produto, não o robots que aparece mais vezes', () => {
+    const r = comoNutrify()
+    assert.match(r.coverageSummary, /não conseguimos ler a página de produto/i, r.coverageSummary)
+    assert.doesNotMatch(r.coverageSummary, /robots/i, r.coverageSummary)
+  })
+
+  test('a manchete não afirma "na maior parte delas", porque não é a maioria', () => {
+    const r = comoNutrify()
+    assert.doesNotMatch(r.coverageSummary, /maior parte/i, r.coverageSummary)
+  })
+
+  test('a frase diz de quem é a limitação: nossa, não da loja', () => {
+    const r = comoNutrify()
+    assert.match(r.coverageSummary, /limitação é nossa, não da loja/i, r.coverageSummary)
+  })
+
+  test('PAY_VISIBILITY deixa de dizer "dado não estava claro" para uma página nunca aberta', () => {
+    const c = comoNutrify().results.find((x) => x.id === 'PAY_VISIBILITY')
+    assert.equal(c?.status, 'not_applicable')
+    assert.equal(c?.coverageFamily, 'produto-nao-lido')
+    assert.match(c?.notApplicableReason ?? '', /não foi lida/i, c?.notApplicableReason ?? '')
+  })
+
+  test('INSTALLMENT_UNCLEAR para de culpar o robots por uma ausência que é nossa', () => {
+    const c = comoNutrify().results.find((x) => x.id === 'INSTALLMENT_UNCLEAR')
+    assert.equal(c?.coverageFamily, 'produto-nao-lido')
+    assert.doesNotMatch(c?.notApplicableReason ?? '', /robots/i, c?.notApplicableReason ?? '')
+  })
+
+  /* O contraste que dá sentido a tudo acima: quem LEU o produto não pode
+     receber nada disso. Sem este exercício, um bug que marcasse toda loja como
+     "produto não lido" passaria com os cinco de cima verdes. */
+  test('a loja que teve o produto lido continua com a manchete do robots', () => {
+    const r = runChecks(
+      entrada({
+        modo: 'leitura',
+        steps: [passo()],
+        robotsBlockedPaths: ['/cart', '/cart.js', '/checkout'],
+        productText: 'Pix — 5% de desconto · em até 10x de R$ 8,99 sem juros',
+        observations: [
+          { source: 'product', url: 'https://loja.com.br/products/x', loadMs: 800, snapshot: PAGAMENTO_BOM },
+        ],
+      }),
+    )
+    assert.doesNotMatch(r.coverageSummary, /não conseguimos ler a página de produto/i, r.coverageSummary)
+    assert.equal(
+      r.results.find((x) => x.id === 'PAY_VISIBILITY')?.status !== 'not_applicable',
+      true,
+    )
+  })
+
+  /* E quando é o robots que proíbe /products, a ausência é escolha da loja e
+     não pode ser vendida como limitação nossa. */
+  /* Em LEITURA, porque é lá que o robots segura: em consentido o aceite abre o
+     portão e `robotsSegurou` devolve false por desenho — a primeira versão
+     deste exercício errou nisso e esperava `robots` num modo onde o robots não
+     tinha segurado nada. */
+  test('robots proibindo /products devolve a família robots, não a nossa', () => {
+    const r = runChecks(
+      entrada({
+        modo: 'leitura',
+        steps: [passo()],
+        robotsBlockedPaths: ['/products'],
+        observations: [],
+        productText: null,
+      }),
+    )
+    const c = r.results.find((x) => x.id === 'INSTALLMENT_UNCLEAR')
+    assert.equal(c?.coverageFamily, 'robots')
+    assert.doesNotMatch(r.coverageSummary, /limitação é nossa/i, r.coverageSummary)
   })
 })
