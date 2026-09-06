@@ -148,8 +148,32 @@ const VAZIO: EstadoAoVivo = {
   stage: 0, frame: null, gravacao: [], perdidos: 0, achados: [], fim: null, abortado: null, falhaNossa: null, segundos: 0, semImagem: 0, duracoes: {}, pulados: [], desfechos: {}, urlAtual: null, aoVivo: false,
 };
 
-/** Base da API. Sem ela, a tela roda em demonstração. */
-export const API = (import.meta.env["VITE_API"] as string | undefined)?.replace(/\/$/, "") ?? "";
+/**
+ * Onde o motor mora em produção.
+ *
+ * Está aqui, e não só numa variável de ambiente, porque o endereço não é
+ * segredo nem varia: ele já está escrito no `fly.toml` (em `RAIO_X_ORIGENS`) e
+ * é público. O que a variável fazia era transformar um endereço fixo em algo
+ * que alguém precisa lembrar de configurar em cada projeto do Vercel — e
+ * esquecer derrubava a tela para demonstração, sem quebrar nada de um jeito
+ * que aparecesse no deploy.
+ *
+ * `VITE_API` continua existindo e continua ganhando: é assim que se aponta
+ * para um motor local ou para um ambiente de teste.
+ */
+const MOTOR_EM_PRODUCAO = "https://raio-x-motor.fly.dev";
+
+/**
+ * Base da API. Sem ela, a tela roda em demonstração.
+ *
+ * Em build de produção o padrão é o motor de verdade. Em desenvolvimento o
+ * padrão continua vazio: rodar `npm run dev` sem servidor local deve cair em
+ * demonstração, não bater no motor publicado sem ninguém ter pedido.
+ */
+const declarada = (import.meta.env["VITE_API"] as string | undefined)?.trim();
+export const API = (
+  declarada && declarada.length > 0 ? declarada : import.meta.env.PROD ? MOTOR_EM_PRODUCAO : ""
+).replace(/\/$/, "");
 
 export function temServidor(): boolean {
   return API.length > 0;
