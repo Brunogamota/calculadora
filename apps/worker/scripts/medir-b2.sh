@@ -6,7 +6,12 @@
 # brasileira (FLY_REGION=gru, ver CAL-46):
 #
 #   fly ssh console -a raio-x-motor
-#   bash /app/scripts/medir-b2.sh
+#   bash /app/apps/worker/scripts/medir-b2.sh
+#
+# Mora em apps/worker/scripts/ porque o Dockerfile copia `packages`,
+# `apps/worker` e `apps/realtime` — e NÃO copia `scripts/` da raiz. Em
+# scripts/ na raiz este arquivo não existiria na máquina nem depois de um
+# deploy, que foi como ele nasceu e como quase custou uma rodada.
 #
 # §2.2 protegida por construção: cada domínio aparece UMA VEZ na lista, não há
 # --force, e os três já medidos em 06/09 (zerezes, simpleorganic, pantys) estão

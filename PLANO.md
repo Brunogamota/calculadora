@@ -140,7 +140,7 @@ próprio depois do B3, não como crescimento deste.
 **Gatilho para reabrir:** uma rodada maior (~10 domínios) mostrando 2 em 3 ou
 mais lojas com achado. Aí a leitura grátis vira isca e a landing muda.
 
-A rodada está pronta em `scripts/medir-b2.sh`: 7 domínios novos, um comando, de
+A rodada está pronta em `apps/worker/scripts/medir-b2.sh`: 7 domínios novos, um comando, de
 dentro da máquina em `gru`. Ela relê os arquivos da rodada de 06/09 em vez de
 auditar de novo, imprime o placar e aplica o limiar acima sozinha.
 

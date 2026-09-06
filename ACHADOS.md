@@ -576,15 +576,78 @@ ter uma execução real apontando para ele.
 Isso não é trabalho do B2 e não foi feito aqui — é o A2/`CAL-13`/`CAL-15`, e
 está registrado para quando aquele bloco abrir.
 
+### A amostra de 10, rodada em gru — 06/09
+
+Sete domínios novos, mesmos parâmetros, mais os três da primeira rodada relidos
+do disco (sem reauditar):
+
+```
+  sem achado     bluntbrasil.com.br        aplicaveis 1  falharam 0
+  COM ACHADO     boldsnacks.com.br         aplicaveis 3  falharam 2
+  COM ACHADO     cadernointeligente.com.br aplicaveis 3  falharam 1
+  sem achado     gringa.com.br             aplicaveis 4  falharam 0
+  NÃO TERMINOU   labellamafia.com.br       DNS_FAILURE
+  sem achado     nutrify.com.br            aplicaveis 1  falharam 0
+  NÃO TERMINOU   pantys.com.br             DEADLINE_EXCEEDED
+  COM ACHADO     simpleorganic.com.br      aplicaveis 4  falharam 2
+  sem achado     zerezes.com.br            aplicaveis 2  falharam 0
+  sem achado     zissou.com.br             aplicaveis 1  falharam 0
+
+  terminaram: 8  |  com achado: 3  |  não terminaram: 2
+  taxa de achado: 3/8 (38%)  →  A leitura ACOMPANHA, não promete.
+```
+
+Achados por extenso, nas três que tiveram:
+
+```
+boldsnacks         [alta] PAY_VISIBILITY: nenhum meio de pagamento é mencionado na PDP
+                   [alta] INSTALLMENT_UNCLEAR: sem presença ou ausência de juros — "3x de R$ 29,66"
+cadernointeligente [alta] INSTALLMENT_UNCLEAR: sem valor por parcela — "5x"
+simpleorganic      [alta] PAY_VISIBILITY: nenhum meio de pagamento é mencionado na PDP
+                   [alta] INSTALLMENT_UNCLEAR: sem presença ou ausência de juros — "6x R$ 11,50"
+```
+
+#### Três coisas que a amostra de 10 fecha
+
+**1. A previsão estrutural sobreviveu a 10 lojas.** Todos os 5 achados, sem
+exceção, saíram de `PAY_VISIBILITY` ou `INSTALLMENT_UNCLEAR`. Nenhuma outra
+checagem produziu achado em nenhuma loja, e nenhuma loja passou de 2 achados —
+o teto previsto.
+
+**2. A taxa é 3 de 8, e o limiar novo decide sozinho:** a leitura grátis
+acompanha, não promete. É o que o `PLANO.md` já dizia após a amostra de 2, e
+agora está apoiado em 8 em vez de 2.
+
+**3. Confiabilidade: 2 de 10 não terminaram** (20%), consistente com os ~25%
+que o A2 estimou. Uma por `DNS_FAILURE` (domínio não resolveu — não é defeito
+nosso), outra pelo `DEADLINE_EXCEEDED` do `page.content`.
+
+#### O número novo, que ninguém tinha pedido e é o mais duro
+
+A distribuição de `aplicaveis` entre as 8 que terminaram: **1, 1, 1, 2, 3, 3,
+4, 4**.
+
+**Três de oito lojas receberam UMA checagem.** Não duas, não três: uma. O
+`PLANO.md` já temia o cenário "se o grátis entregar 'seu site está em HTTPS',
+ninguém compartilha e ninguém autoriza" — e ele acontece em 38% das lojas, o
+mesmo número da taxa de achado, por coincidência.
+
+Isso reforça a decisão do B2 em vez de mudá-la: a leitura grátis não pode ser a
+promessa da landing, porque em mais de um terço das vezes ela não tem o que
+dizer.
+
+**Por que `aplicaveis: 1` acontece, não sei.** O `productText` sai do
+`rawTextSample` do próprio `observeProduct` (`shopify.journey.ts:547`), que
+rodou nas três — senão a auditoria teria saído `failed`, e as três saíram
+`partial`. Então a leitura de código não explica, e o motivo está gravado no
+campo `naoAplicavelPorque` dos arquivos em `/dados`. Ler aquilo custa um
+comando e nenhuma auditoria nova.
+
+**Se for defeito nosso e não característica das lojas, o número muda:** três
+lojas saindo de 1 para 3 checagens podem virar achados. Fica como candidato
+com orçamento a declarar, não como investigação aberta — e não bloqueia o B2,
+cuja decisão já está tomada nos dois cenários.
+
 ### Orçamento
 
-1 ciclo declarado, 1 consumido. Fechado: a parte estrutural pela medição local,
-a parte contra loja real pela rodada em gru.
-
-### O que eu não sei
-
-Duas lojas que terminaram é amostra pequena demais para separar "metade das
-lojas tem achado" de "quase toda loja tem achado", e as duas leituras levam a
-promessas de landing diferentes. Firmar isso custa uma rodada com ~7 domínios a
-mais — um comando, ~20 min de máquina, §2.2 respeitada porque cada domínio roda
-uma vez só.
+1 ciclo declarado, 1 consumido. Fechado.
