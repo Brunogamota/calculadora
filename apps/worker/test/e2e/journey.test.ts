@@ -808,6 +808,69 @@ describe('os dois modos, e o que cada um tem permissão de tocar', { concurrency
   })
 })
 
+describe('modo leitura: nenhuma requisição de carrinho ou checkout SAI', { concurrency: false }, () => {
+  /* O critério da CAL-7, na letra: "provar que nenhuma requisição saiu, não
+     que o código não chamou a função".
+  
+     A diferença não é purismo. O ramo de leitura em `audit.ts` pula o carrinho,
+     mas a página é carregada num navegador de verdade: um tema com prefetch,
+     um script que consulta `/cart.js` para montar o contador, ou um `<link
+     rel="prefetch" href="/checkout">` fazem a requisição sair sem o nosso
+     código pedir. Ler o código não pega nada disso. Contar o que CHEGOU na
+     loja pega.
+  
+     A loja falsa registra cada caminho em `hits`, e é o mais perto de um
+     interceptador que dá para ter sem instrumentar o Chromium. */
+  const PROIBIDOS = ['/cart', '/cart.js', '/cart/add', '/cart/add.js', '/checkout']
+
+  test('a loja não recebe nenhum toque em carrinho ou checkout', async () => {
+    const store = await startFakeStore({})
+    try {
+      const r = await audit(store.url, { headed: false, outDir: OUT, modo: 'leitura' })
+      assert.equal(r.ok, true, `a leitura falhou antes de provar o que importa: ${r.errorReason}`)
+
+      const tocados = PROIBIDOS.filter((p) => (store.hits[p] ?? 0) > 0)
+      assert.deepEqual(
+        tocados,
+        [],
+        `o modo leitura tocou ${tocados.join(', ')} — hits: ${JSON.stringify(store.hits)}`,
+      )
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('e a página do produto FOI lida — senão o exercício acima passaria à toa', async () => {
+    /* Sem isto, uma auditoria que morresse na home também sairia com zero
+       toques no carrinho, e o exercício de cima daria verde sobre nada. */
+    const store = await startFakeStore({})
+    try {
+      await audit(store.url, { headed: false, outDir: OUT, modo: 'leitura' })
+      assert.ok(
+        (store.hits['/products.json'] ?? 0) > 0,
+        `nem o catálogo foi pedido — hits: ${JSON.stringify(store.hits)}`,
+      )
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('o consentido TOCA o carrinho: é o contraste que dá sentido ao de cima', async () => {
+    const store = await startFakeStore({ titularidadeVerificada: true })
+    try {
+      await audit(store.url, {
+        ...BASE,
+        outDir: OUT,
+        aceite: { ...ACEITE_DE_TESTE, url: store.url },
+      })
+      const tocou = PROIBIDOS.some((p) => (store.hits[p] ?? 0) > 0)
+      assert.ok(tocou, `o consentido não tocou carrinho nenhum — hits: ${JSON.stringify(store.hits)}`)
+    } finally {
+      await store.close()
+    }
+  })
+})
+
 describe('titularidade: consentido exige prova, não declaração', { concurrency: false }, () => {
   /* ESTE é o exercício que impede `titularidadeVerificada: true` de virar
      carimbo no resto do arquivo. Se alguém apagar a verificação de

@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { STEP_IDS, TEXTO_DO_ACEITE, deQuemEAculpa, paraSeveridade, registrarAceite, temServidor, useAuditoriaAoVivo, verificarTitularidade } from "./live.ts";
-import type { Aceite, Cobertura, Titularidade as TitularidadeApi } from "./live.ts";
+import type { Aceite, Cobertura, EstadoAoVivo, Titularidade as TitularidadeApi } from "./live.ts";
 import type { Desfecho, StepId } from "./live.ts";
 
 type Screen = "landing" | "running" | "result" | "waf" | "connection" | "titularidade" | "gravacao";
@@ -798,7 +798,7 @@ function PainelAchados({ stage, doMotor }: { stage: number; doMotor?: { code: st
    lado" nesse segundo caso inventaria uma culpa que não é nossa. */
 type Parada = { motivo: string; deQuem: "nossa" | "loja-nao-esta-no-ar" } | null;
 
-function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, em: string | null, gravacao: { data: string; t: number }[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: Parada }) {
+function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onComplete: (nota: number | null, ressalva: string | null, cobertura: Cobertura | null, em: string | null, gravacao: { data: string; t: number }[], achados: AchadoNoTempo[]) => void; url: string; aceite: Aceite | null; onAbortado: (code: string, reason: string, ate: Apurado) => void; nossoProblema: Parada }) {
   const vivo = useAuditoriaAoVivo(temServidor() ? url : null, aceite);
   const simulado = useCronometro(!temServidor());
   /* Parou de rodar: por recusa do motor, ou porque nao alcancamos o servidor.
@@ -866,7 +866,7 @@ function Running({ onComplete, url, aceite, onAbortado, nossoProblema }: { onCom
   const acabou = temServidor() ? vivo.fim !== null && vivo.abortado === null : stage >= steps.length;
   useEffect(() => {
     if (acabou) {
-      onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.fim?.em ?? null, vivo.gravacao);
+      onComplete(vivo.fim?.score ?? null, vivo.fim?.caveat ?? null, vivo.fim?.cobertura ?? null, vivo.fim?.em ?? null, vivo.gravacao, vivo.achados);
     }
   }, [acabou, onComplete, vivo.fim, vivo.gravacao]);
 
@@ -1545,7 +1545,17 @@ function Result({ onRestart, onGravacao, url, nota, ressalva, cobertura, em }: {
    Os frames vivem só na aba de quem assistiu — nada vai para disco. Quem abre
    o link sem ter visto a execução não tem gravação, e a tela diz isso em vez
    de mostrar um player que não toca. */
-function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: string; t: number }[]; onVoltar: () => void }) {
+/* Derivado do estado ao vivo, e não redeclarado: existem dois `Severidade` no
+   projeto (o do motor e o da tela), e escrever o tipo à mão aqui escolhia o
+   errado — o compilador pegou, mas só porque os dois têm o mesmo nome. */
+type AchadoNoTempo = EstadoAoVivo['achados'][number];
+
+/* `achados` chega com o momento de cada um, na base de tempo dos frames — ver
+   a nota nos alfinetes, mais abaixo. Vazio quando a auditoria não achou nada,
+   quando não houve motor, ou quando o estado veio por reconexão: nos três a
+   tela mostra a gravação sem marcador nenhum, que é o que corresponde ao que
+   se sabe. */
+function Gravacao({ host, frames, achados, onVoltar }: { host: string; frames: { data: string; t: number }[]; achados: AchadoNoTempo[]; onVoltar: () => void }) {
   const [tocando, setTocando] = useState(false);
   const [i, setI] = useState(0);
   const tem = frames.length > 0;
@@ -1565,11 +1575,40 @@ function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: st
   const agora = frames[i]?.t ?? 0;
   const cronometro = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-  /* Os sete passos viram marcas e os cinco achados viram alfinetes. É o que faz
-     o vídeo virar índice em vez de reprodução: cada alfinete leva ao segundo em
-     que o robô encontrou aquele problema. */
-  const marcas = [8, 20, 33, 48, 66, 88];
-  const alfinetes = [33, 52, 61, 74, 91];
+  /* Os achados viram alfinetes, e é o que faz o vídeo virar índice em vez de
+     reprodução: cada alfinete leva ao segundo em que o robô encontrou aquele
+     problema.
+  
+     Eram CONSTANTES: `[33, 52, 61, 74, 91]` em toda auditoria, medisse o que
+     medisse, com a legenda "5 achados marcados em rosa" fixa embaixo. A tela
+     prometia levar ao momento do achado e levava a um número inventado — a
+     mesma mentira que o comentário do ExceptionState, logo abaixo, registra
+     ter sido consertada lá.
+  
+     Agora vêm do estado ao vivo, na mesma base de tempo dos frames. Achado sem
+     momento conhecido (o que chega por reconexão) simplesmente não vira
+     alfinete: melhor faltar um marcador que apontar para o segundo errado. */
+  const alfinetes =
+    duracao > 0
+      ? achados
+          .filter((a): a is typeof a & { emSegundos: number } => typeof a.emSegundos === 'number')
+          /* DENTRO da gravação, e este filtro é o que separa a marcação
+             honesta da inútil.
+          
+             A maioria dos achados não é encontrada durante a jornada: o motor
+             percorre a loja e só DEPOIS roda as 13 checagens, então esses
+             achados chegam com um momento posterior ao último frame. Medido:
+             três achados de uma auditoria real, todos emitidos depois do fim
+             da gravação. Com clamp eles empilhavam em 100% — três alfinetes no
+             mesmo pixel, todos prometendo levar ao momento da descoberta, e
+             todos levando ao fim do vídeo.
+          
+             Achado que aconteceu DURANTE (sobreposição no botão, desafio de
+             antibot) tem momento de verdade e vira alfinete. O resto não vira,
+             e a legenda diz quantos são em vez de prometer cinco. */
+          .filter((a) => a.emSegundos <= duracao)
+          .map((a) => ({ pct: Math.max(0, (a.emSegundos / duracao) * 100), title: a.title }))
+      : [];
 
   const irPara = (pct: number) => {
     if (!tem) return;
@@ -1609,15 +1648,18 @@ function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: st
           <div className="player-controles">
             <div className="linha-do-tempo">
               <div className="linha-trilho" />
-              {marcas.map((m) => <div className="linha-marca" style={{ left: `${m}%` }} key={m} />)}
               {alfinetes.map((a, n) => (
                 <button
                   type="button"
                   className="linha-alfinete"
-                  style={{ left: `${a}%` }}
-                  key={a}
-                  onClick={() => irPara(a)}
-                  aria-label={`Pular para o achado ${n + 1}: ${findings[n]?.title ?? ""}`}
+                  style={{ left: `${a.pct}%` }}
+                  key={`${a.title}-${n}`}
+                  onClick={() => irPara(a.pct)}
+                  /* O título vem do MESMO achado que posicionou o alfinete.
+                     Antes era `findings[n]` — a lista do desenho, indexada pela
+                     posição: o rótulo podia descrever um achado e o clique
+                     levar a outro. */
+                  aria-label={`Pular para o achado ${n + 1}: ${a.title}`}
                 />
               ))}
             </div>
@@ -1628,13 +1670,25 @@ function Gravacao({ host, frames, onVoltar }: { host: string; frames: { data: st
                 </button>
                 <span className="mono">{cronometro(agora)} / {cronometro(duracao)}</span>
                 <span className="player-divisor" />
-                <span>5 achados marcados em rosa</span>
+                {/* O número dos achados que a gravação consegue marcar, não um
+                    "5" fixo. Auditoria sem achado, ou reaberta por reconexão,
+                    não tem alfinete nenhum — e a legenda precisa dizer isso em
+                    vez de prometer marcadores que não existem. */}
+                <span>
+                  {alfinetes.length === 0
+                    ? "sem achados marcados nesta gravação"
+                    : alfinetes.length === 1
+                      ? "1 achado marcado em rosa"
+                      : `${alfinetes.length} achados marcados em rosa`}
+                </span>
               </div>
               <ShareButton />
             </div>
           </div>
         </div>
-        <p className="gravacao-nota">Clicar num alfinete rosa pula para o segundo em que o robô encontrou aquele problema.</p>
+        {alfinetes.length > 0 && (
+          <p className="gravacao-nota">Clicar num alfinete rosa pula para o segundo em que o robô encontrou aquele problema.</p>
+        )}
       </div>
     </main>
   );
@@ -1897,6 +1951,9 @@ function App() {
   const start = (url: string, registro: Aceite | null) => { setStoreUrl(url); setAceite(registro); setScreen("running"); window.scrollTo(0, 0); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo(0, 0); };
   const [gravacao, setGravacao] = useState<{ data: string; t: number }[]>([]);
+  /* Os achados COM o momento de cada um, para os alfinetes da gravação. Vivem
+     aqui e não na tela de execução porque o estado ao vivo morre com ela. */
+  const [achadosNoTempo, setAchadosNoTempo] = useState<AchadoNoTempo[]>([]);
   /* Quando quem barrou fomos nós — piso entre tentativas, prazo, blocklist —
      ou quando a loja simplesmente ainda não está no ar pra ninguém (senha
      ativa), a pessoa fica onde está e lê o motivo, em vez de ver a loja ser
@@ -1911,6 +1968,7 @@ function App() {
     cobertura: Cobertura | null,
     em: string | null,
     frames: { data: string; t: number }[],
+    achados: AchadoNoTempo[],
   ) => {
     /* Com motor, o que o motor disse — INCLUSIVE nota nula, que é o caso de
        cobertura baixa demais para pontuar. Antes a nula era ignorada e o
@@ -1919,6 +1977,7 @@ function App() {
        continua sendo o desenho. */
     if (temServidor()) setResultado({ nota, ressalva, cobertura, em });
     setGravacao(frames);
+    setAchadosNoTempo(achados);
     navigate("result");
   };
 
@@ -1950,7 +2009,7 @@ function App() {
           onVerificado={() => { setAceite(registrarAceite(storeUrl)); setNossoProblema(null); navigate("running"); }}
         />
       )}
-      {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} onVoltar={() => navigate("result")} />}
+      {screen === "gravacao" && <Gravacao host={storeUrl || DEMO_STORE} frames={gravacao} achados={achadosNoTempo} onVoltar={() => navigate("result")} />}
     </div>
   );
 }

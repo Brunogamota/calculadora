@@ -99,7 +99,15 @@ export type EstadoAoVivo = {
   /** Quantos frames o servidor mandou e não chegaram. Frame perdido é perdido,
    *  mas dá para saber QUE se perdeu — é o que o campo `seq` existe para dizer. */
   perdidos: number;
-  achados: { code: string; severity: Severidade; title: string }[];
+  /* `emSegundos` na MESMA base dos frames (`Date.now() - inicio`), e não do
+     `at` do motor. A tela de gravação usa isso para posicionar o alfinete que
+     pula para o momento do achado — misturar relógios ali poria o alfinete no
+     segundo errado, que é pior que não ter alfinete.
+  
+     Fica `null` para achado que chegou pelo `state` (reconexão): ali não há
+     como saber quando ele apareceu, e inventar seria a mesma mentira que os
+     alfinetes fixos eram. */
+  achados: { code: string; severity: Severidade; title: string; emSegundos: number | null }[];
   /** `em` é ISO, do relógio do MOTOR — a data que o relatório afirma precisa
    *  ser a da medição, não a do navegador de quem assiste. A tela trazia
    *  "auditoria de 1 de setembro" cravado, igual em toda loja e todo dia. */
@@ -234,7 +242,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
       }
       const achados = [...e.achados];
       for (const f of st.findings ?? []) {
-        if (!achados.some((a) => a.code === f.code)) achados.push({ code: f.code, severity: f.severity, title: f.title });
+        if (!achados.some((a) => a.code === f.code)) achados.push({ code: f.code, severity: f.severity, title: f.title, emSegundos: null });
       }
       const fim =
         st.finished && st.score !== undefined
@@ -291,7 +299,7 @@ export function useAuditoriaAoVivo(url: string | null, aceite: Aceite | null = n
           }
           case "finding":
             if (e.achados.some((a) => a.code === ev.code)) return e;
-            return { ...e, achados: [...e.achados, { code: ev.code, severity: ev.severity, title: ev.title }] };
+            return { ...e, achados: [...e.achados, { code: ev.code, severity: ev.severity, title: ev.title, emSegundos: (Date.now() - inicio) / 1000 }] };
           case "complete":
             return {
               ...e,
