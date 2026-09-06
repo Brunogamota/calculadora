@@ -90,6 +90,14 @@ exigir "RAIO_X_MAX_SIMULTANEAS" "3" "sem teto, cada pedido sobe um Chromium e a 
 exigir "min_machines_running" "1" "com zero, a primeira auditoria espera a máquina subir — e a tela ao vivo é o produto."
 exigir "RAIO_X_LEDGER_DIR" "/dados" "sem isto o registro da §2.2 volta para /tmp, que a Fly recria a cada deploy: todo deploy apagaria o intervalo de 24h entre auditorias da mesma loja."
 
+# O nome da app sai do próprio fly.toml, e fica AQUI — antes de qualquer
+# checagem que fale com a Fly. Ele já esteve depois delas: com `set -u` o
+# script morria com "app: unbound variable" no meio da conferência, depois de
+# ter dito que estava tudo certo até ali. Guarda que quebra o deploy é pior que
+# guarda nenhuma, porque some a confiança nas outras.
+app=$(grep -E "^app[[:space:]]*=" fly.toml | sed -E "s/.*=[[:space:]]*['\"](.*)['\"].*/\1/")
+[ -n "$app" ] || morre "não achei o nome da app no fly.toml."
+
 # O VOLUME precisa existir, senão /dados é pasta comum na raiz efêmera — e o
 # registro da §2.2 volta a sumir a cada deploy, agora em silêncio, porque a
 # gravação funciona igual. Falhar alto é melhor que parecer protegido.
@@ -105,13 +113,6 @@ elif [ "$volumes" -lt 1 ]; then
 else
   verde "  volume 'dados' existe (registro da §2.2 sobrevive ao deploy)"
 fi
-
-# O nome da app sai do próprio fly.toml, e é lido AQUI porque a checagem de
-# máquinas precisa dele antes do deploy. Mais abaixo ele é lido de novo para a
-# URL final — de propósito: se o deploy reescrever o arquivo, o segundo valor é
-# que vale para a URL.
-app=$(grep -E "^app[[:space:]]*=" fly.toml | sed -E "s/.*=[[:space:]]*['\"](.*)['\"].*/\1/")
-[ -n "$app" ] || morre "não achei o nome da app no fly.toml."
 
 # UMA MÁQUINA. Não é preferência de custo, é o que o código assume.
 #
