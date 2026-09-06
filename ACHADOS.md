@@ -354,3 +354,174 @@ E continuam de pé, sem uso, os dois mecanismos verificados no código — o
 `page.content()`/`page.evaluate` sem timeout e o `timeoutMs` por hop do
 `safeFetch`. Nenhum dos dois foi corrigido, porque nenhum foi demonstrado como
 causa de nada. Ficam registrados aqui para a próxima vez.
+
+---
+
+## A3 — Quantas das 13 checagens rodam sem tocar o carrinho, em loja brasileira
+
+**Data:** 06/09/2026 · **Estado:** parte estrutural fechada; medição contra loja real pendente por bloqueio de egresso
+
+### Orçamento, declarado antes
+
+**1 ciclo, ~30 min de relógio.** Estourou sem número: para, e o B2 é
+dimensionado pelo pior caso (`tracksmith` = 1 de 13), que já manda a Camada 1
+sair do lançamento pela regra do `PLANO.md`.
+
+### A pergunta, e por que ela decide algo
+
+O B2 promete leitura parcial grátis que valha sozinha. Na `tracksmith.com` a
+medição real deu **1 checagem possível de 13** — mas é loja americana, sem Pix
+e sem parcelamento, e são exatamente essas duas que `PAY_VISIBILITY`
+(`payment.ts:85`) e `INSTALLMENT_UNCLEAR` (`payment.ts:145`) leem da página de
+produto. Em loja brasileira o número deve ser maior, e ninguém mediu.
+
+Resposta da Regra 4 (o que eu faria diferente conforme o resultado), escrita
+antes de rodar:
+
+- **4 ou mais** → B2 são 2 dias, a leitura grátis vale sozinha, segue o plano.
+- **2 a 3** → o bloco cresce: precisa de checagens novas que rodem só de home
+  + PDP, e isso é escopo novo a decidir com o Bruno.
+- **1** → o B não fecha sem escopo grande. A Camada 1 sai do lançamento, a
+  landing pede autorização desde o primeiro campo, e a opção A volta à mesa.
+
+### Método
+
+`audit(url, { modo: 'leitura' })` contra 3 lojas Shopify brasileiras, uma
+execução por domínio (§2.2 protegida por construção: sem repetição na lista, e
+sem `force`). Conta `checks.applicable` e registra QUAIS checagens sobrevivem,
+não só quantas — o "quais" é o que diz se a leitura grátis tem achado que o
+lojista não sabia, ou só "seu site está em HTTPS".
+
+### O que aconteceu: a medição contra loja real não pôde rodar daqui
+
+A sessão remota tem egresso por política. Todo host externo — as lojas e o
+próprio `raio-x-motor.fly.dev` — responde 403 no CONNECT:
+
+```
+$ curl -sS "$HTTPS_PROXY/__agentproxy/status"
+  "kind": "connect_rejected",
+  "detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+  "host": "zerezes.com.br:443"
+  ... idem simpleorganic.com.br, pantys.com.br, boldsnacks.com.br, sallve.com.br
+
+$ curl -sS -m 20 https://raio-x-motor.fly.dev/health
+curl: (56) CONNECT tunnel failed, response 403
+```
+
+Não é contornável e não deve ser contornado. A medição contra loja real
+continua pendente, e o comando exato está no fim deste achado.
+
+### O que deu para medir sem rede, e responde mais do que a pergunta original
+
+O motor de verdade (`audit`, `runChecks`, as 13 regras) contra a loja falsa em
+`127.0.0.1`. Isso não mede o que as lojas OFERECEM — mede o que o modo leitura
+CONSEGUE, que é o teto de tudo que a medição real pode devolver.
+
+**Rodada 1 — a fixture como está (PDP com parcelamento, sem Pix, sem selo, sem cupom):**
+
+```
+applicable: 3 de 13
+>> HTTPS_ISSUE            fail    (só porque a fixture é http://; loja real passa)
+>> PAY_VISIBILITY         fail    nenhum meio de pagamento é mencionado na página do produto
+>> INSTALLMENT_UNCLEAR    pass    em até 10x com valor e juros explícitos — "10x de R$ 8.99"
+   as outras 10           not_applicable
+```
+
+**Rodada 2 — PDP enriquecida para parecer loja brasileira típica** (Pix com
+desconto, "compra segura", campo de cupom). Previsão escrita ANTES: sobe para
+5, e `PIX_DISCOUNT_LATE` continua fora porque precisa de carrinho ou checkout
+para comparar. Confirmada:
+
+```
+applicable: 5 de 13
+>> HTTPS_ISSUE            fail
+>> PAY_VISIBILITY         pass    "10x de R$ 8.99 sem juros Pix — 5% de desconto Compra segura..."
+>> INSTALLMENT_UNCLEAR    pass
+>> NO_COUPON_FIELD        pass    há campo de cupom na página do produto
+>> NO_TRUST_SIGNAL        pass    "Compra segura. Seus dados são protegidos por criptografia."
+   PIX_DISCOUNT_LATE      not_applicable   modo leitura: não abre carrinho nem checkout
+```
+
+`NO_COUPON_FIELD` e `NO_TRUST_SIGNAL` só entraram por causa da correção do
+`CAL-45`: presença se responde de qualquer etapa observada, ausência só da tela
+de pagamento.
+
+**Rodada 3 — PDP pobre** (só o preço, sem pagamento e sem parcelamento).
+Previsão escrita ANTES: `applicable` **cai** para 2. Confirmada:
+
+```
+applicable: 2 de 13
+>> HTTPS_ISSUE            fail
+>> PAY_VISIBILITY         fail    nenhum meio de pagamento é mencionado na página do produto
+   INSTALLMENT_UNCLEAR    not_applicable   nenhuma menção a parcelamento; pode aparecer só depois de escolher cartão
+   NO_COUPON_FIELD        not_applicable   modo leitura: não abre carrinho nem checkout
+   NO_TRUST_SIGNAL        not_applicable   modo leitura: não abre carrinho nem checkout
+```
+
+### O achado: `checks.applicable` era o número errado, e ele decidia o B2
+
+As três rodadas mostram que **`applicable` e "quantidade de achados" andam em
+sentidos opostos** no modo leitura:
+
+| PDP | applicable | achados de verdade |
+|---|---|---|
+| rica (Pix, selo, cupom, parcelamento) | **5** | 0 |
+| média (só parcelamento) | 3 | 1 |
+| pobre (só preço) | **2** | 1 |
+
+Quanto melhor a loja, MAIOR o `applicable` — e todas passam. Quanto pior a
+loja, MENOR o `applicable` — porque o que falta vira `not_applicable`, não vira
+achado. O `PLANO.md` mandava dimensionar o B2 por "4 ou mais": uma loja que
+tirasse 5 dispararia o "a leitura já vale sozinha" entregando **zero** achado.
+
+O motivo estrutural: das 5 que podem ser aplicáveis sem carrinho, duas —
+`NO_COUPON_FIELD` e `NO_TRUST_SIGNAL` — **só conseguem passar**. A ausência
+delas exige a tela de pagamento por desenho (`presencaAntecipavel`,
+`payment.ts:240-258`). Nunca viram achado no grátis.
+
+**Sobram 3 que podem falhar, e na prática 2:**
+
+| checagem | pode falhar na leitura? |
+|---|---|
+| `HTTPS_ISSUE` | sim, mas loja Shopify real é HTTPS — não dispara |
+| `PAY_VISIBILITY` | **sim** — "nenhum meio de pagamento na página do produto" |
+| `INSTALLMENT_UNCLEAR` | **sim** — "parcelamento sem valor por parcela ou sem juros" |
+
+E as duas que sobram são exatamente as que dependem de vocabulário brasileiro
+(Pix, "10x sem juros"), o que explica o `1 de 13` da `tracksmith`: loja
+americana não tem nem uma nem outra.
+
+### O que isto decide, e o que ainda não decide
+
+**Decide:** o teto de achados da Camada 1 é 2. Nenhuma medição contra loja real
+vai passar disso sem escopo novo, então o cenário "4 ou mais → 2 dias, segue o
+plano" do `PLANO.md` não existe da forma como estava escrito.
+
+**Não decide:** se lojas brasileiras reais falham essas duas. Se a maioria já
+mostra Pix e parcelamento claro na PDP, o grátis entrega "está tudo certo" e a
+isca não pega. Se boa parte falha, dois achados bons bastam para uma isca — um
+lojista que descobre que a PDP dele não fala em Pix tem motivo para autorizar.
+
+A pergunta virou mais afiada e mais barata: **de 3 lojas brasileiras, quantas
+falham `PAY_VISIBILITY` ou `INSTALLMENT_UNCLEAR`?**
+
+### Como rodar a medição que falta
+
+Da máquina em `gru`, que é onde o egresso existe e a origem é brasileira:
+
+```
+fly ssh console -a raio-x-motor
+cd /app
+for d in zerezes.com.br simpleorganic.com.br pantys.com.br; do
+  npm run audit -- "https://$d" --summary | tee "/dados/b2-$d.json"
+done
+```
+
+Uma execução por domínio, sem `--force`: a §2.2 vale inteira contra loja de
+terceiro. `--from-br` é dispensável — `FLY_REGION=gru` já declara a origem
+desde o `CAL-46`.
+
+### Orçamento
+
+1 ciclo declarado, 1 consumido. Fechado para a parte estrutural; a parte contra
+loja real fica pendente por bloqueio de ambiente, não por falta de orçamento.
